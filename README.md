@@ -180,4 +180,63 @@ If I had more time, I would add:
 
 ---
 
+## Features
+
+### 1. Event RSVP System
+
+Users can RSVP to events with **“I’m going”** or **“Maybe”** and update their choice at any time.
+
+**What it does**
+
+- Allows each user to RSVP per event with a status of `going` or `maybe`
+- Displays real-time RSVP counts on each event card
+- Changes button appearance based on the user’s current RSVP status
+- Stores RSVPs centrally in the database so officers can see engagement
+
+**How it’s implemented**
+
+- `attendance` table now includes a `status` field
+- `POST /events/<event_id>/rsvp` route in `app.py` handles creating/updating RSVPs
+- `events()` route aggregates RSVP counts with SQL (e.g., `COUNT(CASE WHEN status = 'going' THEN 1 END)`)
+- `events.html` template shows RSVP statistics and interactive buttons
+
+---
+
+### 2. Search and Filter for Events
+
+The Events page now supports searching and filtering so members can quickly find what they need.
+
+**What it does**
+
+- Full-text search by event title and description via a query box
+- Filter by event type (e.g., Meeting, Practice, Fundraiser)
+- Event types in the dropdown are pulled dynamically from the database
+- Active filters are reflected in the UI with a “Clear filters” option
+
+**How it’s implemented**
+
+- `events()` route reads query parameters `q` (search) and `type` (filter)
+- Builds the SQL `WHERE` clause conditionally based on those parameters
+- Fetches distinct `event_type` values from the database for the filter dropdown
+- `events.html` uses a search card with an input and `<select>` for filtering
+
+---
+
+### 3. Improved Events UI
+
+The Events page has been redesigned to be more usable and mobile-friendly.
+
+**What it includes**
+
+- Responsive card-based layout for events
+- Search/filter card at the top of the page
+- On each event card:
+  - Title, type, description
+  - Date/time and location
+  - Created-by username
+  - RSVP statistics (Going / Maybe)
+  - RSVP buttons with visual feedback
+- Officers see an additional “Manage Attendance” button for check-ins
+
+
 # End of README

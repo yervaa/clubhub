@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from cs50 import SQL
 from flask import Flask, flash, redirect, render_template, request, session
@@ -9,16 +10,31 @@ from functools import wraps
 # Configure application
 app = Flask(__name__)
 
-# Ensure templates are auto-reloaded
-app.config["TEMPLATES_AUTO_RELOAD"] = True
-
-# Configure session to use filesystem (instead of signed cookies)
-app.config["SESSION_PERMANENT"] = False
-app.config["SESSION_TYPE"] = "filesystem"
+# Configure Flask settings
+app.config.update(
+    TEMPLATES_AUTO_RELOAD=True,
+    SESSION_PERMANENT=False,
+    SESSION_TYPE="filesystem",
+)
 Session(app)
 
 # Configure CS50 Library to use SQLite database
 db = SQL("sqlite:///clubhub.db")
+
+
+# Custom Jinja2 filter for formatting datetime strings
+@app.template_filter('format_datetime')
+def format_datetime(value):
+    """Format ISO datetime string (YYYY-MM-DDTHH:MM) to readable format"""
+    if not value:
+        return ""
+    try:
+        # Parse the ISO format string (2025-12-22T09:00)
+        dt = datetime.fromisoformat(value)
+        # Return formatted: "Dec 22, 2025 at 9:00 AM"
+        return dt.strftime("%b %d, %Y at %-I:%M %p").replace("24:00", "12:00 AM")
+    except (ValueError, AttributeError):
+        return value
 
 
 def login_required(f):
@@ -213,19 +229,89 @@ def logout():
 @app.route("/events")
 @login_required
 def events():
-    """Show list of events"""
-    events = db.execute(
+    """Show list of events with search and filter"""
+    q = request.args.get("q", "").strip()
+    event_type = request.args.get("type", "").strip()
+
+    sql = (
         "SELECT e.id, e.title, e.description, e.event_type, "
-        "       e.start_time, e.end_time, e.location, u.username AS author "
-        "FROM events e JOIN users u ON e.created_by = u.id "
-        "ORDER BY datetime(e.start_time) ASC"
+        "       e.start_time, e.end_time, e.location, u.username AS author, "
+        "       COUNT(CASE WHEN a.status = 'going' THEN 1 END) AS going_count, "
+        "       COUNT(CASE WHEN a.status = 'maybe' THEN 1 END) AS maybe_count, "
+        "       (SELECT status FROM attendance WHERE user_id = ? AND event_id = e.id) AS user_status "
+        "FROM events e "
+        "JOIN users u ON e.created_by = u.id "
+        "LEFT JOIN attendance a ON e.id = a.event_id "
+        "WHERE 1=1 "
+    )
+    params = [session["user_id"]]
+
+    if q:
+        sql += "AND (e.title LIKE ? OR e.description LIKE ?) "
+        params += [f"%{q}%", f"%{q}%"]
+
+    if event_type:
+        sql += "AND e.event_type = ? "
+        params.append(event_type)
+
+    sql += "GROUP BY e.id ORDER BY datetime(e.start_time) ASC"
+
+    events_list = db.execute(sql, *params)
+
+    # Get all event types for filter dropdown
+    all_types = db.execute(
+        "SELECT DISTINCT event_type FROM events WHERE event_type IS NOT NULL ORDER BY event_type"
+    )
+    event_types = [row["event_type"] for row in all_types]
+
+    user_rows = db.execute(
+        "SELECT is_officer FROM users WHERE id = ?", session["user_id"]
+    )
+    
+    # If user not found, log them out
+    if len(user_rows) == 0:
+        session.clear()
+        flash("Your session has expired. Please log in again.", "danger")
+        return redirect("/login")
+    
+    user = user_rows[0]
+
+    return render_template(
+        "events.html",
+        events=events_list,
+        is_officer=user["is_officer"],
+        q=q,
+        event_type=event_type,
+        event_types=event_types,
     )
 
-    user = db.execute(
-        "SELECT is_officer FROM users WHERE id = ?", session["user_id"]
-    )[0]
 
-    return render_template("events.html", events=events, is_officer=user["is_officer"])
+# RSVP to Event
+@app.route("/events/<int:event_id>/rsvp", methods=["POST"])
+@login_required
+def rsvp(event_id):
+    """RSVP to an event (going or maybe)"""
+    # Check if event exists
+    event_rows = db.execute("SELECT id FROM events WHERE id = ?", event_id)
+    if len(event_rows) == 0:
+        flash("Event not found.", "danger")
+        return redirect("/events")
+
+    status = request.form.get("status", "").strip()
+
+    if status not in ("going", "maybe"):
+        flash("Invalid RSVP status.", "danger")
+        return redirect("/events")
+
+    db.execute(
+        "INSERT OR REPLACE INTO attendance (user_id, event_id, status) VALUES (?, ?, ?)",
+        session["user_id"],
+        event_id,
+        status,
+    )
+
+    flash(f"RSVP updated to '{status}'!", "success")
+    return redirect("/events")
 
 
 # Create Event (officers only)

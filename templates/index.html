@@ -1,40 +1,74 @@
 {% extends "layout.html" %}
 
-{% block title %}
-  Home
-{% endblock %}
+{% block title %}Home{% endblock %}
 
 {% block main %}
-  <h1>ClubHub</h1>
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <h1>🎉 Welcome to ClubHub</h1>
+      <p class="lead text-muted">Your go-to platform for managing club events and announcements</p>
+    </div>
+  </div>
 
-  <h2 class="mt-4">Announcements</h2>
-  {% if announcements %}
-    <ul class="list-group mb-4">
-      {% for a in announcements %}
-        <li class="list-group-item">
-          <h5>{{ a.title }}</h5>
-          <small class="text-muted">
-            by {{ a.author }} • {{ a.created_at }}
-          </small>
-          <p class="mt-2 mb-0">{{ a.body }}</p>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p>No announcements yet.</p>
-  {% endif %}
+  <div class="row">
+    <!-- Announcements Section -->
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0">📢 Latest Announcements</h5>
+        </div>
+        <div class="card-body">
+          {% if announcements %}
+            <div class="list-group list-group-flush">
+              {% for a in announcements %}
+                <div class="list-group-item px-0">
+                  <h6 class="mb-1">{{ a.title }}</h6>
+                  <small class="text-muted d-block mb-2">
+                    by <strong>{{ a.author }}</strong> • {{ a.created_at }}
+                  </small>
+                  <p class="mb-0">{{ a.body }}</p>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No announcements yet.</p>
+          {% endif %}
+        </div>
+        <div class="card-footer bg-light">
+          <a href="/announcements" class="btn btn-sm btn-outline-primary">View All Announcements</a>
+        </div>
+      </div>
+    </div>
 
-  <h2>Upcoming Events</h2>
-  {% if upcoming_events %}
-    <ul class="list-group">
-      {% for e in upcoming_events %}
-        <li class="list-group-item">
-          <strong>{{ e.title }}</strong><br>
-          {{ e.start_time }}{% if e.location %} • {{ e.location }}{% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p>No upcoming events.</p>
-  {% endif %}
+    <!-- Upcoming Events Section -->
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0">📅 Upcoming Events</h5>
+        </div>
+        <div class="card-body">
+          {% if upcoming_events %}
+            <div class="list-group list-group-flush">
+              {% for e in upcoming_events %}
+                <div class="list-group-item px-0">
+                  <h6 class="mb-1">{{ e.title }}</h6>
+                  <small class="text-muted d-block">
+                    <strong>{{ e.start_time | format_datetime }}</strong>
+                    {% if e.location %}
+                      • 📍 {{ e.location }}
+                    {% endif %}
+                  </small>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No upcoming events scheduled.</p>
+          {% endif %}
+        </div>
+        <div class="card-footer bg-light">
+          <a href="/events" class="btn btn-sm btn-outline-primary">View All Events</a>
+        </div>
+      </div>
+    </div>
+  </div>
 {% endblock %}

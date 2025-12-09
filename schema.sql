@@ -30,12 +30,14 @@ CREATE TABLE IF NOT EXISTS announcements (
     FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
--- Attendance table for tracking who came to which events
+-- Attendance table for tracking RSVPs and check-ins
 CREATE TABLE IF NOT EXISTS attendance (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     event_id INTEGER NOT NULL,
-    checked_in_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'going' CHECK (status IN ('going', 'maybe', 'not_going')),
+    checked_in_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (event_id) REFERENCES events(id),
     UNIQUE (user_id, event_id)

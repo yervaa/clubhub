@@ -1,37 +1,66 @@
 {% extends "layout.html" %}
 
-{% block title %}
-  Dashboard
-{% endblock %}
+{% block title %}Dashboard{% endblock %}
 
 {% block main %}
-  <h1>Dashboard</h1>
+  <h1>👤 Dashboard</h1>
 
-  <div class="mb-4">
-    <h4>Hello, {{ user.username }}!</h4>
-    <p>
-      <strong>Total points:</strong> {{ user.points }}<br>
-      <strong>Events attended:</strong> {{ total_attended }}<br>
-      <strong>Role:</strong>
-      {% if user.is_officer %}
-        Officer
-      {% else %}
-        Member
-      {% endif %}
-    </p>
+  <!-- User Profile Card -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card border-left-primary shadow">
+        <div class="card-body">
+          <h4 class="mb-3">Welcome, {{ user.username }}! 👋</h4>
+          <div class="row">
+            <div class="col-sm-6 mb-3">
+              <small class="text-muted d-block">Role</small>
+              <h6 class="mb-0">
+                {% if user.is_officer %}
+                  🔑 Officer
+                {% else %}
+                  👥 Member
+                {% endif %}
+              </h6>
+            </div>
+            <div class="col-sm-6 mb-3">
+              <small class="text-muted d-block">Total Points</small>
+              <h6 class="mb-0">⭐ {{ user.points }}</h6>
+            </div>
+            <div class="col-sm-6">
+              <small class="text-muted d-block">Events Attended</small>
+              <h6 class="mb-0">📅 {{ total_attended }}</h6>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <h3>Recent Events Attended</h3>
+  <!-- Recent Events Section -->
+  <h3>📅 Recent Events Attended</h3>
   {% if attended_events %}
-    <ul class="list-group">
+    <div class="row">
       {% for e in attended_events %}
-        <li class="list-group-item">
-          <strong>{{ e.title }}</strong><br>
-          {{ e.start_time }}{% if e.location %} • {{ e.location }}{% endif %}
-        </li>
+        <div class="col-md-6 mb-3">
+          <div class="card">
+            <div class="card-body">
+              <h6 class="card-title">{{ e.title }}</h6>
+              <small class="text-muted d-block mb-2">
+                <strong>📅</strong> {{ e.start_time | format_datetime }}
+              </small>
+              {% if e.location %}
+                <small class="text-muted d-block">
+                  <strong>📍</strong> {{ e.location }}
+                </small>
+              {% endif %}
+            </div>
+          </div>
+        </div>
       {% endfor %}
-    </ul>
+    </div>
   {% else %}
-    <p>You haven't attended any events yet.</p>
+    <div class="alert alert-info">
+      <p class="mb-0">You haven't attended any events yet. Check out our <a href="/events" class="alert-link">upcoming events</a>!</p>
+    </div>
   {% endif %}
 {% endblock %}

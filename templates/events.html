@@ -1,39 +1,146 @@
 {% extends "layout.html" %}
 
-{% block title %}
-  Events
-{% endblock %}
+{% block title %}Events{% endblock %}
 
 {% block main %}
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Events</h1>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-0">📅 Events</h1>
+      <p class="text-muted mb-0">Discover and manage upcoming club events</p>
+    </div>
     {% if is_officer %}
-      <a href="/events/new" class="btn btn-primary">New Event</a>
+      <a href="/events/new" class="btn btn-primary">
+        ➕ New Event
+      </a>
     {% endif %}
+  </div>
+
+  <!-- Search & Filter Section -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <form method="get" action="/events" class="row g-3">
+        <div class="col-md-6">
+          <input
+            type="text"
+            name="q"
+            class="form-control"
+            placeholder="🔍 Search events by title or description..."
+            value="{{ q or '' }}"
+          >
+        </div>
+        <div class="col-md-4">
+          <select name="type" class="form-select">
+            <option value="">📋 All Event Types</option>
+            {% for et in event_types %}
+              <option value="{{ et }}" {% if event_type == et %}selected{% endif %}>
+                {{ et }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">Search</button>
+        </div>
+      </form>
+      {% if q or event_type %}
+        <div class="mt-3">
+          <small class="text-muted">
+            Showing results for
+            {% if q %}<strong>"{{ q }}"</strong>{% endif %}
+            {% if q and event_type %} in {% endif %}
+            {% if event_type %}<strong>{{ event_type }}</strong>{% endif %}
+            <a href="/events" class="ms-2">Clear filters</a>
+          </small>
+        </div>
+      {% endif %}
+    </div>
   </div>
 
   {% if events %}
     <div class="row">
-      {% for event in events %}
-        <div class="col-md-6 mb-4">
-          <div class="card">
+      {% for e in events %}
+        <div class="col-md-6 col-lg-4 mb-3">
+          <div class="card h-100">
             <div class="card-body">
-              <h5 class="card-title">{{ event.title }}</h5>
-              <p class="card-text">{{ event.description }}</p>
-              <p class="card-text"><small class="text-muted">By {{ event.author }}</small></p>
-              <p class="card-text"><small>{{ event.start_time }} - {{ event.end_time }}</small></p>
-              <p class="card-text"><small>Location: {{ event.location }}</small></p>
-              {% if is_officer %}
-                <a href="/events/{{ event.id }}/attendance" class="btn btn-sm btn-outline-secondary mt-2">
-                  Manage Attendance
-                </a>
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h5 class="card-title">{{ e.title }}</h5>
+                {% if e.event_type %}
+                  <span class="badge bg-info text-dark">{{ e.event_type }}</span>
+                {% endif %}
+              </div>
+              {% if e.description %}
+                <p class="card-text small mb-2">{{ e.description }}</p>
               {% endif %}
+              <div class="text-muted small mb-3">
+                <p class="mb-1">
+                  <strong>📅 Start:</strong> {{ e.start_time | format_datetime }}
+                </p>
+                {% if e.location %}
+                  <p class="mb-1">
+                    <strong>📍 Location:</strong> {{ e.location }}
+                  </p>
+                {% endif %}
+                <p class="mb-0">
+                  <strong>👤 By:</strong> {{ e.author }}
+                </p>
+              </div>
+
+              <!-- RSVP Stats -->
+              <div class="d-flex gap-2 mb-3 text-center small">
+                <div class="flex-grow-1 p-2 bg-light rounded">
+                  <strong class="d-block">{{ e.going_count or 0 }}</strong>
+                  <small class="text-muted">Going</small>
+                </div>
+                <div class="flex-grow-1 p-2 bg-light rounded">
+                  <strong class="d-block">{{ e.maybe_count or 0 }}</strong>
+                  <small class="text-muted">Maybe</small>
+                </div>
+              </div>
+
+              <!-- RSVP Buttons -->
+              <div class="d-grid gap-2">
+                <form action="/events/{{ e.id }}/rsvp" method="post" class="mb-2">
+                  <input type="hidden" name="status" value="going">
+                  <button
+                    type="submit"
+                    class="btn btn-sm w-100 {% if e.user_status == 'going' %}btn-success{% else %}btn-outline-success{% endif %}"
+                  >
+                    👍 I'm Going
+                  </button>
+                </form>
+                <form action="/events/{{ e.id }}/rsvp" method="post">
+                  <input type="hidden" name="status" value="maybe">
+                  <button
+                    type="submit"
+                    class="btn btn-sm w-100 {% if e.user_status == 'maybe' %}btn-warning{% else %}btn-outline-secondary{% endif %}"
+                  >
+                    🤔 Maybe
+                  </button>
+                </form>
+              </div>
             </div>
+
+            {% if is_officer %}
+              <div class="card-footer bg-light">
+                <a href="/events/{{ e.id }}/attendance" class="btn btn-sm btn-outline-secondary w-100">
+                  ✓ Manage Attendance
+                </a>
+              </div>
+            {% endif %}
           </div>
         </div>
       {% endfor %}
     </div>
   {% else %}
-    <p>No events yet.</p>
+    <div class="alert alert-info text-center py-5">
+      <h5>No events found</h5>
+      <p class="mb-0">
+        {% if q or event_type %}
+          Try adjusting your search or filters.
+        {% else %}
+          Check back soon for upcoming events!
+        {% endif %}
+      </p>
+    </div>
   {% endif %}
 {% endblock %}
