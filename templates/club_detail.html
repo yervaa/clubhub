@@ -14,6 +14,11 @@
   </div>
 
   <h4>Upcoming Events</h4>
+  {% if is_officer %}
+    <div class="mb-3 text-end">
+      <a href="/clubs/{{ club.id }}/members" class="btn btn-sm btn-outline-secondary">Manage Members</a>
+    </div>
+  {% endif %}
   {% if events %}
     <div class="list-group">
       {% for e in events %}

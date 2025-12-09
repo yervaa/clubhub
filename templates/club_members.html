@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+
+{% block title %}Manage Members - {{ club.name }}{% endblock %}
+
+{% block main %}
+  <h1 class="mb-3">Manage Members — {{ club.name }}</h1>
+
+  <form method="post">
+    <div class="mb-3">
+      <label for="user_id" class="form-label">User</label>
+      <select id="user_id" name="user_id" class="form-select" required>
+        <option value="">Select a user</option>
+        {% for u in users %}
+          <option value="{{ u.id }}">{{ u.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="role" class="form-label">Role</label>
+      <select id="role" name="role" class="form-select">
+        <option value="student">Student</option>
+        <option value="officer">Officer</option>
+      </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Member</button>
+  </form>
+
+  <hr />
+
+  <h4 class="mt-4">Current Members</h4>
+  {% if members %}
+    <div class="list-group">
+      {% for m in members %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong>{{ m.username }}</strong>
+            <div class="small text-muted">Role: {{ m.role }}</div>
+          </div>
+          <form method="post" action="/clubs/{{ club.id }}/members/remove" onsubmit="return confirm('Remove member?');">
+            <input type="hidden" name="user_id" value="{{ m.user_id }}">
+            <button class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-info">No members yet.</div>
+  {% endif %}
+
+{% endblock %}

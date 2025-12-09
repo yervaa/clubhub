@@ -39,6 +39,14 @@ except Exception:
         # Some SQLite builds may not allow ALTER TABLE in this environment; ignore if fails
         pass
 
+# Ensure club_membership table exists (user roles per club)
+try:
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS club_membership (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, club_id INTEGER NOT NULL, role TEXT NOT NULL DEFAULT 'student', UNIQUE(user_id, club_id), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(club_id) REFERENCES clubs(id))"
+    )
+except Exception:
+    pass
+
 
 # Custom Jinja2 filter for formatting datetime strings
 @app.template_filter('format_datetime')
@@ -474,7 +482,81 @@ def club_detail(club_id):
         # Fallback if club_id isn't present: no events
         events = []
 
-    return render_template("club_detail.html", club=club, events=events)
+    # Check if current user is an officer globally or for this club
+    is_officer_global = db.execute("SELECT is_officer FROM users WHERE id = ?", session.get("user_id"))[0]["is_officer"]
+    # Check club-specific role
+    membership = db.execute("SELECT role FROM club_membership WHERE user_id = ? AND club_id = ?", session.get("user_id"), club_id)
+    is_club_officer = len(membership) > 0 and membership[0]["role"] == "officer"
+
+    return render_template("club_detail.html", club=club, events=events, is_officer=(is_officer_global == 1 or is_club_officer))
+
+
+# Manage club members (officers only)
+@app.route("/clubs/<int:club_id>/members", methods=["GET", "POST"])
+@login_required
+def manage_club_members(club_id):
+    # Only allow if user is global officer or club officer
+    user_id = session.get("user_id")
+    user = db.execute("SELECT is_officer FROM users WHERE id = ?", user_id)[0]
+    membership = db.execute("SELECT role FROM club_membership WHERE user_id = ? AND club_id = ?", user_id, club_id)
+    is_allowed = (user and user["is_officer"] == 1) or (len(membership) > 0 and membership[0]["role"] == "officer")
+    if not is_allowed:
+        flash("You do not have permission to manage members for this club.", "danger")
+        return redirect(f"/clubs/{club_id}")
+
+    club = db.execute("SELECT * FROM clubs WHERE id = ?", club_id)
+    if len(club) == 0:
+        flash("Club not found.", "danger")
+        return redirect("/clubs")
+    club = club[0]
+
+    # POST: add/update membership
+    if request.method == "POST":
+        uid = request.form.get("user_id")
+        role = request.form.get("role", "student")
+        if not uid:
+            flash("User is required.", "danger")
+            return redirect(f"/clubs/{club_id}/members")
+        try:
+            db.execute(
+                "INSERT OR REPLACE INTO club_membership (user_id, club_id, role) VALUES (?, ?, ?)",
+                int(uid), club_id, role,
+            )
+            flash("Membership updated.", "success")
+        except Exception:
+            flash("Could not update membership.", "danger")
+        return redirect(f"/clubs/{club_id}/members")
+
+    # GET: show form and members
+    users = db.execute("SELECT id, username FROM users ORDER BY username")
+    members = db.execute(
+        "SELECT cm.user_id, cm.role, u.username FROM club_membership cm JOIN users u ON cm.user_id = u.id WHERE cm.club_id = ? ORDER BY u.username",
+        club_id,
+    )
+
+    return render_template("club_members.html", club=club, users=users, members=members)
+
+
+@app.route("/clubs/<int:club_id>/members/remove", methods=["POST"])
+@login_required
+def remove_club_member(club_id):
+    user_id = session.get("user_id")
+    user = db.execute("SELECT is_officer FROM users WHERE id = ?", user_id)[0]
+    membership = db.execute("SELECT role FROM club_membership WHERE user_id = ? AND club_id = ?", user_id, club_id)
+    is_allowed = (user and user["is_officer"] == 1) or (len(membership) > 0 and membership[0]["role"] == "officer")
+    if not is_allowed:
+        flash("You do not have permission to manage members for this club.", "danger")
+        return redirect(f"/clubs/{club_id}")
+
+    uid = request.form.get("user_id")
+    if uid:
+        try:
+            db.execute("DELETE FROM club_membership WHERE user_id = ? AND club_id = ?", int(uid), club_id)
+            flash("Member removed.", "success")
+        except Exception:
+            flash("Could not remove member.", "danger")
+
+    return redirect(f"/clubs/{club_id}/members")
 
 
 # My RSVPs - list events the current user has RSVP'd to
