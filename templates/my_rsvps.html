@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+
+{% block title %}My RSVPs{% endblock %}
+
+{% block main %}
+  <h1 class="mb-3">🎫 My RSVPs</h1>
+
+  {% if events %}
+    <div class="row">
+      {% for e in events %}
+        <div class="col-md-6 mb-3">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">{{ e.title }}</h5>
+              <p class="small text-muted mb-1">{{ e.start_time | format_datetime }}</p>
+              {% if e.location %}
+                <p class="small text-muted">📍 {{ e.location }}</p>
+              {% endif %}
+              <p class="mt-2"><strong>Status:</strong> {{ e.status }}</p>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-info">You have no RSVPs yet.</div>
+  {% endif %}
+{% endblock %}

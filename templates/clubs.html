@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+
+{% block title %}Clubs{% endblock %}
+
+{% block main %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-0">🏛️ Clubs</h1>
+      <p class="text-muted mb-0">Browse all registered clubs</p>
+    </div>
+  </div>
+
+  {% if clubs %}
+    <div class="list-group">
+      {% for c in clubs %}
+        <a href="/clubs/{{ c.id }}" class="list-group-item list-group-item-action">
+          <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1">{{ c.name }}</h5>
+          </div>
+          <p class="mb-1 text-muted">{{ c.description }}</p>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-info">No clubs found.</div>
+  {% endif %}
+{% endblock %}

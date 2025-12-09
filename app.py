@@ -21,6 +21,24 @@ Session(app)
 # Configure CS50 Library to use SQLite database
 db = SQL("sqlite:///clubhub.db")
 
+# Ensure clubs table exists and events table has club_id column (migration-safe)
+try:
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS clubs (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, sponsor TEXT)"
+    )
+except Exception:
+    pass
+
+# Add club_id column to events if it's missing
+try:
+    db.execute("SELECT club_id FROM events LIMIT 1")
+except Exception:
+    try:
+        db.execute("ALTER TABLE events ADD COLUMN club_id INTEGER")
+    except Exception:
+        # Some SQLite builds may not allow ALTER TABLE in this environment; ignore if fails
+        pass
+
 
 # Custom Jinja2 filter for formatting datetime strings
 @app.template_filter('format_datetime')
@@ -423,6 +441,59 @@ def announcements():
     )
 
     return render_template("announcements.html", announcements=announcements)
+
+
+# Clubs list
+@app.route("/clubs")
+@login_required
+def clubs():
+    """Show list of clubs"""
+    clubs = db.execute(
+        "SELECT id, name, description FROM clubs ORDER BY name ASC"
+    )
+    return render_template("clubs.html", clubs=clubs)
+
+
+# Club detail
+@app.route("/clubs/<int:club_id>")
+@login_required
+def club_detail(club_id):
+    rows = db.execute("SELECT * FROM clubs WHERE id = ?", club_id)
+    if len(rows) == 0:
+        flash("Club not found.", "danger")
+        return redirect("/clubs")
+    club = rows[0]
+
+    # Get upcoming events for this club (if events.club_id exists)
+    try:
+        events = db.execute(
+            "SELECT id, title, start_time, location FROM events WHERE club_id = ? ORDER BY datetime(start_time) ASC",
+            club_id,
+        )
+    except Exception:
+        # Fallback if club_id isn't present: no events
+        events = []
+
+    return render_template("club_detail.html", club=club, events=events)
+
+
+# My RSVPs - list events the current user has RSVP'd to
+@app.route("/my_rsvps")
+@login_required
+def my_rsvps():
+    """Show events the user has RSVP'd to (going/maybe)"""
+    user_id = session.get("user_id")
+
+    rows = db.execute(
+        "SELECT e.id, e.title, e.start_time, e.location, a.status "
+        "FROM attendance a JOIN events e ON a.event_id = e.id "
+        "WHERE a.user_id = ? "
+        "GROUP BY e.id "
+        "ORDER BY datetime(e.start_time) ASC",
+        user_id,
+    )
+
+    return render_template("my_rsvps.html", events=rows)
 
 
 # Create Announcement (officers only)
