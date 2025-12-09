@@ -379,6 +379,52 @@ def new_event():
     return render_template("new_event.html")
 
 
+# Edit Event (officers only)
+@app.route("/events/<int:event_id>/edit", methods=["GET", "POST"])
+@login_required
+@officer_required
+def edit_event(event_id):
+    """Edit an existing event"""
+    rows = db.execute("SELECT * FROM events WHERE id = ?", event_id)
+    if len(rows) != 1:
+        flash("Event not found.", "danger")
+        return redirect("/events")
+
+    event = rows[0]
+
+    if request.method == "POST":
+        title = request.form.get("title")
+        description = request.form.get("description")
+        event_type = request.form.get("event_type")
+        start_time = request.form.get("start_time")
+        end_time = request.form.get("end_time")
+        location = request.form.get("location")
+
+        if not title or not start_time:
+            flash("Title and Start Time are required.", "danger")
+            return redirect(f"/events/{event_id}/edit")
+
+        try:
+            db.execute(
+                "UPDATE events SET title = ?, description = ?, event_type = ?, start_time = ?, end_time = ?, location = ? WHERE id = ?",
+                title,
+                description,
+                event_type,
+                start_time,
+                end_time,
+                location,
+                event_id,
+            )
+            flash("Event updated successfully!", "success")
+        except Exception:
+            flash("Could not update event.", "danger")
+
+        return redirect("/events")
+
+    # GET -> render prefilled form
+    return render_template("edit_event.html", event=event)
+
+
 # Manage Attendance (officers only)
 @app.route("/events/<int:event_id>/attendance", methods=["GET", "POST"])
 @login_required
