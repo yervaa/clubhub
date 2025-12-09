@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Announcements
+{% endblock %}
+
+{% block main %}
+  <h1>Announcements</h1>
+  
+  <a href="/announcements/new" class="btn btn-primary mb-3">Create Announcement</a>
+
+  {% if announcements %}
+    {% for announcement in announcements %}
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">{{ announcement.title }}</h5>
+          <p class="card-text">{{ announcement.body }}</p>
+          <p class="card-text"><small class="text-muted">By {{ announcement.author }} on {{ announcement.created_at }}</small></p>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>No announcements yet.</p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Attendance - {{ event.title }}
+{% endblock %}
+
+{% block main %}
+  <h1>Attendance for "{{ event.title }}"</h1>
+  <p>
+    {{ event.start_time }}{% if event.location %} • {{ event.location }}{% endif %}
+  </p>
+
+  <form action="/events/{{ event.id }}/attendance" method="post" class="mt-3">
+    <div class="mb-3">
+      <p>Select the members who attended:</p>
+      <div class="list-group">
+        {% for u in users %}
+          <label class="list-group-item">
+            <input
+              class="form-check-input me-1"
+              type="checkbox"
+              name="attended"
+              value="{{ u.id }}"
+              {% if u.id in attended_ids %}checked{% endif %}
+            >
+            {{ u.username }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button class="btn btn-success" type="submit">Save Attendance</button>
+    <a href="/events" class="btn btn-secondary ms-2">Cancel</a>
+  </form>
+{% endblock %}

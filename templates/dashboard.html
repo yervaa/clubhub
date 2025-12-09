@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Dashboard
+{% endblock %}
+
+{% block main %}
+  <h1>Dashboard</h1>
+
+  <div class="mb-4">
+    <h4>Hello, {{ user.username }}!</h4>
+    <p>
+      <strong>Total points:</strong> {{ user.points }}<br>
+      <strong>Events attended:</strong> {{ total_attended }}<br>
+      <strong>Role:</strong>
+      {% if user.is_officer %}
+        Officer
+      {% else %}
+        Member
+      {% endif %}
+    </p>
+  </div>
+
+  <h3>Recent Events Attended</h3>
+  {% if attended_events %}
+    <ul class="list-group">
+      {% for e in attended_events %}
+        <li class="list-group-item">
+          <strong>{{ e.title }}</strong><br>
+          {{ e.start_time }}{% if e.location %} • {{ e.location }}{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>You haven't attended any events yet.</p>
+  {% endif %}
+{% endblock %}

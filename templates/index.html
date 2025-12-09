@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Home
+{% endblock %}
+
+{% block main %}
+  <h1>ClubHub</h1>
+
+  <h2 class="mt-4">Announcements</h2>
+  {% if announcements %}
+    <ul class="list-group mb-4">
+      {% for a in announcements %}
+        <li class="list-group-item">
+          <h5>{{ a.title }}</h5>
+          <small class="text-muted">
+            by {{ a.author }} • {{ a.created_at }}
+          </small>
+          <p class="mt-2 mb-0">{{ a.body }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No announcements yet.</p>
+  {% endif %}
+
+  <h2>Upcoming Events</h2>
+  {% if upcoming_events %}
+    <ul class="list-group">
+      {% for e in upcoming_events %}
+        <li class="list-group-item">
+          <strong>{{ e.title }}</strong><br>
+          {{ e.start_time }}{% if e.location %} • {{ e.location }}{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No upcoming events.</p>
+  {% endif %}
+{% endblock %}
