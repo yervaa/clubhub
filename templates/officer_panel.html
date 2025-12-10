@@ -32,7 +32,7 @@
                 </div>
                 <div class="d-flex flex-wrap gap-2 justify-content-end">
                   <a class="btn btn-sm btn-outline-primary" href="/clubs/{{ c.id }}">View</a>
-                  <a class="btn btn-sm btn-outline-secondary" href="/clubs/{{ c.id }}/members">Members</a>
+                  <a class="btn btn-sm btn-outline" href="/clubs/{{ c.id }}/members">Members</a>
                   <a class="btn btn-sm btn-outline-primary" href="/clubs/{{ c.id }}/roles">Roles</a>
                   <form method="post" action="/clubs/{{ c.id }}/delete" onsubmit="return confirm('Delete this club? This will remove its events and memberships.');">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
@@ -71,7 +71,7 @@
                 {% endif %}
                 <div class="mt-2 d-flex flex-wrap gap-2">
                   <a class="btn btn-sm btn-outline-primary" href="/events/{{ e.id }}/edit">Edit</a>
-                  <a class="btn btn-sm btn-outline-secondary" href="/events/{{ e.id }}/attendance">Attendance</a>
+                  <a class="btn btn-sm btn-outline" href="/events/{{ e.id }}/attendance">Attendance</a>
                   <form method="post" action="/events/{{ e.id }}/delete" onsubmit="return confirm('Delete this event? This cannot be undone.');">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>

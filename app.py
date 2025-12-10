@@ -14,8 +14,14 @@ from functools import wraps
 app = Flask(__name__)
 
 # Environment-driven settings
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///clubhub.db")
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
+def _normalize_db_url(url: str) -> str:
+    """Normalize DATABASE_URL for SQLAlchemy/cs50 (convert postgres:// to postgresql://)."""
+    if url and url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+DATABASE_URL = _normalize_db_url(os.getenv("DATABASE_URL", "sqlite:///clubhub.db"))
+SECRET_KEY = os.getenv("SECRET_KEY") or "dev-secret"
 DEBUG_MODE = os.getenv("DEBUG", "False").lower() == "true"
 SESSION_COOKIE_SECURE_FLAG = os.getenv("SESSION_COOKIE_SECURE", "False").lower() == "true"
 
@@ -363,6 +369,16 @@ def after_request(response):
     if SESSION_COOKIE_SECURE_FLAG:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     return response
+
+
+@app.before_request
+def csrf_protect():
+    """Simple CSRF protection using the session token already issued to forms."""
+    if request.method == "POST":
+        token = session.get("_csrf_token")
+        form_token = request.form.get("_csrf_token")
+        if not token or not form_token or token != form_token:
+            abort(400)
 
 
 # INDEX: show announcements + upcoming events
@@ -1622,9 +1638,6 @@ def delete_announcement(announcement_id):
     return redirect("/announcements")
 
 
-if __name__ == "__main__":
-    app.run(debug=DEBUG_MODE)
-# Error handlers
 @app.errorhandler(404)
 def not_found_error(e):
     return render_template("404.html"), 404
@@ -1634,3 +1647,7 @@ def not_found_error(e):
 def internal_error(e):
     app.logger.exception("Server error: %s", e)
     return render_template("500.html"), 500
+
+
+if __name__ == "__main__":
+    app.run(debug=DEBUG_MODE)

@@ -2,4 +2,4 @@ Flask==3.0.2
 Flask-Session==0.8.0
 cs50==9.4.0
 gunicorn==22.0.0
-alembic==1.13.2
+psycopg2-binary==2.9.9

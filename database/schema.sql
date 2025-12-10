@@ -1,4 +1,6 @@
--- Users table with officer flag and points
+-- ClubHub schema for SQLite/Postgres
+-- Run this to create a fresh database schema.
+
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -7,7 +9,6 @@ CREATE TABLE IF NOT EXISTS users (
     points INTEGER NOT NULL DEFAULT 0
 );
 
--- Clubs table
 CREATE TABLE IF NOT EXISTS clubs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -16,7 +17,6 @@ CREATE TABLE IF NOT EXISTS clubs (
     join_code TEXT
 );
 
--- Per-club roles with permissions
 CREATE TABLE IF NOT EXISTS club_roles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     club_id INTEGER NOT NULL,
@@ -35,7 +35,6 @@ CREATE TABLE IF NOT EXISTS club_roles (
 );
 CREATE INDEX IF NOT EXISTS idx_club_roles_club_id ON club_roles(club_id);
 
--- Events table (optionally tied to a club)
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -49,18 +48,21 @@ CREATE TABLE IF NOT EXISTS events (
     FOREIGN KEY (created_by) REFERENCES users(id),
     FOREIGN KEY (club_id) REFERENCES clubs(id)
 );
+CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time);
+CREATE INDEX IF NOT EXISTS idx_events_club_id ON events(club_id);
 
--- Announcements table
 CREATE TABLE IF NOT EXISTS announcements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     created_by INTEGER NOT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    club_id INTEGER,
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    FOREIGN KEY (club_id) REFERENCES clubs(id)
 );
+CREATE INDEX IF NOT EXISTS idx_announcements_created ON announcements(created_at);
 
--- Attendance table for tracking RSVPs and check-ins
 CREATE TABLE IF NOT EXISTS attendance (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -72,8 +74,9 @@ CREATE TABLE IF NOT EXISTS attendance (
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     UNIQUE (user_id, event_id)
 );
+CREATE INDEX IF NOT EXISTS idx_attendance_event_id ON attendance(event_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_user_id ON attendance(user_id);
 
--- Club membership with role assignments (student/officer)
 CREATE TABLE IF NOT EXISTS club_membership (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -84,10 +87,3 @@ CREATE TABLE IF NOT EXISTS club_membership (
     FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE,
     FOREIGN KEY (role_id) REFERENCES club_roles(id)
 );
-
--- Helpful indexes
-CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time);
-CREATE INDEX IF NOT EXISTS idx_events_club_id ON events(club_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_event_id ON attendance(event_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_user_id ON attendance(user_id);
-CREATE INDEX IF NOT EXISTS idx_announcements_created ON announcements(created_at);

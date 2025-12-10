@@ -88,12 +88,12 @@
       </div>
       <div class="d-flex justify-content-between align-items-center mt-3">
         {% if has_prev %}
-          <a class="btn btn-outline-secondary" href="/clubs/{{ club.id }}/members?page={{ page - 1 }}">← Previous</a>
+          <a class="btn btn-outline" href="/clubs/{{ club.id }}/members?page={{ page - 1 }}">← Previous</a>
         {% else %}
           <span></span>
         {% endif %}
         {% if has_next %}
-          <a class="btn btn-outline-secondary" href="/clubs/{{ club.id }}/members?page={{ page + 1 }}">Next →</a>
+          <a class="btn btn-outline" href="/clubs/{{ club.id }}/members?page={{ page + 1 }}">Next →</a>
         {% endif %}
       </div>
     {% else %}

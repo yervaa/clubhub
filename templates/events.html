@@ -114,7 +114,7 @@
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="status" value="maybe">
                 <button type="submit"
-                  class="btn btn-sm w-100 {% if e.user_status == 'maybe' %}btn-warning{% else %}btn-outline-secondary{% endif %}"
+                  class="btn btn-sm w-100 {% if e.user_status == 'maybe' %}btn-warning{% else %}btn-outline{% endif %}"
                 >🤔 Maybe</button>
               </form>
             </div>
@@ -127,7 +127,7 @@
                   ✏️ Edit Event
                 </a>
                 {% if is_officer or e.can_manage_attendance %}
-                <a href="/events/{{ e.id }}/attendance" class="btn btn-sm btn-outline-secondary w-100">
+                <a href="/events/{{ e.id }}/attendance" class="btn btn-sm btn-outline w-100">
                   ✓ Manage Attendance
                 </a>
                 {% endif %}
@@ -143,12 +143,12 @@
     </div>
     <div class="d-flex justify-content-between align-items-center mt-3">
       {% if has_prev %}
-        <a class="btn btn-outline-secondary" href="/events?page={{ page - 1 }}{% if q %}&q={{ q }}{% endif %}{% if event_type %}&type={{ event_type }}{% endif %}">← Previous</a>
+        <a class="btn btn-outline" href="/events?page={{ page - 1 }}{% if q %}&q={{ q }}{% endif %}{% if event_type %}&type={{ event_type }}{% endif %}">← Previous</a>
       {% else %}
         <span></span>
       {% endif %}
       {% if has_next %}
-        <a class="btn btn-outline-secondary" href="/events?page={{ page + 1 }}{% if q %}&q={{ q }}{% endif %}{% if event_type %}&type={{ event_type }}{% endif %}">Next →</a>
+        <a class="btn btn-outline" href="/events?page={{ page + 1 }}{% if q %}&q={{ q }}{% endif %}{% if event_type %}&type={{ event_type }}{% endif %}">Next →</a>
       {% endif %}
     </div>
   {% else %}

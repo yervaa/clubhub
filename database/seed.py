@@ -1,20 +1,26 @@
 """
-Seed script to load sample users, clubs, events, and memberships for demos.
+Seed script to load sample users, clubs, roles, memberships, events, and announcements.
 
 Usage:
-  export DATABASE_URL="sqlite:///clubhub.db"  # or your DB string
-  python seed.py
+  export DATABASE_URL="sqlite:///clubhub.db"  # or your Postgres URL
+  python database/seed.py
 """
 
 import os
+import secrets
 from datetime import datetime, timedelta
 
 from cs50 import SQL
 from werkzeug.security import generate_password_hash
-import secrets
 
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///clubhub.db")
+def normalize_db_url(url: str) -> str:
+    if url and url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+
+DATABASE_URL = normalize_db_url(os.getenv("DATABASE_URL", "sqlite:///clubhub.db"))
 db = SQL(DATABASE_URL)
 
 
@@ -22,35 +28,34 @@ def generate_join_code():
     return secrets.token_urlsafe(6)
 
 
-def get_or_create_user(username, password, is_officer=False):
-    hash_ = generate_password_hash(password)
+def upsert_user(username: str, password: str, is_officer: bool = False):
     db.execute(
         "INSERT INTO users (username, hash, is_officer) VALUES (?, ?, ?) "
         "ON CONFLICT(username) DO UPDATE SET hash = excluded.hash, is_officer = CASE WHEN users.is_officer = 1 THEN 1 ELSE excluded.is_officer END",
         username,
-        hash_,
+        generate_password_hash(password),
         1 if is_officer else 0,
     )
     return db.execute("SELECT id FROM users WHERE username = ?", username)[0]["id"]
 
 
-def get_or_create_club(name, description, sponsor=None):
+def upsert_club(name: str, description: str, sponsor: str | None, join_code: str):
     db.execute(
         "INSERT INTO clubs (name, description, sponsor, join_code) VALUES (?, ?, ?, ?) "
         "ON CONFLICT(name) DO UPDATE SET description = excluded.description, sponsor = excluded.sponsor, join_code = excluded.join_code",
         name,
         description,
         sponsor,
-        generate_join_code(),
+        join_code,
     )
     return db.execute("SELECT id FROM clubs WHERE name = ?", name)[0]["id"]
 
 
-def ensure_default_roles(club_id):
+def ensure_roles(club_id: int):
     roles = db.execute("SELECT id, name, is_president, is_default_member FROM club_roles WHERE club_id = ?", club_id)
+    ids = {r["name"]: r["id"] for r in roles}
     president_id = next((r["id"] for r in roles if r["is_president"] == 1), None)
     member_id = next((r["id"] for r in roles if r["is_default_member"] == 1), None)
-    officer_id = next((r["id"] for r in roles if r["name"] == "Officer"), None)
     if not president_id:
         db.execute(
             "INSERT INTO club_roles (club_id, name, description, can_manage_members, can_manage_roles, can_manage_events, can_manage_attendance, can_manage_announcements, can_manage_join_code, can_manage_budget, is_president) "
@@ -64,6 +69,7 @@ def ensure_default_roles(club_id):
             club_id,
         )
         member_id = db.execute("SELECT id FROM club_roles WHERE club_id = ? AND is_default_member = 1 ORDER BY id DESC LIMIT 1", club_id)[0]["id"]
+    officer_id = ids.get("Officer")
     if not officer_id:
         db.execute(
             "INSERT INTO club_roles (club_id, name, description, can_manage_events, can_manage_attendance, can_manage_announcements) VALUES (?, 'Officer', 'Supports club operations', 1, 1, 1)",
@@ -73,39 +79,13 @@ def ensure_default_roles(club_id):
     return {"president_id": president_id, "member_id": member_id, "officer_id": officer_id}
 
 
-def get_or_create_event(title, start_time, created_by, club_id=None, **kwargs):
-    rows = db.execute(
-        "SELECT id FROM events WHERE title = ? AND start_time = ?",
-        title,
-        start_time,
-    )
-    if rows:
-        return rows[0]["id"]
-
-    db.execute(
-        "INSERT INTO events (title, description, event_type, start_time, end_time, location, created_by, club_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        title,
-        kwargs.get("description"),
-        kwargs.get("event_type"),
-        start_time,
-        kwargs.get("end_time"),
-        kwargs.get("location"),
-        created_by,
-        club_id,
-    )
-    return db.execute(
-        "SELECT id FROM events WHERE title = ? AND start_time = ?", title, start_time
-    )[0]["id"]
-
-
-def ensure_membership(user_id, club_id, role="member"):
-    roles = ensure_default_roles(club_id)
-    role = (role or "member").lower()
+def set_membership(user_id: int, club_id: int, role: str):
+    roles = ensure_roles(club_id)
+    role_lower = (role or "member").lower()
     role_id = roles["member_id"]
-    if role == "president":
+    if role_lower == "president":
         role_id = roles["president_id"]
-    elif role == "officer":
+    elif role_lower == "officer":
         role_id = roles["officer_id"]
     db.execute(
         "INSERT INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?) "
@@ -116,7 +96,26 @@ def ensure_membership(user_id, club_id, role="member"):
     )
 
 
-def ensure_rsvp(user_id, event_id, status="going"):
+def upsert_event(title: str, start: str, created_by: int, club_id: int, **kwargs):
+    row = db.execute("SELECT id FROM events WHERE title = ? AND start_time = ?", title, start)
+    if row:
+        return row[0]["id"]
+    db.execute(
+        "INSERT INTO events (title, description, event_type, start_time, end_time, location, created_by, club_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        title,
+        kwargs.get("description"),
+        kwargs.get("event_type"),
+        start,
+        kwargs.get("end_time"),
+        kwargs.get("location"),
+        created_by,
+        club_id,
+    )
+    return db.execute("SELECT id FROM events WHERE title = ? AND start_time = ?", title, start)[0]["id"]
+
+
+def ensure_rsvp(user_id: int, event_id: int, status: str = "going"):
     db.execute(
         "INSERT INTO attendance (user_id, event_id, status) VALUES (?, ?, ?) "
         "ON CONFLICT(user_id, event_id) DO UPDATE SET status = excluded.status",
@@ -127,36 +126,31 @@ def ensure_rsvp(user_id, event_id, status="going"):
 
 
 def main():
-    # Users
-    alice_id = get_or_create_user("alice_officer", "password123", is_officer=True)
-    bob_id = get_or_create_user("bob_student", "password123", is_officer=False)
-    carol_id = get_or_create_user("carol_student", "password123", is_officer=False)
+    # Users (demo creds: admin/admin, pres/pres, off/off, mem/mem, student/student)
+    admin_id = upsert_user("admin", "admin", is_officer=True)
+    pres_id = upsert_user("pres", "pres", is_officer=False)
+    off_id = upsert_user("off", "off", is_officer=False)
+    mem_id = upsert_user("mem", "mem", is_officer=False)
+    student_id = upsert_user("student", "student", is_officer=False)
 
-    # Clubs
-    robotics_id = get_or_create_club(
-        "Robotics Club",
-        "Build and compete with robots.",
-        sponsor="Ms. Chen",
-    )
-    math_id = get_or_create_club(
-        "Math Club",
-        "Weekly problem-solving and competitions.",
-        sponsor="Mr. Patel",
-    )
-    art_id = get_or_create_club(
-        "Art Society",
-        "Sketching, painting, and gallery visits.",
-        sponsor="Ms. Lopez",
-    )
+    # Clubs with fixed join codes for testing
+    robotics_id = upsert_club("Robotics", "Build and compete with robots.", "Ms. Chen", "robot1")
+    chess_id = upsert_club("Chess", "Casual and competitive chess.", "Mr. Patel", "chess1")
+    art_id = upsert_club("Art", "Drawing and gallery visits.", "Ms. Lopez", "art1")
 
-    # Memberships (officer for robotics, students for others)
-    ensure_membership(alice_id, robotics_id, role="officer")
-    ensure_membership(bob_id, robotics_id, role="student")
-    ensure_membership(carol_id, math_id, role="student")
+    # Roles and memberships
+    set_membership(admin_id, robotics_id, "president")
+    set_membership(admin_id, chess_id, "officer")
+    set_membership(admin_id, art_id, "member")
 
-    # Events (dates are future-dated relative to now)
+    set_membership(pres_id, chess_id, "president")
+    set_membership(off_id, robotics_id, "officer")
+    set_membership(mem_id, robotics_id, "member")
+    set_membership(student_id, robotics_id, "member")
+
+    # Events
     now = datetime.utcnow()
-    events_data = [
+    events = [
         {
             "title": "Robotics Kickoff",
             "description": "Season overview and team assignments.",
@@ -167,31 +161,30 @@ def main():
             "club_id": robotics_id,
         },
         {
-            "title": "Math Contest Practice",
-            "description": "Prepare for AMC/ARML style problems.",
-            "event_type": "Practice",
+            "title": "Chess Ladder Night",
+            "description": "Match play to climb the ladder.",
+            "event_type": "Tournament",
             "start_time": (now + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M"),
-            "end_time": (now + timedelta(days=5, hours=1)).strftime("%Y-%m-%dT%H:%M"),
+            "end_time": (now + timedelta(days=5, hours=2)).strftime("%Y-%m-%dT%H:%M"),
             "location": "Room 104",
-            "club_id": math_id,
+            "club_id": chess_id,
         },
         {
-            "title": "Art Museum Visit",
-            "description": "Field trip to the downtown art museum.",
+            "title": "Art Gallery Visit",
+            "description": "Field trip to the downtown gallery.",
             "event_type": "Outing",
-            "start_time": (now + timedelta(days=10)).strftime("%Y-%m-%dT%H:%M"),
-            "end_time": (now + timedelta(days=10, hours=3)).strftime("%Y-%m-%dT%H:%M"),
+            "start_time": (now + timedelta(days=8)).strftime("%Y-%m-%dT%H:%M"),
+            "end_time": (now + timedelta(days=8, hours=3)).strftime("%Y-%m-%dT%H:%M"),
             "location": "Meet at main entrance",
             "club_id": art_id,
         },
     ]
-
     event_ids = []
-    for data in events_data:
-        eid = get_or_create_event(
+    for data in events:
+        eid = upsert_event(
             data["title"],
             data["start_time"],
-            created_by=alice_id,
+            created_by=admin_id,
             club_id=data["club_id"],
             description=data["description"],
             event_type=data["event_type"],
@@ -200,16 +193,30 @@ def main():
         )
         event_ids.append(eid)
 
-    # Sample RSVPs
+    # RSVPs
     for eid in event_ids:
-        ensure_rsvp(bob_id, eid, status="going")
-        ensure_rsvp(carol_id, eid, status="maybe")
+        ensure_rsvp(off_id, eid, "going")
+        ensure_rsvp(mem_id, eid, "maybe")
+        ensure_rsvp(student_id, eid, "maybe")
 
-    print("Seed complete:")
-    print(f"  Users: {alice_id}, {bob_id}, {carol_id}")
-    print(f"  Clubs: {robotics_id}, {math_id}, {art_id}")
-    print(f"  Events: {event_ids}")
-    print("Sample passwords: password123")
+    # Announcements
+    db.execute(
+        "INSERT INTO announcements (title, body, created_by, club_id) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT DO NOTHING",
+        "Welcome to ClubHub",
+        "This is your new dashboard for clubs, events, and announcements.",
+        admin_id,
+        None,
+    )
+
+    print("Seed complete.")
+    print("Demo accounts:")
+    print("  admin / admin (global admin + Robotics President, Chess Officer, Art Member)")
+    print("  pres / pres (Chess President)")
+    print("  off / off (Robotics Officer)")
+    print("  mem / mem (Robotics Member)")
+    print("  student / student (no clubs by default)")
+    print("Join codes: Robotics robot1, Chess chess1, Art art1")
 
 
 if __name__ == "__main__":
