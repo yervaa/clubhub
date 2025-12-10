@@ -115,16 +115,6 @@ def ensure_default_roles_for_club(club_id):
         officer_id = db.execute("SELECT id FROM club_roles WHERE club_id = ? AND name = 'Officer' ORDER BY id DESC LIMIT 1", club_id)[0]["id"]
     return {"president_id": president_id, "member_id": member_id, "officer_id": officer_id}
 
-# Ensure club_membership has role_id column
-try:
-    db.execute("SELECT role_id FROM club_membership LIMIT 1")
-except Exception:
-    try:
-        db.execute("ALTER TABLE club_membership ADD COLUMN role_id INTEGER")
-    except Exception:
-        pass
-
-
 @app.before_request
 def csrf_protect():
     if request.method == "POST":
@@ -572,7 +562,8 @@ def rsvp(event_id):
         return redirect("/events")
 
     db.execute(
-        "INSERT OR REPLACE INTO attendance (user_id, event_id, status) VALUES (?, ?, ?)",
+        "INSERT INTO attendance (user_id, event_id, status) VALUES (?, ?, ?) "
+        "ON CONFLICT(user_id, event_id) DO UPDATE SET status = excluded.status",
         session["user_id"],
         event_id,
         status,
@@ -940,7 +931,8 @@ def new_club():
             roles = ensure_default_roles_for_club(club_id)
             # Assign creator as president
             db.execute(
-                "INSERT OR REPLACE INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?)",
+                "INSERT INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?) "
+                "ON CONFLICT(user_id, club_id) DO UPDATE SET role_id = excluded.role_id",
                 session["user_id"],
                 club_id,
                 roles["president_id"],
@@ -1146,7 +1138,8 @@ def manage_club_members(club_id):
             return redirect(f"/clubs/{club_id}/members?page={redirect_page}")
         try:
             db.execute(
-                "INSERT OR REPLACE INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?)",
+                "INSERT INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?) "
+                "ON CONFLICT(user_id, club_id) DO UPDATE SET role_id = excluded.role_id",
                 int(uid), club_id, role_id_int,
             )
             flash("Membership updated.", "success")
