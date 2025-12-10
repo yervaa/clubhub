@@ -79,8 +79,53 @@ def inject_globals():
     }
 
 
-# Schema management is handled by SQL files and migrations; runtime schema alterations are disabled.
-# (Legacy SQLite ALTER/CREATE blocks removed to avoid Postgres runtime failures.)
+# Ensure join_code column exists and populate missing codes
+try:
+    db.execute("SELECT join_code FROM clubs LIMIT 1")
+except Exception:
+    try:
+        db.execute("ALTER TABLE clubs ADD COLUMN join_code TEXT")
+    except Exception:
+        pass
+
+try:
+    rows = db.execute("SELECT id, join_code FROM clubs WHERE join_code IS NULL OR join_code = ''")
+    for row in rows:
+        db.execute("UPDATE clubs SET join_code = ? WHERE id = ?", generate_join_code(), row["id"])
+except Exception:
+    pass
+
+# Ensure announcements have club_id column
+try:
+    db.execute("SELECT club_id FROM announcements LIMIT 1")
+except Exception:
+    try:
+        db.execute("ALTER TABLE announcements ADD COLUMN club_id INTEGER REFERENCES clubs(id)")
+    except Exception:
+        pass
+
+# Ensure club_roles table exists
+try:
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS club_roles ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "club_id INTEGER NOT NULL, "
+        "name TEXT NOT NULL, "
+        "description TEXT, "
+        "can_manage_members INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_roles INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_events INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_attendance INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_announcements INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_join_code INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_budget INTEGER NOT NULL DEFAULT 0, "
+        "is_default_member INTEGER NOT NULL DEFAULT 0, "
+        "is_president INTEGER NOT NULL DEFAULT 0, "
+        "FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE)"
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_club_roles_club_id ON club_roles(club_id)")
+except Exception:
+    pass
 
 
 def ensure_default_roles_for_club(club_id):
@@ -114,6 +159,61 @@ def ensure_default_roles_for_club(club_id):
         )
         officer_id = db.execute("SELECT id FROM club_roles WHERE club_id = ? AND name = 'Officer' ORDER BY id DESC LIMIT 1", club_id)[0]["id"]
     return {"president_id": president_id, "member_id": member_id, "officer_id": officer_id}
+
+
+def migrate_memberships_to_roles():
+    """Map legacy role strings to new role_id per club."""
+    # Ensure defaults for all clubs
+    clubs = db.execute("SELECT id FROM clubs")
+    defaults = {}
+    for c in clubs:
+        defaults[c["id"]] = ensure_default_roles_for_club(c["id"])
+
+    # Add role_id if missing/null
+    rows = db.execute("SELECT id, club_id, user_id, role, role_id FROM club_membership")
+    for row in rows:
+        if row.get("role_id"):
+            continue
+        club_id = row["club_id"]
+        role_str = (row.get("role") or "member").lower()
+        target = defaults.get(club_id) or ensure_default_roles_for_club(club_id)
+        role_id = target["member_id"]
+        if role_str == "president":
+            role_id = target["president_id"]
+        elif role_str == "officer":
+            role_id = target["officer_id"]
+        elif role_str == "student":
+            role_id = target["member_id"]
+        try:
+            db.execute("UPDATE club_membership SET role_id = ? WHERE id = ?", role_id, row["id"])
+        except Exception:
+            pass
+
+    # Fill any remaining nulls with default member
+    rows = db.execute("SELECT cm.id, cm.club_id FROM club_membership cm WHERE cm.role_id IS NULL")
+    for row in rows:
+        target = defaults.get(row["club_id"]) or ensure_default_roles_for_club(row["club_id"])
+        try:
+            db.execute("UPDATE club_membership SET role_id = ? WHERE id = ?", target["member_id"], row["id"])
+        except Exception:
+            pass
+
+
+# Run migration to new role system
+try:
+    migrate_memberships_to_roles()
+except Exception:
+    pass
+
+# Ensure club_membership has role_id column
+try:
+    db.execute("SELECT role_id FROM club_membership LIMIT 1")
+except Exception:
+    try:
+        db.execute("ALTER TABLE club_membership ADD COLUMN role_id INTEGER")
+    except Exception:
+        pass
+
 
 @app.before_request
 def csrf_protect():
@@ -182,6 +282,38 @@ def require_club_permission(club_id, permission_field):
         abort(403)
     if not membership.get(permission_field, 0):
         abort(403)
+
+# Ensure clubs table exists and events table has club_id column (migration-safe)
+try:
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS clubs (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, sponsor TEXT, join_code TEXT)"
+    )
+except Exception:
+    pass
+
+# Add club_id column to events if it's missing
+try:
+    db.execute("SELECT club_id FROM events LIMIT 1")
+except Exception:
+    try:
+        db.execute("ALTER TABLE events ADD COLUMN club_id INTEGER")
+    except Exception:
+        # Some SQLite builds may not allow ALTER TABLE in this environment; ignore if fails
+        pass
+
+# Ensure club_membership table exists (user roles per club)
+try:
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS club_membership ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, club_id INTEGER NOT NULL, role_id INTEGER, "
+        "UNIQUE(user_id, club_id), "
+        "FOREIGN KEY(user_id) REFERENCES users(id), "
+        "FOREIGN KEY(club_id) REFERENCES clubs(id), "
+        "FOREIGN KEY(role_id) REFERENCES club_roles(id) ON DELETE SET NULL)"
+    )
+except Exception:
+    pass
+
 
 # Custom Jinja2 filter for formatting datetime strings
 @app.template_filter('format_datetime')
@@ -562,8 +694,7 @@ def rsvp(event_id):
         return redirect("/events")
 
     db.execute(
-        "INSERT INTO attendance (user_id, event_id, status) VALUES (?, ?, ?) "
-        "ON CONFLICT(user_id, event_id) DO UPDATE SET status = excluded.status",
+        "INSERT OR REPLACE INTO attendance (user_id, event_id, status) VALUES (?, ?, ?)",
         session["user_id"],
         event_id,
         status,
@@ -931,8 +1062,7 @@ def new_club():
             roles = ensure_default_roles_for_club(club_id)
             # Assign creator as president
             db.execute(
-                "INSERT INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?) "
-                "ON CONFLICT(user_id, club_id) DO UPDATE SET role_id = excluded.role_id",
+                "INSERT OR REPLACE INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?)",
                 session["user_id"],
                 club_id,
                 roles["president_id"],
@@ -1138,8 +1268,7 @@ def manage_club_members(club_id):
             return redirect(f"/clubs/{club_id}/members?page={redirect_page}")
         try:
             db.execute(
-                "INSERT INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?) "
-                "ON CONFLICT(user_id, club_id) DO UPDATE SET role_id = excluded.role_id",
+                "INSERT OR REPLACE INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?)",
                 int(uid), club_id, role_id_int,
             )
             flash("Membership updated.", "success")
