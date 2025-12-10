@@ -10,6 +10,7 @@
           <h1 class="text-center mb-4">✨ Join ClubHub</h1>
           
           <form action="/register" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
             <div class="mb-4">
               <label class="form-label fw-bold">Username</label>
               <input class="form-control form-control-lg" name="username" placeholder="Choose a username" autocomplete="off" autofocus required>

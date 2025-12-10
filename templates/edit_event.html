@@ -10,6 +10,7 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <form action="/events/{{ event.id }}/edit" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
             <div class="mb-3">
               <label class="form-label">📝 Event Title</label>
               <input class="form-control form-control-lg" name="title" value="{{ event.title }}" required>
@@ -26,6 +27,17 @@
               <label class="form-label">🏷️ Event Type</label>
               <input class="form-control" name="event_type" value="{{ event.event_type }}">
               <small class="form-text text-muted">Optional. Helps categorize your events</small>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">🏛️ Club</label>
+              <select class="form-select" name="club_id" required>
+                <option value="">Select club</option>
+                {% for c in clubs %}
+                  <option value="{{ c.id }}" {% if event.club_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+              <small class="form-text text-muted">Event will belong to this club</small>
             </div>
 
             <div class="row">

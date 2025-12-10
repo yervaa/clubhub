@@ -30,8 +30,25 @@
                 <a class="nav-link" href="/dashboard">Dashboard</a>
               </li>
               <li class="nav-item">
+                <a class="nav-link" href="/clubs">Clubs</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/join">Join</a>
+              </li>
+              <li class="nav-item">
                 <a class="nav-link" href="/events">Events</a>
               </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/my_rsvps">My RSVPs</a>
+              </li>
+              {% if is_officer %}
+                <li class="nav-item">
+                  <a class="nav-link" href="/officer">Officer Panel</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="/clubs/new">Add Club</a>
+                </li>
+              {% endif %}
               <li class="nav-item">
                 <a class="nav-link" href="/announcements">Announcements</a>
               </li>

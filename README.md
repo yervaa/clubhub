@@ -143,13 +143,43 @@ CS50 Codespace supports SQLite natively and it requires no server setup.
 
 ## How to Run the App
 
-1. Navigate into the project folder:
+1. Navigate into the project folder: `cd clubhub`
+2. Install deps: `pip install -r requirements.txt`
+3. Set env vars (recommended):
+   - `export SECRET_KEY="change-me"`
+   - `export DATABASE_URL="sqlite:///clubhub.db"` (or your DB string)
+   - `export DEBUG=true` (only for local dev)
+4. Run the Flask server: `flask run` (or `python app.py`)
+5. Open the provided URL in your browser.
 
-2. Ensure the database is created:
+## Seed sample data
 
-3. Run the Flask server:
+To load demo users/clubs/events (safe to re-run; uses upsert logic):
 
-4. Open the provided URL in your browser.
+```bash
+export DATABASE_URL="sqlite:///clubhub.db"
+python seed.py
+```
+
+Demo users created: `alice_officer` (officer), `bob_student`, `carol_student` — all with password `password123`.
+
+## Database migrations (Alembic)
+
+Use Alembic instead of rerunning `schema.sql` once you have real data:
+
+```bash
+pip install -r requirements.txt  # includes alembic
+alembic init migrations
+```
+
+Then edit `alembic.ini` to point `sqlalchemy.url` at your `DATABASE_URL`, and update `env.py` to use your models/metadata (or reflect). To capture the current schema and apply it:
+
+```bash
+alembic revision --autogenerate -m "initial schema"
+alembic upgrade head
+```
+
+Repeat with a new revision whenever the schema changes; deploys should run `alembic upgrade head`.
 
 ---
 

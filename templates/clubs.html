@@ -8,17 +8,38 @@
       <h1 class="mb-0">🏛️ Clubs</h1>
       <p class="text-muted mb-0">Browse all registered clubs</p>
     </div>
+    <div class="btn-group" role="group">
+      <a href="/clubs?view=all" class="btn btn-outline-primary {% if view != 'mine' %}active{% endif %}">All Clubs</a>
+      <a href="/clubs?view=mine" class="btn btn-outline-primary {% if view == 'mine' %}active{% endif %}">My Clubs</a>
+    </div>
   </div>
 
   {% if clubs %}
     <div class="list-group">
       {% for c in clubs %}
-        <a href="/clubs/{{ c.id }}" class="list-group-item list-group-item-action">
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">{{ c.name }}</h5>
+        <div class="list-group-item">
+          <div class="d-flex w-100 justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-1">{{ c.name }}</h5>
+              <p class="mb-1 text-muted">{{ c.description }}</p>
+              {% if c.role_name %}
+                <span class="badge bg-secondary">Your role: {{ c.role_name }}</span>
+              {% endif %}
+            </div>
+            <div class="d-flex gap-2">
+              <a href="/clubs/{{ c.id }}" class="btn btn-sm btn-outline-primary">View</a>
+              {% if not c.role_name %}
+                <a href="/clubs/{{ c.id }}/join" class="btn btn-sm btn-primary">Join</a>
+              {% endif %}
+              {% if is_officer %}
+                <form method="post" action="/clubs/{{ c.id }}/delete" onsubmit="return confirm('Delete this club? This will remove its events and memberships.');">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                </form>
+              {% endif %}
+            </div>
           </div>
-          <p class="mb-1 text-muted">{{ c.description }}</p>
-        </a>
+        </div>
       {% endfor %}
     </div>
   {% else %}

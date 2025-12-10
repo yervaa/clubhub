@@ -19,6 +19,7 @@
         </div>
         <div class="card-body">
           <form action="/events/{{ event.id }}/attendance" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
             <div class="list-group list-group-sm">
               {% for u in users %}
                 <label class="list-group-item d-flex gap-3">

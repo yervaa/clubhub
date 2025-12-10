@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+
+{% block title %}Officer Panel{% endblock %}
+
+{% block main %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-0">🔑 Officer Panel</h1>
+      <p class="text-muted mb-0">Quick links to manage clubs and events</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="/clubs/new">➕ New Club</a>
+      <a class="btn btn-primary" href="/events/new">➕ New Event</a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">Clubs</h5>
+        </div>
+        <div class="card-body">
+          {% if clubs %}
+            <div class="list-group">
+              {% for c in clubs %}
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>{{ c.name }}</strong>
+                    {% if c.sponsor %}
+                      <div class="small text-muted">Sponsor: {{ c.sponsor }}</div>
+                    {% endif %}
+                  </div>
+                  <div class="d-flex gap-2">
+                    <a class="btn btn-sm btn-outline-primary" href="/clubs/{{ c.id }}">View</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="/clubs/{{ c.id }}/members">Members</a>
+                    <a class="btn btn-sm btn-outline-primary" href="/clubs/{{ c.id }}/roles">Roles</a>
+                    <form method="post" action="/clubs/{{ c.id }}/delete" onsubmit="return confirm('Delete this club? This will remove its events and memberships.');">
+                      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No clubs yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">Recent Events</h5>
+        </div>
+        <div class="card-body">
+          {% if events %}
+            <div class="list-group">
+              {% for e in events %}
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between">
+                    <div>
+                      <strong>{{ e.title }}</strong>
+                      {% if e.club_name %}
+                        <div class="small text-muted">Club: {{ e.club_name }}</div>
+                      {% endif %}
+                    </div>
+                    <small class="text-muted">{{ e.start_time | format_datetime }}</small>
+                  </div>
+                  {% if e.location %}
+                    <div class="small text-muted mt-1">📍 {{ e.location }}</div>
+                  {% endif %}
+                  <div class="mt-2 d-flex gap-2">
+                    <a class="btn btn-sm btn-outline-primary" href="/events/{{ e.id }}/edit">Edit</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="/events/{{ e.id }}/attendance">Attendance</a>
+                    <form method="post" action="/events/{{ e.id }}/delete" onsubmit="return confirm('Delete this event? This cannot be undone.');">
+                      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No events yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">Officers</h5>
+    </div>
+    <div class="card-body">
+      {% if officers %}
+        <div class="d-flex flex-wrap gap-2">
+          {% for o in officers %}
+            <span class="badge text-bg-secondary">{{ o.username }}</span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">No officers yet.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

@@ -8,7 +8,7 @@
       <h1 class="mb-0">📅 Events</h1>
       <p class="text-muted mb-0">Discover and manage upcoming club events</p>
     </div>
-    {% if is_officer %}
+    {% if can_create_events %}
       <a href="/events/new" class="btn btn-primary">
         ➕ New Event
       </a>
@@ -86,7 +86,7 @@
               </div>
 
               <!-- RSVP Stats -->
-              <div class="d-flex gap-2 mb-3 text-center small">
+              <div class="d-flex gap-2 mb-3 text-center small flex-wrap">
                 <div class="flex-grow-1 p-2 bg-light rounded">
                   <strong class="d-block">{{ e.going_count or 0 }}</strong>
                   <small class="text-muted">Going</small>
@@ -100,36 +100,53 @@
               <!-- RSVP Buttons -->
               <div class="d-grid gap-2">
                 <form action="/events/{{ e.id }}/rsvp" method="post" class="mb-2">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                   <input type="hidden" name="status" value="going">
-                  <button
-                    type="submit"
+                  <button type="submit"
                     class="btn btn-sm w-100 {% if e.user_status == 'going' %}btn-success{% else %}btn-outline-success{% endif %}"
-                  >
-                    👍 I'm Going
-                  </button>
+                  >👍 I'm Going</button>
                 </form>
                 <form action="/events/{{ e.id }}/rsvp" method="post">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                   <input type="hidden" name="status" value="maybe">
-                  <button
-                    type="submit"
+                  <button type="submit"
                     class="btn btn-sm w-100 {% if e.user_status == 'maybe' %}btn-warning{% else %}btn-outline-secondary{% endif %}"
-                  >
-                    🤔 Maybe
-                  </button>
+                  >🤔 Maybe</button>
                 </form>
               </div>
             </div>
 
-            {% if is_officer %}
+            {% if is_officer or e.can_manage_events %}
               <div class="card-footer bg-light">
-                <a href="/events/{{ e.id }}/attendance" class="btn btn-sm btn-outline-secondary w-100">
-                  ✓ Manage Attendance
-                </a>
+                <div class="d-grid gap-2">
+                  <a href="/events/{{ e.id }}/edit" class="btn btn-sm btn-outline-primary w-100">
+                    ✏️ Edit Event
+                  </a>
+                  {% if is_officer or e.can_manage_attendance %}
+                  <a href="/events/{{ e.id }}/attendance" class="btn btn-sm btn-outline-secondary w-100">
+                    ✓ Manage Attendance
+                  </a>
+                  {% endif %}
+                  <form action="/events/{{ e.id }}/delete" method="post" onsubmit="return confirm('Delete this event? This cannot be undone.');">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger w-100">🗑️ Delete Event</button>
+                  </form>
+                </div>
               </div>
             {% endif %}
           </div>
         </div>
       {% endfor %}
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      {% if has_prev %}
+        <a class="btn btn-outline-secondary" href="/events?page={{ page - 1 }}{% if q %}&q={{ q }}{% endif %}{% if event_type %}&type={{ event_type }}{% endif %}">← Previous</a>
+      {% else %}
+        <span></span>
+      {% endif %}
+      {% if has_next %}
+        <a class="btn btn-outline-secondary" href="/events?page={{ page + 1 }}{% if q %}&q={{ q }}{% endif %}{% if event_type %}&type={{ event_type }}{% endif %}">Next →</a>
+      {% endif %}
     </div>
   {% else %}
     <div class="alert alert-info text-center py-5">

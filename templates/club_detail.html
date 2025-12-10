@@ -13,27 +13,37 @@
     {% endif %}
   </div>
 
-  <h4>Upcoming Events</h4>
-  {% if is_officer %}
-    <div class="mb-3 text-end">
-      <a href="/clubs/{{ club.id }}/members" class="btn btn-sm btn-outline-secondary">Manage Members</a>
+  {% if is_member or is_officer %}
+    <h4>Upcoming Events</h4>
+    <div class="mb-3 d-flex justify-content-end gap-2">
+      {% if can_manage_members %}
+        <a href="/clubs/{{ club.id }}/members" class="btn btn-sm btn-outline-secondary">Manage Members</a>
+      {% endif %}
+      {% if can_manage_roles %}
+        <a href="/clubs/{{ club.id }}/roles" class="btn btn-sm btn-outline-primary">Roles & Permissions</a>
+      {% endif %}
     </div>
-  {% endif %}
-  {% if events %}
-    <div class="list-group">
-      {% for e in events %}
-        <a href="/events/{{ e.id }}" class="list-group-item list-group-item-action">
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">{{ e.title }}</h5>
-            <small class="text-muted">{{ e.start_time | format_datetime }}</small>
-          </div>
-          {% if e.location %}
-            <p class="mb-1 text-muted">{{ e.location }}</p>
-          {% endif %}
-        </a>
-      {% endfor %}
-    </div>
+    {% if events %}
+      <div class="list-group">
+        {% for e in events %}
+          <a href="/events/{{ e.id }}" class="list-group-item list-group-item-action">
+            <div class="d-flex w-100 justify-content-between">
+              <h5 class="mb-1">{{ e.title }}</h5>
+              <small class="text-muted">{{ e.start_time | format_datetime }}</small>
+            </div>
+            {% if e.location %}
+              <p class="mb-1 text-muted">{{ e.location }}</p>
+            {% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="alert alert-info">No upcoming events for this club.</div>
+    {% endif %}
   {% else %}
-    <div class="alert alert-info">No upcoming events for this club.</div>
+    <div class="alert alert-info">
+      <p class="mb-1">You are not a member of this club.</p>
+      <a class="btn btn-primary btn-sm" href="/clubs/{{ club.id }}/join">Join with access code</a>
+    </div>
   {% endif %}
 {% endblock %}

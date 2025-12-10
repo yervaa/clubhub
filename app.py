@@ -1,8 +1,11 @@
+import logging
 import os
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
+from logging.handlers import RotatingFileHandler
 
 from cs50 import SQL
-from flask import Flask, flash, redirect, render_template, request, session
+from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
@@ -10,21 +13,259 @@ from functools import wraps
 # Configure application
 app = Flask(__name__)
 
+# Environment-driven settings
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///clubhub.db")
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
+DEBUG_MODE = os.getenv("DEBUG", "False").lower() == "true"
+SESSION_COOKIE_SECURE_FLAG = os.getenv("SESSION_COOKIE_SECURE", "False").lower() == "true"
+
 # Configure Flask settings
 app.config.update(
     TEMPLATES_AUTO_RELOAD=True,
-    SESSION_PERMANENT=False,
+    SESSION_PERMANENT=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=1),
     SESSION_TYPE="filesystem",
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=SESSION_COOKIE_SECURE_FLAG,
+    SECRET_KEY=SECRET_KEY,
+    DEBUG=DEBUG_MODE,
 )
 Session(app)
 
-# Configure CS50 Library to use SQLite database
-db = SQL("sqlite:///clubhub.db")
+# Configure CS50 Library to use SQLite database (or DATABASE_URL)
+db = SQL(DATABASE_URL)
+
+# Logging (rotating file) in non-debug environments
+if not DEBUG_MODE:
+    handler = RotatingFileHandler("clubhub.log", maxBytes=10240, backupCount=10)
+    handler.setLevel(logging.INFO)
+    app.logger.addHandler(handler)
+
+# CSRF helpers
+def _get_csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_hex(16)
+        session["_csrf_token"] = token
+    return token
+
+
+def _is_global_officer():
+    uid = session.get("user_id")
+    if not uid:
+        return False
+    rows = db.execute("SELECT is_officer FROM users WHERE id = ?", uid)
+    return len(rows) == 1 and rows[0]["is_officer"] == 1
+
+
+@app.context_processor
+def inject_globals():
+    return {
+        "csrf_token": _get_csrf_token(),
+        "is_officer": _is_global_officer(),
+    }
+
+
+# Ensure join_code column exists and populate missing codes
+try:
+    db.execute("SELECT join_code FROM clubs LIMIT 1")
+except Exception:
+    try:
+        db.execute("ALTER TABLE clubs ADD COLUMN join_code TEXT")
+    except Exception:
+        pass
+
+try:
+    rows = db.execute("SELECT id, join_code FROM clubs WHERE join_code IS NULL OR join_code = ''")
+    for row in rows:
+        db.execute("UPDATE clubs SET join_code = ? WHERE id = ?", generate_join_code(), row["id"])
+except Exception:
+    pass
+
+# Ensure club_roles table exists
+try:
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS club_roles ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "club_id INTEGER NOT NULL, "
+        "name TEXT NOT NULL, "
+        "description TEXT, "
+        "can_manage_members INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_roles INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_events INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_attendance INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_announcements INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_join_code INTEGER NOT NULL DEFAULT 0, "
+        "can_manage_budget INTEGER NOT NULL DEFAULT 0, "
+        "is_default_member INTEGER NOT NULL DEFAULT 0, "
+        "is_president INTEGER NOT NULL DEFAULT 0, "
+        "FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE)"
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_club_roles_club_id ON club_roles(club_id)")
+except Exception:
+    pass
+
+
+def ensure_default_roles_for_club(club_id):
+    """Ensure core roles exist for a club. Returns dict with keys president_id, member_id, officer_id (optional)."""
+    roles = db.execute("SELECT id, name, is_president, is_default_member FROM club_roles WHERE club_id = ?", club_id)
+    names = {r["name"]: r["id"] for r in roles}
+    president_id = next((r["id"] for r in roles if r["is_president"] == 1), None)
+    member_id = next((r["id"] for r in roles if r["is_default_member"] == 1), None)
+    # Create president if missing
+    if not president_id:
+        db.execute(
+            "INSERT INTO club_roles (club_id, name, description, can_manage_members, can_manage_roles, can_manage_events, can_manage_attendance, can_manage_announcements, can_manage_join_code, can_manage_budget, is_president) "
+            "VALUES (?, 'President', 'Leads the club', 1, 1, 1, 1, 1, 1, 1, 1)",
+            club_id,
+        )
+        president_id = db.execute("SELECT id FROM club_roles WHERE club_id = ? AND is_president = 1 ORDER BY id DESC LIMIT 1", club_id)[0]["id"]
+    # Create member if missing
+    if not member_id:
+        db.execute(
+            "INSERT INTO club_roles (club_id, name, description, is_default_member) VALUES (?, 'Member', 'Default club member', 1)",
+            club_id,
+        )
+        member_id = db.execute("SELECT id FROM club_roles WHERE club_id = ? AND is_default_member = 1 ORDER BY id DESC LIMIT 1", club_id)[0]["id"]
+    # Create officer role if not present
+    officer_id = names.get("Officer")
+    if not officer_id:
+        db.execute(
+            "INSERT INTO club_roles (club_id, name, description, can_manage_events, can_manage_attendance, can_manage_announcements) "
+            "VALUES (?, 'Officer', 'Supports club operations', 1, 1, 1)",
+            club_id,
+        )
+        officer_id = db.execute("SELECT id FROM club_roles WHERE club_id = ? AND name = 'Officer' ORDER BY id DESC LIMIT 1", club_id)[0]["id"]
+    return {"president_id": president_id, "member_id": member_id, "officer_id": officer_id}
+
+
+def migrate_memberships_to_roles():
+    """Map legacy role strings to new role_id per club."""
+    # Ensure defaults for all clubs
+    clubs = db.execute("SELECT id FROM clubs")
+    defaults = {}
+    for c in clubs:
+        defaults[c["id"]] = ensure_default_roles_for_club(c["id"])
+
+    # Add role_id if missing/null
+    rows = db.execute("SELECT id, club_id, user_id, role, role_id FROM club_membership")
+    for row in rows:
+        if row.get("role_id"):
+            continue
+        club_id = row["club_id"]
+        role_str = (row.get("role") or "member").lower()
+        target = defaults.get(club_id) or ensure_default_roles_for_club(club_id)
+        role_id = target["member_id"]
+        if role_str == "president":
+            role_id = target["president_id"]
+        elif role_str == "officer":
+            role_id = target["officer_id"]
+        elif role_str == "student":
+            role_id = target["member_id"]
+        try:
+            db.execute("UPDATE club_membership SET role_id = ? WHERE id = ?", role_id, row["id"])
+        except Exception:
+            pass
+
+    # Fill any remaining nulls with default member
+    rows = db.execute("SELECT cm.id, cm.club_id FROM club_membership cm WHERE cm.role_id IS NULL")
+    for row in rows:
+        target = defaults.get(row["club_id"]) or ensure_default_roles_for_club(row["club_id"])
+        try:
+            db.execute("UPDATE club_membership SET role_id = ? WHERE id = ?", target["member_id"], row["id"])
+        except Exception:
+            pass
+
+
+# Run migration to new role system
+try:
+    migrate_memberships_to_roles()
+except Exception:
+    pass
+
+# Ensure club_membership has role_id column
+try:
+    db.execute("SELECT role_id FROM club_membership LIMIT 1")
+except Exception:
+    try:
+        db.execute("ALTER TABLE club_membership ADD COLUMN role_id INTEGER")
+    except Exception:
+        pass
+
+
+@app.before_request
+def csrf_protect():
+    if request.method == "POST":
+        token = session.get("_csrf_token")
+        form_token = request.form.get("_csrf_token")
+        if not token or not form_token or token != form_token:
+            abort(400)
+
+
+def generate_join_code():
+    return secrets.token_urlsafe(6)
+
+
+def is_club_officer(user_id, club_id):
+    """Check if user is officer for the given club (or global officer)."""
+    if user_id is None:
+        return False
+    if _is_global_officer():
+        return True
+    membership = get_membership(user_id, club_id)
+    if not membership:
+        return False
+    return membership.get("can_manage_events") == 1 or membership.get("can_manage_members") == 1
+
+
+def is_club_president(user_id, club_id):
+    if user_id is None:
+        return False
+    if _is_global_officer():
+        return True
+    membership = get_membership(user_id, club_id)
+    if not membership:
+        return False
+    return membership.get("is_president") == 1
+
+
+def is_club_member(user_id, club_id):
+    if user_id is None:
+        return False
+    rows = db.execute(
+        "SELECT 1 FROM club_membership WHERE user_id = ? AND club_id = ?",
+        user_id,
+        club_id,
+    )
+    return len(rows) > 0
+
+
+def get_membership(user_id, club_id):
+    rows = db.execute(
+        "SELECT cm.*, cr.name AS role_name, cr.can_manage_members, cr.can_manage_roles, cr.can_manage_events, "
+        "cr.can_manage_attendance, cr.can_manage_announcements, cr.can_manage_join_code, cr.can_manage_budget, cr.is_president "
+        "FROM club_membership cm JOIN club_roles cr ON cm.role_id = cr.id "
+        "WHERE cm.user_id = ? AND cm.club_id = ?",
+        user_id,
+        club_id,
+    )
+    return rows[0] if rows else None
+
+
+def require_club_permission(club_id, permission_field):
+    if _is_global_officer():
+        return
+    membership = get_membership(session.get("user_id"), club_id)
+    if not membership:
+        abort(403)
+    if not membership.get(permission_field, 0):
+        abort(403)
 
 # Ensure clubs table exists and events table has club_id column (migration-safe)
 try:
     db.execute(
-        "CREATE TABLE IF NOT EXISTS clubs (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, sponsor TEXT)"
+        "CREATE TABLE IF NOT EXISTS clubs (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, sponsor TEXT, join_code TEXT)"
     )
 except Exception:
     pass
@@ -42,7 +283,12 @@ except Exception:
 # Ensure club_membership table exists (user roles per club)
 try:
     db.execute(
-        "CREATE TABLE IF NOT EXISTS club_membership (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, club_id INTEGER NOT NULL, role TEXT NOT NULL DEFAULT 'student', UNIQUE(user_id, club_id), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(club_id) REFERENCES clubs(id))"
+        "CREATE TABLE IF NOT EXISTS club_membership ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, club_id INTEGER NOT NULL, role_id INTEGER, "
+        "UNIQUE(user_id, club_id), "
+        "FOREIGN KEY(user_id) REFERENCES users(id), "
+        "FOREIGN KEY(club_id) REFERENCES clubs(id), "
+        "FOREIGN KEY(role_id) REFERENCES club_roles(id) ON DELETE SET NULL)"
     )
 except Exception:
     pass
@@ -71,7 +317,8 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if session.get("user_id") is None:
-            return redirect("/login")
+            flash("Please log in first.", "warning")
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -82,13 +329,11 @@ def officer_required(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        user_id = session.get("user_id")
-        if user_id is None:
-            return redirect("/login")
-        rows = db.execute("SELECT is_officer FROM users WHERE id = ?", user_id)
-        if len(rows) != 1 or rows[0]["is_officer"] == 0:
-            flash("You do not have permission to access that page.", "danger")
-            return redirect("/")
+        if session.get("user_id") is None:
+            flash("Please log in first.", "warning")
+            return redirect(url_for("login"))
+        if not _is_global_officer():
+            abort(403)
         return f(*args, **kwargs)
     return decorated_function
 
@@ -99,6 +344,9 @@ def after_request(response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Expires"] = 0
     response.headers["Pragma"] = "no-cache"
+    # Secure cookies for production
+    if SESSION_COOKIE_SECURE_FLAG:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     return response
 
 
@@ -112,12 +360,21 @@ def index():
         "ORDER BY datetime(a.created_at) DESC"
     )
 
-    upcoming_events = db.execute(
-        "SELECT id, title, start_time, location "
-        "FROM events "
-        "ORDER BY datetime(start_time) ASC "
-        "LIMIT 5"
-    )
+    if _is_global_officer():
+        upcoming_events = db.execute(
+            "SELECT id, title, start_time, location "
+            "FROM events "
+            "ORDER BY datetime(start_time) ASC "
+            "LIMIT 5"
+        )
+    else:
+        upcoming_events = db.execute(
+            "SELECT e.id, e.title, e.start_time, e.location "
+            "FROM events e JOIN club_membership cm ON cm.club_id = e.club_id AND cm.user_id = ? "
+            "ORDER BY datetime(e.start_time) ASC "
+            "LIMIT 5",
+            session["user_id"],
+        )
 
     return render_template("index.html",
                            announcements=announcements,
@@ -133,19 +390,32 @@ def dashboard():
         session["user_id"],
     )[0]
 
-    total_attended = db.execute(
-        "SELECT COUNT(*) AS c FROM attendance WHERE user_id = ?",
-        user["id"],
-    )[0]["c"]
-
-    attended_events = db.execute(
-        "SELECT e.title, e.start_time, e.location "
-        "FROM attendance a JOIN events e ON a.event_id = e.id "
-        "WHERE a.user_id = ? "
-        "ORDER BY datetime(e.start_time) DESC "
-        "LIMIT 10",
+    # Membership filter
+    memberships = db.execute(
+        "SELECT club_id FROM club_membership WHERE user_id = ?",
         user["id"],
     )
+    member_club_ids = {row["club_id"] for row in memberships}
+
+    total_attended = 0
+    attended_events = []
+    if member_club_ids:
+        placeholders = ",".join(["?"] * len(member_club_ids))
+        total_attended = db.execute(
+            f"SELECT COUNT(*) AS c FROM attendance a JOIN events e ON a.event_id = e.id WHERE a.user_id = ? AND e.club_id IN ({placeholders})",
+            user["id"],
+            *member_club_ids,
+        )[0]["c"]
+
+        attended_events = db.execute(
+            f"SELECT e.title, e.start_time, e.location "
+            f"FROM attendance a JOIN events e ON a.event_id = e.id "
+            f"WHERE a.user_id = ? AND e.club_id IN ({placeholders}) "
+            f"ORDER BY datetime(e.start_time) DESC "
+            f"LIMIT 10",
+            user["id"],
+            *member_club_ids,
+        )
 
     return render_template(
         "dashboard.html",
@@ -195,6 +465,8 @@ def register():
 
         # Log user in
         session["user_id"] = new_user["id"]
+        session["is_officer"] = new_user.get("is_officer") == 1
+        session.permanent = True
 
         flash("Registered and logging in!", "success")
         return redirect("/")
@@ -232,6 +504,8 @@ def login():
 
         # Remember which user has logged in
         session["user_id"] = rows[0]["id"]
+        session["is_officer"] = rows[0].get("is_officer") == 1
+        session.permanent = True
 
         flash("Logged in!", "success")
         return redirect("/")
@@ -258,19 +532,38 @@ def events():
     """Show list of events with search and filter"""
     q = request.args.get("q", "").strip()
     event_type = request.args.get("type", "").strip()
+    page = request.args.get("page", 1)
+    try:
+        page = int(page)
+    except Exception:
+        page = 1
+    if page < 1:
+        page = 1
+    per_page = 9
+    limit = per_page + 1
+    offset = (page - 1) * per_page
 
     sql = (
-        "SELECT e.id, e.title, e.description, e.event_type, "
+        "SELECT e.id, e.title, e.description, e.event_type, e.club_id, "
         "       e.start_time, e.end_time, e.location, u.username AS author, "
         "       COUNT(CASE WHEN a.status = 'going' THEN 1 END) AS going_count, "
         "       COUNT(CASE WHEN a.status = 'maybe' THEN 1 END) AS maybe_count, "
-        "       (SELECT status FROM attendance WHERE user_id = ? AND event_id = e.id) AS user_status "
+        "       (SELECT status FROM attendance WHERE user_id = ? AND event_id = e.id) AS user_status, "
+        "       COALESCE(cr.can_manage_events, 0) AS can_manage_events, "
+        "       COALESCE(cr.can_manage_attendance, 0) AS can_manage_attendance "
         "FROM events e "
         "JOIN users u ON e.created_by = u.id "
         "LEFT JOIN attendance a ON e.id = a.event_id "
-        "WHERE 1=1 "
+        "LEFT JOIN club_membership cm ON cm.club_id = e.club_id AND cm.user_id = ? "
+        "LEFT JOIN club_roles cr ON cr.id = cm.role_id "
     )
-    params = [session["user_id"]]
+    params = [session["user_id"], session["user_id"]]
+
+    # Restrict to clubs the user belongs to unless global officer
+    if not _is_global_officer():
+        sql += "WHERE cm.user_id IS NOT NULL "
+    else:
+        sql += "WHERE 1=1 "
 
     if q:
         sql += "AND (e.title LIKE ? OR e.description LIKE ?) "
@@ -280,14 +573,24 @@ def events():
         sql += "AND e.event_type = ? "
         params.append(event_type)
 
-    sql += "GROUP BY e.id ORDER BY datetime(e.start_time) ASC"
+    sql += "GROUP BY e.id ORDER BY datetime(e.start_time) ASC LIMIT ? OFFSET ?"
+    params += [limit, offset]
 
     events_list = db.execute(sql, *params)
+    has_next = len(events_list) > per_page
+    events_list = events_list[:per_page]
+    has_prev = page > 1
 
     # Get all event types for filter dropdown
-    all_types = db.execute(
-        "SELECT DISTINCT event_type FROM events WHERE event_type IS NOT NULL ORDER BY event_type"
-    )
+    if _is_global_officer():
+        all_types = db.execute(
+            "SELECT DISTINCT event_type FROM events WHERE event_type IS NOT NULL ORDER BY event_type"
+        )
+    else:
+        all_types = db.execute(
+            "SELECT DISTINCT event_type FROM events e JOIN club_membership cm ON cm.club_id = e.club_id AND cm.user_id = ? WHERE event_type IS NOT NULL ORDER BY event_type",
+            session["user_id"],
+        )
     event_types = [row["event_type"] for row in all_types]
 
     user_rows = db.execute(
@@ -301,6 +604,10 @@ def events():
         return redirect("/login")
     
     user = user_rows[0]
+    can_create_events = _is_global_officer() or bool(db.execute(
+        "SELECT 1 FROM club_membership cm JOIN club_roles cr ON cm.role_id = cr.id WHERE cm.user_id = ? AND cr.can_manage_events = 1 LIMIT 1",
+        session["user_id"],
+    ))
 
     return render_template(
         "events.html",
@@ -309,6 +616,10 @@ def events():
         q=q,
         event_type=event_type,
         event_types=event_types,
+        can_create_events=can_create_events,
+        page=page,
+        has_next=has_next,
+        has_prev=has_prev,
     )
 
 
@@ -318,9 +629,13 @@ def events():
 def rsvp(event_id):
     """RSVP to an event (going or maybe)"""
     # Check if event exists
-    event_rows = db.execute("SELECT id FROM events WHERE id = ?", event_id)
+    event_rows = db.execute("SELECT id, club_id FROM events WHERE id = ?", event_id)
     if len(event_rows) == 0:
         flash("Event not found.", "danger")
+        return redirect("/events")
+    event = event_rows[0]
+    if not (_is_global_officer() or is_club_member(session.get("user_id"), event["club_id"])):
+        flash("You must be a member of this club to RSVP.", "danger")
         return redirect("/events")
 
     status = request.form.get("status", "").strip()
@@ -343,9 +658,19 @@ def rsvp(event_id):
 # Create Event (officers only)
 @app.route("/events/new", methods=["GET", "POST"])
 @login_required
-@officer_required
 def new_event():
     """Create a new event"""
+    # Clubs current user can create for
+    if _is_global_officer():
+        allowed_clubs = db.execute("SELECT id, name FROM clubs ORDER BY name")
+    else:
+        allowed_clubs = db.execute(
+            "SELECT c.id, c.name FROM clubs c JOIN club_membership cm ON cm.club_id = c.id JOIN club_roles cr ON cm.role_id = cr.id WHERE cm.user_id = ? AND cr.can_manage_events = 1 ORDER BY c.name",
+            session["user_id"],
+        )
+    if request.method == "GET" and not allowed_clubs:
+        flash("You are not an officer for any club to create events.", "danger")
+        return redirect("/events")
     if request.method == "POST":
         title = request.form.get("title")
         description = request.form.get("description")
@@ -353,22 +678,47 @@ def new_event():
         start_time = request.form.get("start_time")  # from datetime-local input
         end_time = request.form.get("end_time")
         location = request.form.get("location")
-
-        if not title or not start_time:
-            flash("Title and Start Time are required.", "danger")
+        club_id = request.form.get("club_id")
+        # Basic validation
+        if not title:
+            flash("Title is required.", "danger")
             return redirect("/events/new")
+        if not start_time:
+            flash("Start Time is required.", "danger")
+            return redirect("/events/new")
+        if end_time and start_time and end_time < start_time:
+            flash("End time cannot be before start time.", "danger")
+            return redirect("/events/new")
+        if not club_id:
+            flash("Club is required for an event.", "danger")
+            return redirect("/events/new")
+        try:
+            club_id_int = int(club_id)
+        except ValueError:
+            flash("Invalid club.", "danger")
+            return redirect("/events/new")
+        try:
+            require_club_permission(club_id_int, "can_manage_events")
+        except Exception:
+            flash("You do not have permission to create events for that club.", "danger")
+            return redirect("/events")
 
-        db.execute(
-            "INSERT INTO events (title, description, event_type, start_time, end_time, location, created_by) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            title,
-            description,
-            event_type,
-            start_time,
-            end_time,
-            location,
-            session["user_id"]
-        )
+        try:
+            db.execute(
+                "INSERT INTO events (title, description, event_type, start_time, end_time, location, created_by, club_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                title,
+                description,
+                event_type,
+                start_time,
+                end_time,
+                location,
+                session["user_id"],
+                club_id_int,
+            )
+        except Exception:
+            flash("Could not create event.", "danger")
+            return redirect("/events/new")
 
         flash("Event created successfully!", "success")
         return redirect("/events")
@@ -376,13 +726,12 @@ def new_event():
         # NOTE: This route design and query were assisted by ChatGPT,
         # then reviewed and adapted manually by me.
 
-    return render_template("new_event.html")
+    return render_template("new_event.html", clubs=allowed_clubs)
 
 
 # Edit Event (officers only)
 @app.route("/events/<int:event_id>/edit", methods=["GET", "POST"])
 @login_required
-@officer_required
 def edit_event(event_id):
     """Edit an existing event"""
     rows = db.execute("SELECT * FROM events WHERE id = ?", event_id)
@@ -391,6 +740,20 @@ def edit_event(event_id):
         return redirect("/events")
 
     event = rows[0]
+    # Permission check: global or officer for this club
+    try:
+        require_club_permission(event.get("club_id"), "can_manage_events")
+    except Exception:
+        flash("You do not have permission to edit this event.", "danger")
+        return redirect("/events")
+    # Clubs current user can select
+    if _is_global_officer():
+        allowed_clubs = db.execute("SELECT id, name FROM clubs ORDER BY name")
+    else:
+        allowed_clubs = db.execute(
+            "SELECT c.id, c.name FROM clubs c JOIN club_membership cm ON cm.club_id = c.id JOIN club_roles cr ON cm.role_id = cr.id WHERE cm.user_id = ? AND cr.can_manage_events = 1 ORDER BY c.name",
+            session["user_id"],
+        )
 
     if request.method == "POST":
         title = request.form.get("title")
@@ -399,20 +762,35 @@ def edit_event(event_id):
         start_time = request.form.get("start_time")
         end_time = request.form.get("end_time")
         location = request.form.get("location")
-
-        if not title or not start_time:
-            flash("Title and Start Time are required.", "danger")
+        club_id = request.form.get("club_id")
+        if not title:
+            flash("Title is required.", "danger")
             return redirect(f"/events/{event_id}/edit")
+        if not start_time:
+            flash("Start Time is required.", "danger")
+            return redirect(f"/events/{event_id}/edit")
+        if end_time and start_time and end_time < start_time:
+            flash("End time cannot be before start time.", "danger")
+            return redirect(f"/events/{event_id}/edit")
+        try:
+            club_id_int = int(club_id) if club_id else None
+        except ValueError:
+            flash("Invalid club.", "danger")
+            return redirect(f"/events/{event_id}/edit")
+        if club_id_int and not (_is_global_officer() or is_club_officer(session.get("user_id"), club_id_int)):
+            flash("You do not have permission to edit events for that club.", "danger")
+            return redirect("/events")
 
         try:
             db.execute(
-                "UPDATE events SET title = ?, description = ?, event_type = ?, start_time = ?, end_time = ?, location = ? WHERE id = ?",
+                "UPDATE events SET title = ?, description = ?, event_type = ?, start_time = ?, end_time = ?, location = ?, club_id = ? WHERE id = ?",
                 title,
                 description,
                 event_type,
                 start_time,
                 end_time,
                 location,
+                club_id_int,
                 event_id,
             )
             flash("Event updated successfully!", "success")
@@ -422,13 +800,38 @@ def edit_event(event_id):
         return redirect("/events")
 
     # GET -> render prefilled form
-    return render_template("edit_event.html", event=event)
+    return render_template("edit_event.html", event=event, clubs=allowed_clubs)
+
+
+@app.route("/events/<int:event_id>/delete", methods=["POST"])
+@login_required
+def delete_event(event_id):
+    """Delete an event and related attendance (officers only)"""
+    rows = db.execute("SELECT id, club_id FROM events WHERE id = ?", event_id)
+    if len(rows) != 1:
+        flash("Event not found.", "danger")
+        return redirect("/events")
+    event = rows[0]
+    try:
+        require_club_permission(event.get("club_id"), "can_manage_events")
+    except Exception:
+        flash("You do not have permission to delete this event.", "danger")
+        return redirect("/events")
+
+    try:
+        # Remove attendance rows first to keep data tidy
+        db.execute("DELETE FROM attendance WHERE event_id = ?", event_id)
+        db.execute("DELETE FROM events WHERE id = ?", event_id)
+        flash("Event deleted.", "success")
+    except Exception:
+        flash("Could not delete event.", "danger")
+
+    return redirect("/events")
 
 
 # Manage Attendance (officers only)
 @app.route("/events/<int:event_id>/attendance", methods=["GET", "POST"])
 @login_required
-@officer_required
 def manage_attendance(event_id):
     """View and update attendance for an event"""
     # Get event or redirect if not found
@@ -438,6 +841,11 @@ def manage_attendance(event_id):
         return redirect("/events")
 
     event = events[0]
+    try:
+        require_club_permission(event.get("club_id"), "can_manage_attendance")
+    except Exception:
+        flash("You do not have permission to manage attendance for this event.", "danger")
+        return redirect("/events")
 
     if request.method == "POST":
         # Clear existing attendance for this event
@@ -469,7 +877,10 @@ def manage_attendance(event_id):
         return redirect("/events")
 
     # GET: show form with all users and which ones are already marked attended
-    users = db.execute("SELECT id, username FROM users ORDER BY username")
+    users = db.execute(
+        "SELECT u.id, u.username FROM users u JOIN club_membership cm ON cm.user_id = u.id WHERE cm.club_id = ? ORDER BY u.username",
+        event.get("club_id"),
+    )
     attended_rows = db.execute(
         "SELECT user_id FROM attendance WHERE event_id = ?", event_id
     )
@@ -488,13 +899,36 @@ def manage_attendance(event_id):
 @login_required
 def announcements():
     """Show list of announcements"""
+    page = request.args.get("page", 1)
+    try:
+        page = int(page)
+    except Exception:
+        page = 1
+    if page < 1:
+        page = 1
+    per_page = 10
+    limit = per_page + 1
+    offset = (page - 1) * per_page
+
     announcements = db.execute(
         "SELECT a.id, a.title, a.body, a.created_at, u.username AS author "
         "FROM announcements a JOIN users u ON a.created_by = u.id "
-        "ORDER BY datetime(a.created_at) DESC"
+        "ORDER BY datetime(a.created_at) DESC "
+        "LIMIT ? OFFSET ?",
+        limit,
+        offset,
     )
+    has_next = len(announcements) > per_page
+    announcements = announcements[:per_page]
+    has_prev = page > 1
 
-    return render_template("announcements.html", announcements=announcements)
+    return render_template(
+        "announcements.html",
+        announcements=announcements,
+        page=page,
+        has_next=has_next,
+        has_prev=has_prev,
+    )
 
 
 # Clubs list
@@ -502,10 +936,82 @@ def announcements():
 @login_required
 def clubs():
     """Show list of clubs"""
-    clubs = db.execute(
-        "SELECT id, name, description FROM clubs ORDER BY name ASC"
+    view = request.args.get("view", "all")
+    base_sql = (
+        "SELECT c.id, c.name, c.description, cr.name AS role_name "
+        "FROM clubs c "
+        "LEFT JOIN club_membership cm ON cm.club_id = c.id AND cm.user_id = ? "
+        "LEFT JOIN club_roles cr ON cr.id = cm.role_id "
     )
-    return render_template("clubs.html", clubs=clubs)
+    params = [session["user_id"]]
+    if view == "mine":
+        base_sql += "WHERE cm.user_id IS NOT NULL "
+    base_sql += "ORDER BY c.name ASC"
+    clubs = db.execute(base_sql, *params)
+    return render_template("clubs.html", clubs=clubs, view=view)
+
+
+# Friendly redirect for singular path
+@app.route("/club")
+@login_required
+def clubs_redirect():
+    return redirect("/clubs")
+
+
+# Create Club (global officer)
+@app.route("/clubs/new", methods=["GET", "POST"])
+@login_required
+@officer_required
+def new_club():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description")
+        sponsor = request.form.get("sponsor")
+        if not name:
+            flash("Name is required.", "danger")
+            return redirect("/clubs/new")
+        try:
+            db.execute(
+                "INSERT INTO clubs (name, description, sponsor, join_code) VALUES (?, ?, ?, ?)",
+                name,
+                description,
+                sponsor,
+                generate_join_code(),
+            )
+            club_id = db.execute("SELECT id FROM clubs WHERE name = ?", name)[0]["id"]
+            roles = ensure_default_roles_for_club(club_id)
+            # Assign creator as president
+            db.execute(
+                "INSERT OR REPLACE INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?)",
+                session["user_id"],
+                club_id,
+                roles["president_id"],
+            )
+            flash("Club created.", "success")
+            return redirect("/clubs")
+        except Exception:
+            flash("Could not create club (maybe duplicate name).", "danger")
+            return redirect("/clubs/new")
+    return render_template("new_club.html")
+
+
+# Delete Club (global officer)
+@app.route("/clubs/<int:club_id>/delete", methods=["POST"])
+@login_required
+@officer_required
+def delete_club(club_id):
+    # Clean up related data
+    try:
+        event_ids = db.execute("SELECT id FROM events WHERE club_id = ?", club_id)
+        for e in event_ids:
+            db.execute("DELETE FROM attendance WHERE event_id = ?", e["id"])
+        db.execute("DELETE FROM events WHERE club_id = ?", club_id)
+        db.execute("DELETE FROM club_membership WHERE club_id = ?", club_id)
+        db.execute("DELETE FROM clubs WHERE id = ?", club_id)
+        flash("Club deleted.", "success")
+    except Exception:
+        flash("Could not delete club.", "danger")
+    return redirect("/clubs")
 
 
 # Club detail
@@ -518,83 +1024,199 @@ def club_detail(club_id):
         return redirect("/clubs")
     club = rows[0]
 
-    # Get upcoming events for this club (if events.club_id exists)
-    try:
-        events = db.execute(
-            "SELECT id, title, start_time, location FROM events WHERE club_id = ? ORDER BY datetime(start_time) ASC",
+    # Get upcoming events for this club only if member or global officer
+    events = []
+    if _is_global_officer() or is_club_member(session.get("user_id"), club_id):
+        try:
+            events = db.execute(
+                "SELECT id, title, start_time, location FROM events WHERE club_id = ? ORDER BY datetime(start_time) ASC",
+                club_id,
+            )
+        except Exception:
+            events = []
+
+    membership = get_membership(session.get("user_id"), club_id)
+    is_officer_for_club = _is_global_officer() or (membership and (membership.get("can_manage_events") or membership.get("can_manage_members") or membership.get("can_manage_roles")))
+    is_president = (_is_global_officer()) or (membership and membership.get("is_president") == 1)
+    is_member = membership is not None
+    can_manage_members = _is_global_officer() or (membership and membership.get("can_manage_members"))
+    can_manage_roles = _is_global_officer() or (membership and membership.get("can_manage_roles"))
+    return render_template("club_detail.html", club=club, events=events, is_officer=is_officer_for_club, is_president=is_president, is_member=is_member, can_manage_members=can_manage_members, can_manage_roles=can_manage_roles)
+
+
+@app.route("/clubs/<int:club_id>/join", methods=["GET", "POST"])
+@login_required
+def join_club(club_id):
+    club_rows = db.execute("SELECT id, name, join_code FROM clubs WHERE id = ?", club_id)
+    if len(club_rows) == 0:
+        flash("Club not found.", "danger")
+        return redirect("/clubs")
+    club = club_rows[0]
+    if request.method == "POST":
+        code = request.form.get("code", "").strip()
+        if not code:
+            flash("Access code is required.", "danger")
+            return redirect(f"/clubs/{club_id}/join")
+        if code != club.get("join_code"):
+            flash("Invalid access code for this club.", "danger")
+            return redirect(f"/clubs/{club_id}/join")
+        existing = db.execute(
+            "SELECT 1 FROM club_membership WHERE user_id = ? AND club_id = ?",
+            session["user_id"],
             club_id,
         )
-    except Exception:
-        # Fallback if club_id isn't present: no events
-        events = []
+        if len(existing) > 0:
+            flash("You are already a member of this club.", "info")
+            return redirect(f"/clubs/{club_id}")
+        try:
+            default_role = db.execute("SELECT id FROM club_roles WHERE club_id = ? AND is_default_member = 1 LIMIT 1", club_id)
+            role_id = default_role[0]["id"] if len(default_role) else None
+            if not role_id:
+                roles = ensure_default_roles_for_club(club_id)
+                role_id = roles["member_id"]
+            db.execute(
+                "INSERT INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?)",
+                session["user_id"],
+                club_id,
+                role_id,
+            )
+            flash("You joined this club!", "success")
+        except Exception:
+            flash("Could not join this club.", "danger")
+        return redirect(f"/clubs/{club_id}")
+    return render_template("join_club.html", club=club)
 
-    # Check if current user is an officer globally or for this club
-    is_officer_global = db.execute("SELECT is_officer FROM users WHERE id = ?", session.get("user_id"))[0]["is_officer"]
-    # Check club-specific role
-    membership = db.execute("SELECT role FROM club_membership WHERE user_id = ? AND club_id = ?", session.get("user_id"), club_id)
-    is_club_officer = len(membership) > 0 and membership[0]["role"] == "officer"
 
-    return render_template("club_detail.html", club=club, events=events, is_officer=(is_officer_global == 1 or is_club_officer))
+@app.route("/join", methods=["GET", "POST"])
+@login_required
+def join_club_by_code():
+    if request.method == "POST":
+        code = request.form.get("code", "").strip()
+        if not code:
+            flash("Access code is required.", "danger")
+            return redirect("/join")
+        club_rows = db.execute("SELECT id FROM clubs WHERE join_code = ?", code)
+        if len(club_rows) == 0:
+            flash("Invalid access code.", "danger")
+            return redirect("/join")
+        club_id = club_rows[0]["id"]
+        # reuse existing join flow logic
+        return join_club(club_id)
+    return render_template("join_via_code.html")
 
 
-# Manage club members (officers only)
+@app.route("/officer")
+@login_required
+@officer_required
+def officer_panel():
+    clubs = db.execute("SELECT id, name, sponsor FROM clubs ORDER BY name")
+    events = db.execute(
+        "SELECT e.id, e.title, e.start_time, e.location, c.name AS club_name "
+        "FROM events e LEFT JOIN clubs c ON e.club_id = c.id "
+        "ORDER BY datetime(e.start_time) DESC "
+        "LIMIT 15"
+    )
+    officers = db.execute(
+        "SELECT id, username FROM users WHERE is_officer = 1 ORDER BY username"
+    )
+    return render_template(
+        "officer_panel.html",
+        clubs=clubs,
+        events=events,
+        officers=officers,
+    )
+
+
+# Manage club members (requires permission)
 @app.route("/clubs/<int:club_id>/members", methods=["GET", "POST"])
 @login_required
 def manage_club_members(club_id):
-    # Only allow if user is global officer or club officer
-    user_id = session.get("user_id")
-    user = db.execute("SELECT is_officer FROM users WHERE id = ?", user_id)[0]
-    membership = db.execute("SELECT role FROM club_membership WHERE user_id = ? AND club_id = ?", user_id, club_id)
-    is_allowed = (user and user["is_officer"] == 1) or (len(membership) > 0 and membership[0]["role"] == "officer")
-    if not is_allowed:
-        flash("You do not have permission to manage members for this club.", "danger")
-        return redirect(f"/clubs/{club_id}")
+    require_club_permission(club_id, "can_manage_members")
+
+    page_param = request.form.get("page") if request.method == "POST" else request.args.get("page", 1)
+    try:
+        page = int(page_param)
+    except Exception:
+        page = 1
+    if page < 1:
+        page = 1
+    per_page = 15
+    limit = per_page + 1
+    offset = (page - 1) * per_page
 
     club = db.execute("SELECT * FROM clubs WHERE id = ?", club_id)
     if len(club) == 0:
         flash("Club not found.", "danger")
         return redirect("/clubs")
     club = club[0]
+    ensure_default_roles_for_club(club_id)
 
     # POST: add/update membership
     if request.method == "POST":
         uid = request.form.get("user_id")
-        role = request.form.get("role", "student")
+        role_id = request.form.get("role_id")
+        redirect_page = request.form.get("page", page)
         if not uid:
             flash("User is required.", "danger")
-            return redirect(f"/clubs/{club_id}/members")
+            return redirect(f"/clubs/{club_id}/members?page={redirect_page}")
+        try:
+            role_id_int = int(role_id)
+        except Exception:
+            flash("Invalid role.", "danger")
+            return redirect(f"/clubs/{club_id}/members?page={redirect_page}")
+        # Verify role belongs to this club
+        role_row = db.execute("SELECT id FROM club_roles WHERE id = ? AND club_id = ?", role_id_int, club_id)
+        if len(role_row) == 0:
+            flash("Role not found for this club.", "danger")
+            return redirect(f"/clubs/{club_id}/members?page={redirect_page}")
         try:
             db.execute(
-                "INSERT OR REPLACE INTO club_membership (user_id, club_id, role) VALUES (?, ?, ?)",
-                int(uid), club_id, role,
+                "INSERT OR REPLACE INTO club_membership (user_id, club_id, role_id) VALUES (?, ?, ?)",
+                int(uid), club_id, role_id_int,
             )
             flash("Membership updated.", "success")
         except Exception:
             flash("Could not update membership.", "danger")
-        return redirect(f"/clubs/{club_id}/members")
+        return redirect(f"/clubs/{club_id}/members?page={redirect_page}")
 
     # GET: show form and members
     users = db.execute("SELECT id, username FROM users ORDER BY username")
+    roles = db.execute("SELECT id, name FROM club_roles WHERE club_id = ? ORDER BY is_president DESC, name", club_id)
     members = db.execute(
-        "SELECT cm.user_id, cm.role, u.username FROM club_membership cm JOIN users u ON cm.user_id = u.id WHERE cm.club_id = ? ORDER BY u.username",
+        "SELECT cm.user_id, cm.role_id, u.username, cr.name as role_name FROM club_membership cm JOIN users u ON cm.user_id = u.id JOIN club_roles cr ON cm.role_id = cr.id WHERE cm.club_id = ? ORDER BY u.username LIMIT ? OFFSET ?",
         club_id,
+        limit,
+        offset,
     )
+    has_next = len(members) > per_page
+    members = members[:per_page]
+    has_prev = page > 1
 
-    return render_template("club_members.html", club=club, users=users, members=members)
+    return render_template(
+        "club_members.html",
+        club=club,
+        users=users,
+        members=members,
+        roles=roles,
+        page=page,
+        has_next=has_next,
+        has_prev=has_prev,
+    )
 
 
 @app.route("/clubs/<int:club_id>/members/remove", methods=["POST"])
 @login_required
 def remove_club_member(club_id):
-    user_id = session.get("user_id")
-    user = db.execute("SELECT is_officer FROM users WHERE id = ?", user_id)[0]
-    membership = db.execute("SELECT role FROM club_membership WHERE user_id = ? AND club_id = ?", user_id, club_id)
-    is_allowed = (user and user["is_officer"] == 1) or (len(membership) > 0 and membership[0]["role"] == "officer")
-    if not is_allowed:
-        flash("You do not have permission to manage members for this club.", "danger")
-        return redirect(f"/clubs/{club_id}")
+    require_club_permission(club_id, "can_manage_members")
 
     uid = request.form.get("user_id")
+    page_raw = request.form.get("page", 1)
+    try:
+        page = int(page_raw)
+    except Exception:
+        page = 1
+    if page < 1:
+        page = 1
     if uid:
         try:
             db.execute("DELETE FROM club_membership WHERE user_id = ? AND club_id = ?", int(uid), club_id)
@@ -602,7 +1224,104 @@ def remove_club_member(club_id):
         except Exception:
             flash("Could not remove member.", "danger")
 
-    return redirect(f"/clubs/{club_id}/members")
+    return redirect(f"/clubs/{club_id}/members?page={page}")
+
+
+@app.route("/clubs/<int:club_id>/roles", methods=["GET", "POST"])
+@login_required
+def manage_club_roles(club_id):
+    require_club_permission(club_id, "can_manage_roles")
+    club_rows = db.execute("SELECT * FROM clubs WHERE id = ?", club_id)
+    if len(club_rows) == 0:
+        flash("Club not found.", "danger")
+        return redirect("/clubs")
+    club = club_rows[0]
+
+    def flag(name):
+        return 1 if request.form.get(name) else 0
+
+    if request.method == "POST":
+        role_id = request.form.get("role_id")
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description")
+        can_manage_members = flag("can_manage_members")
+        can_manage_roles = flag("can_manage_roles")
+        can_manage_events = flag("can_manage_events")
+        can_manage_attendance = flag("can_manage_attendance")
+        can_manage_announcements = flag("can_manage_announcements")
+        can_manage_join_code = flag("can_manage_join_code")
+        can_manage_budget = flag("can_manage_budget")
+        is_default_member = flag("is_default_member")
+        is_president_flag = flag("is_president")
+
+        if not name:
+            flash("Role name is required.", "danger")
+            return redirect(f"/clubs/{club_id}/roles")
+
+        if role_id:
+            existing = db.execute("SELECT * FROM club_roles WHERE id = ? AND club_id = ?", role_id, club_id)
+            if len(existing) == 0:
+                flash("Role not found.", "danger")
+                return redirect(f"/clubs/{club_id}/roles")
+            existing = existing[0]
+            if existing.get("is_president") == 1:
+                is_president_flag = 1
+                can_manage_roles = 1
+            try:
+                db.execute(
+                    "UPDATE club_roles SET name = ?, description = ?, can_manage_members = ?, can_manage_roles = ?, can_manage_events = ?, "
+                    "can_manage_attendance = ?, can_manage_announcements = ?, can_manage_join_code = ?, can_manage_budget = ?, "
+                    "is_default_member = ?, is_president = ? "
+                    "WHERE id = ? AND club_id = ?",
+                    name,
+                    description,
+                    can_manage_members,
+                    can_manage_roles,
+                    can_manage_events,
+                    can_manage_attendance,
+                    can_manage_announcements,
+                    can_manage_join_code,
+                    can_manage_budget,
+                    is_default_member,
+                    is_president_flag,
+                    role_id,
+                    club_id,
+                )
+                count_roles = db.execute("SELECT COUNT(*) AS c FROM club_roles WHERE club_id = ? AND can_manage_roles = 1", club_id)[0]["c"]
+                if count_roles == 0:
+                    db.execute("UPDATE club_roles SET can_manage_roles = 1 WHERE id = ? AND club_id = ?", role_id, club_id)
+                    flash("At least one role must manage roles. Restored permission.", "danger")
+                else:
+                    flash("Role updated.", "success")
+            except Exception:
+                flash("Could not update role.", "danger")
+        else:
+            if is_president_flag:
+                can_manage_roles = 1
+            try:
+                db.execute(
+                    "INSERT INTO club_roles (club_id, name, description, can_manage_members, can_manage_roles, can_manage_events, can_manage_attendance, can_manage_announcements, can_manage_join_code, can_manage_budget, is_default_member, is_president) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    club_id,
+                    name,
+                    description,
+                    can_manage_members,
+                    can_manage_roles,
+                    can_manage_events,
+                    can_manage_attendance,
+                    can_manage_announcements,
+                    can_manage_join_code,
+                    can_manage_budget,
+                    is_default_member,
+                    is_president_flag,
+                )
+                flash("Role created.", "success")
+            except Exception:
+                flash("Could not create role.", "danger")
+        return redirect(f"/clubs/{club_id}/roles")
+
+    roles = db.execute("SELECT * FROM club_roles WHERE club_id = ? ORDER BY is_president DESC, name", club_id)
+    return render_template("club_roles.html", club=club, roles=roles)
 
 
 # My RSVPs - list events the current user has RSVP'd to
@@ -615,6 +1334,7 @@ def my_rsvps():
     rows = db.execute(
         "SELECT e.id, e.title, e.start_time, e.location, a.status "
         "FROM attendance a JOIN events e ON a.event_id = e.id "
+        "JOIN club_membership cm ON cm.club_id = e.club_id AND cm.user_id = a.user_id "
         "WHERE a.user_id = ? "
         "GROUP BY e.id "
         "ORDER BY datetime(e.start_time) ASC",
@@ -634,17 +1354,24 @@ def new_announcement():
         title = request.form.get("title")
         body = request.form.get("body")
 
-        if not title or not body:
-            flash("Title and Body are required.", "danger")
+        if not title:
+            flash("Title is required.", "danger")
+            return redirect("/announcements/new")
+        if not body:
+            flash("Body is required.", "danger")
             return redirect("/announcements/new")
 
-        db.execute(
-            "INSERT INTO announcements (title, body, created_by) "
-            "VALUES (?, ?, ?)",
-            title,
-            body,
-            session["user_id"]
-        )
+        try:
+            db.execute(
+                "INSERT INTO announcements (title, body, created_by) "
+                "VALUES (?, ?, ?)",
+                title,
+                body,
+                session["user_id"]
+            )
+        except Exception:
+            flash("Could not create announcement.", "danger")
+            return redirect("/announcements/new")
 
         flash("Announcement created successfully!", "success")
         return redirect("/")
@@ -656,4 +1383,14 @@ def new_announcement():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=DEBUG_MODE)
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(e):
+    return render_template("404.html"), 404
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    app.logger.exception("Server error: %s", e)
+    return render_template("500.html"), 500

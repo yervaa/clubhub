@@ -1,25 +1,53 @@
 {% extends "layout.html" %}
 
-{% block title %}
-  Announcements
-{% endblock %}
+{% block title %}Announcements{% endblock %}
 
 {% block main %}
-  <h1>Announcements</h1>
-  
-  <a href="/announcements/new" class="btn btn-primary mb-3">Create Announcement</a>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-0">📢 Announcements</h1>
+      <p class="text-muted mb-0">Latest news and updates from your clubs</p>
+    </div>
+    {% if is_officer %}
+      <a href="/announcements/new" class="btn btn-primary">
+        ➕ New Announcement
+      </a>
+    {% endif %}
+  </div>
 
   {% if announcements %}
-    {% for announcement in announcements %}
-      <div class="card mb-3">
-        <div class="card-body">
-          <h5 class="card-title">{{ announcement.title }}</h5>
-          <p class="card-text">{{ announcement.body }}</p>
-          <p class="card-text"><small class="text-muted">By {{ announcement.author }} on {{ announcement.created_at }}</small></p>
+    <div class="row">
+      {% for a in announcements %}
+        <div class="col-md-6 mb-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <h5 class="card-title">{{ a.title }}</h5>
+              <p class="card-text">{{ a.body }}</p>
+            </div>
+            <div class="card-footer bg-light">
+              <small class="text-muted">
+                By <strong>{{ a.author }}</strong> • {{ a.created_at }}
+              </small>
+            </div>
+          </div>
         </div>
-      </div>
-    {% endfor %}
+      {% endfor %}
+    </div>
   {% else %}
-    <p>No announcements yet.</p>
+    <div class="alert alert-info text-center py-5">
+      <h5>No announcements yet</h5>
+      <p class="mb-0">Be the first to post an announcement!</p>
+    </div>
   {% endif %}
+
+  <div class="d-flex justify-content-between align-items-center mt-3">
+    {% if has_prev %}
+      <a class="btn btn-outline-secondary" href="/announcements?page={{ page - 1 }}">← Previous</a>
+    {% else %}
+      <span></span>
+    {% endif %}
+    {% if has_next %}
+      <a class="btn btn-outline-secondary" href="/announcements?page={{ page + 1 }}">Next →</a>
+    {% endif %}
+  </div>
 {% endblock %}

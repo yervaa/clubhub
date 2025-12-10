@@ -4,8 +4,13 @@
 
 {% block main %}
   <h1 class="mb-3">Manage Members — {{ club.name }}</h1>
+  <div class="mb-3">
+    <a class="btn btn-sm btn-outline-secondary" href="/clubs/{{ club.id }}/roles">Roles & Permissions</a>
+  </div>
 
   <form method="post">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="page" value="{{ page }}">
     <div class="mb-3">
       <label for="user_id" class="form-label">User</label>
       <select id="user_id" name="user_id" class="form-select" required>
@@ -18,9 +23,11 @@
 
     <div class="mb-3">
       <label for="role" class="form-label">Role</label>
-      <select id="role" name="role" class="form-select">
-        <option value="student">Student</option>
-        <option value="officer">Officer</option>
+      <select id="role" name="role_id" class="form-select">
+        <option value="">Select role</option>
+        {% for r in roles %}
+          <option value="{{ r.id }}">{{ r.name }}</option>
+        {% endfor %}
       </select>
     </div>
 
@@ -36,14 +43,39 @@
         <div class="list-group-item d-flex justify-content-between align-items-center">
           <div>
             <strong>{{ m.username }}</strong>
-            <div class="small text-muted">Role: {{ m.role }}</div>
+            <div class="small text-muted">Role: {{ m.role_name }}</div>
           </div>
-          <form method="post" action="/clubs/{{ club.id }}/members/remove" onsubmit="return confirm('Remove member?');">
-            <input type="hidden" name="user_id" value="{{ m.user_id }}">
-            <button class="btn btn-sm btn-outline-danger">Remove</button>
-          </form>
+          <div class="d-flex gap-2">
+            <form method="post" class="d-flex gap-2 align-items-center">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="page" value="{{ page }}">
+              <input type="hidden" name="user_id" value="{{ m.user_id }}">
+              <select class="form-select form-select-sm" name="role_id">
+                {% for r in roles %}
+                  <option value="{{ r.id }}" {% if r.id == m.role_id %}selected{% endif %}>{{ r.name }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-sm btn-outline-primary">Update</button>
+            </form>
+            <form method="post" action="/clubs/{{ club.id }}/members/remove" onsubmit="return confirm('Remove member?');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="page" value="{{ page }}">
+              <input type="hidden" name="user_id" value="{{ m.user_id }}">
+              <button class="btn btn-sm btn-outline-danger">Remove</button>
+            </form>
+          </div>
         </div>
       {% endfor %}
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      {% if has_prev %}
+        <a class="btn btn-outline-secondary" href="/clubs/{{ club.id }}/members?page={{ page - 1 }}">← Previous</a>
+      {% else %}
+        <span></span>
+      {% endif %}
+      {% if has_next %}
+        <a class="btn btn-outline-secondary" href="/clubs/{{ club.id }}/members?page={{ page + 1 }}">Next →</a>
+      {% endif %}
     </div>
   {% else %}
     <div class="alert alert-info">No members yet.</div>
