@@ -3,23 +3,26 @@
 {% block title %}My RSVPs{% endblock %}
 
 {% block main %}
-  <h1 class="mb-3">🎫 My RSVPs</h1>
+  <div class="page-header">
+    <div>
+      <h1>My RSVPs</h1>
+      <p class="page-subtitle mb-0">Events you’ve responded to</p>
+    </div>
+  </div>
 
   {% if events %}
-    <div class="row">
+    <div class="card-grid">
       {% for e in events %}
-        <div class="col-md-6 mb-3">
-          <div class="card">
-            <div class="card-body">
-              <h5 class="card-title">{{ e.title }}</h5>
-              <p class="small text-muted mb-1">{{ e.start_time | format_datetime }}</p>
-              {% if e.location %}
-                <p class="small text-muted">📍 {{ e.location }}</p>
-              {% endif %}
-              <p class="mt-2"><strong>Status:</strong> {{ e.status }}</p>
+        <article class="card">
+          <div class="card-body">
+            <h3 class="mb-1">{{ e.title }}</h3>
+            <div class="card-meta mb-2">
+              <span>📅 {{ e.start_time | format_datetime }}</span>
+              {% if e.location %}<span>📍 {{ e.location }}</span>{% endif %}
             </div>
+            <span class="badge accent">Status: {{ e.status }}</span>
           </div>
-        </div>
+        </article>
       {% endfor %}
     </div>
   {% else %}

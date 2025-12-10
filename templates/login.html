@@ -5,30 +5,30 @@
 {% block main %}
   <div class="row justify-content-center align-items-center" style="min-height: 60vh;">
     <div class="col-md-6 col-lg-5">
-      <div class="card shadow-lg border-0">
-        <div class="card-body p-5">
-          <h1 class="text-center mb-4">🔐 Log In</h1>
+      <div class="card">
+        <div class="card-body p-4">
+          <h1 class="text-center mb-4">Log In</h1>
           
           <form action="/login" method="post">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-            <div class="mb-4">
-              <label class="form-label fw-bold">Username</label>
-              <input class="form-control form-control-lg" name="username" placeholder="Enter your username" autocomplete="off" autofocus required>
+            <div class="form-group">
+              <label class="form-label">Username</label>
+              <input class="form-control" name="username" placeholder="Enter your username" autocomplete="off" autofocus required>
             </div>
 
-            <div class="mb-4">
-              <label class="form-label fw-bold">Password</label>
-              <input class="form-control form-control-lg" name="password" type="password" placeholder="Enter your password" required>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <input class="form-control" name="password" type="password" placeholder="Enter your password" required>
             </div>
 
-            <button class="btn btn-primary btn-lg w-100 fw-bold" type="submit">Log In</button>
+            <button class="btn btn-primary w-100" type="submit">Log In</button>
           </form>
 
           <hr class="my-4">
           
-          <p class="text-center text-muted mb-0">
+          <p class="text-center muted mb-0">
             Don't have an account? 
-            <a href="/register" class="fw-bold text-primary">Register here</a>
+            <a href="/register" class="fw-bold">Register here</a>
           </p>
         </div>
       </div>

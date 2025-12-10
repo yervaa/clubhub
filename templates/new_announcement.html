@@ -3,33 +3,53 @@
 {% block title %}New Announcement{% endblock %}
 
 {% block main %}
+  <div class="page-header">
+    <div>
+      <h1>{% if edit_mode %}Edit Announcement{% else %}Post New Announcement{% endif %}</h1>
+      <p class="page-subtitle mb-0">Share news with your clubs or globally</p>
+    </div>
+  </div>
+
   <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-      <h1 class="mb-4">📢 Post New Announcement</h1>
-      
-      <div class="card shadow-sm">
+    <div class="col-lg-8 col-xl-7">
+      <section class="card">
         <div class="card-body">
-          <form action="/announcements/new" method="post">
+          <form action="{% if edit_mode %}/announcements/{{ announcement.id }}/edit{% else %}/announcements/new{% endif %}" method="post">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-            <div class="mb-3">
-              <label class="form-label">📝 Title</label>
-              <input class="form-control form-control-lg" name="title" placeholder="e.g., Important Update" required>
-              <small class="form-text text-muted">Keep it short and clear</small>
+            <div class="form-group">
+              <label class="form-label" for="title">Title</label>
+              <input id="title" class="form-control" name="title" placeholder="e.g., Important Update" value="{{ announcement.title if announcement else '' }}" required>
+              <small class="muted">Keep it short and clear</small>
             </div>
 
-            <div class="mb-4">
-              <label class="form-label">📄 Message</label>
-              <textarea class="form-control" name="body" placeholder="Write your announcement here..." rows="6" required></textarea>
-              <small class="form-text text-muted">Be clear and informative</small>
+            <div class="form-group">
+              <label class="form-label" for="club">Club (leave as Global if you are a site admin)</label>
+              <select class="form-select" id="club" name="club_id">
+                {% if is_global_admin %}
+                  <option value="">Global announcement</option>
+                {% else %}
+                  <option value="">Select a club</option>
+                {% endif %}
+                {% for c in manageable_clubs %}
+                  <option value="{{ c.id }}" {% if announcement and announcement.club_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+              <small class="muted">You can post to clubs you manage announcements for.</small>
             </div>
 
-            <div class="d-grid gap-2">
-              <button class="btn btn-success btn-lg" type="submit">✓ Post Announcement</button>
-              <a href="/announcements" class="btn btn-secondary">Cancel</a>
+            <div class="form-group">
+              <label class="form-label" for="body">Message</label>
+              <textarea id="body" class="form-control" name="body" placeholder="Write your announcement here..." rows="6" required>{{ announcement.body if announcement else '' }}</textarea>
+              <small class="muted">Be clear and informative</small>
+            </div>
+
+            <div class="d-grid gap-2 mt-4">
+              <button class="btn btn-primary" type="submit">{% if edit_mode %}Save Changes{% else %}Post Announcement{% endif %}</button>
+              <a href="/announcements" class="btn btn-outline">Cancel</a>
             </div>
           </form>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 {% endblock %}

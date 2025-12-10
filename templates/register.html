@@ -5,38 +5,38 @@
 {% block main %}
   <div class="row justify-content-center align-items-center" style="min-height: 60vh;">
     <div class="col-md-6 col-lg-5">
-      <div class="card shadow-lg border-0">
-        <div class="card-body p-5">
-          <h1 class="text-center mb-4">✨ Join ClubHub</h1>
+      <div class="card">
+        <div class="card-body p-4">
+          <h1 class="text-center mb-4">Join ClubHub</h1>
           
           <form action="/register" method="post">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-            <div class="mb-4">
-              <label class="form-label fw-bold">Username</label>
-              <input class="form-control form-control-lg" name="username" placeholder="Choose a username" autocomplete="off" autofocus required>
-              <small class="form-text text-muted">This will be your unique identifier</small>
+            <div class="form-group">
+              <label class="form-label">Username</label>
+              <input class="form-control" name="username" placeholder="Choose a username" autocomplete="off" autofocus required>
+              <small class="muted">This will be your unique identifier</small>
             </div>
 
-            <div class="mb-4">
-              <label class="form-label fw-bold">Password</label>
-              <input class="form-control form-control-lg" name="password" type="password" placeholder="Create a password" required>
-              <small class="form-text text-muted">Keep it secure and memorable</small>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <input class="form-control" name="password" type="password" placeholder="Create a password" required>
+              <small class="muted">Keep it secure and memorable</small>
             </div>
 
-            <div class="mb-4">
-              <label class="form-label fw-bold">Confirm Password</label>
-              <input class="form-control form-control-lg" name="confirmation" type="password" placeholder="Confirm your password" required>
-              <small class="form-text text-muted">Must match your password</small>
+            <div class="form-group">
+              <label class="form-label">Confirm Password</label>
+              <input class="form-control" name="confirmation" type="password" placeholder="Confirm your password" required>
+              <small class="muted">Must match your password</small>
             </div>
 
-            <button class="btn btn-success btn-lg w-100 fw-bold" type="submit">Register</button>
+            <button class="btn btn-primary w-100" type="submit">Register</button>
           </form>
 
           <hr class="my-4">
           
-          <p class="text-center text-muted mb-0">
+          <p class="text-center muted mb-0">
             Already have an account? 
-            <a href="/login" class="fw-bold text-primary">Log in here</a>
+            <a href="/login" class="fw-bold">Log in here</a>
           </p>
         </div>
       </div>

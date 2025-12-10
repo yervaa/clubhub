@@ -35,6 +35,12 @@ Session(app)
 
 # Configure CS50 Library to use SQLite database (or DATABASE_URL)
 db = SQL(DATABASE_URL)
+# Enforce foreign keys on SQLite
+if DATABASE_URL.startswith("sqlite"):
+    try:
+        db.execute("PRAGMA foreign_keys = ON")
+    except Exception:
+        pass
 
 # Logging (rotating file) in non-debug environments
 if not DEBUG_MODE:
@@ -82,6 +88,15 @@ try:
         db.execute("UPDATE clubs SET join_code = ? WHERE id = ?", generate_join_code(), row["id"])
 except Exception:
     pass
+
+# Ensure announcements have club_id column
+try:
+    db.execute("SELECT club_id FROM announcements LIMIT 1")
+except Exception:
+    try:
+        db.execute("ALTER TABLE announcements ADD COLUMN club_id INTEGER REFERENCES clubs(id)")
+    except Exception:
+        pass
 
 # Ensure club_roles table exists
 try:
@@ -354,11 +369,27 @@ def after_request(response):
 @app.route("/")
 @login_required
 def index():
-    announcements = db.execute(
-        "SELECT a.id, a.title, a.body, a.created_at, u.username AS author "
-        "FROM announcements a JOIN users u ON a.created_by = u.id "
-        "ORDER BY datetime(a.created_at) DESC"
+    membership_rows = db.execute(
+        "SELECT club_id FROM club_membership WHERE user_id = ?", session["user_id"]
     )
+    member_club_ids = [row["club_id"] for row in membership_rows]
+
+    base_sql = (
+        "SELECT a.id, a.title, a.body, a.created_at, a.created_by AS author_id, a.club_id, "
+        "u.username AS author, c.name AS club_name "
+        "FROM announcements a JOIN users u ON a.created_by = u.id "
+        "LEFT JOIN clubs c ON a.club_id = c.id "
+    )
+    params = []
+    if not _is_global_officer():
+        if member_club_ids:
+            placeholders = ",".join(["?"] * len(member_club_ids))
+            base_sql += f"WHERE a.club_id IS NULL OR a.club_id IN ({placeholders}) "
+            params.extend(member_club_ids)
+        else:
+            base_sql += "WHERE a.club_id IS NULL "
+    base_sql += "ORDER BY datetime(a.created_at) DESC LIMIT 10"
+    announcements = db.execute(base_sql, *params)
 
     if _is_global_officer():
         upcoming_events = db.execute(
@@ -544,15 +575,17 @@ def events():
     offset = (page - 1) * per_page
 
     sql = (
-        "SELECT e.id, e.title, e.description, e.event_type, e.club_id, "
+        "SELECT e.id, e.title, e.description, e.event_type, e.club_id, c.name AS club_name, "
         "       e.start_time, e.end_time, e.location, u.username AS author, "
         "       COUNT(CASE WHEN a.status = 'going' THEN 1 END) AS going_count, "
         "       COUNT(CASE WHEN a.status = 'maybe' THEN 1 END) AS maybe_count, "
         "       (SELECT status FROM attendance WHERE user_id = ? AND event_id = e.id) AS user_status, "
         "       COALESCE(cr.can_manage_events, 0) AS can_manage_events, "
-        "       COALESCE(cr.can_manage_attendance, 0) AS can_manage_attendance "
+        "       COALESCE(cr.can_manage_attendance, 0) AS can_manage_attendance, "
+        "       cr.name AS user_role_name "
         "FROM events e "
         "JOIN users u ON e.created_by = u.id "
+        "LEFT JOIN clubs c ON e.club_id = c.id "
         "LEFT JOIN attendance a ON e.id = a.event_id "
         "LEFT JOIN club_membership cm ON cm.club_id = e.club_id AND cm.user_id = ? "
         "LEFT JOIN club_roles cr ON cr.id = cm.role_id "
@@ -910,17 +943,47 @@ def announcements():
     limit = per_page + 1
     offset = (page - 1) * per_page
 
-    announcements = db.execute(
-        "SELECT a.id, a.title, a.body, a.created_at, u.username AS author "
-        "FROM announcements a JOIN users u ON a.created_by = u.id "
-        "ORDER BY datetime(a.created_at) DESC "
-        "LIMIT ? OFFSET ?",
-        limit,
-        offset,
+    membership_rows = db.execute("SELECT club_id FROM club_membership WHERE user_id = ?", session["user_id"])
+    member_club_ids = [row["club_id"] for row in membership_rows]
+    manageable = db.execute(
+        "SELECT c.id FROM clubs c "
+        "JOIN club_membership cm ON cm.club_id = c.id AND cm.user_id = ? "
+        "JOIN club_roles cr ON cr.id = cm.role_id AND cr.can_manage_announcements = 1",
+        session["user_id"],
     )
+    can_post = _is_global_officer() or len(manageable) > 0
+    sql = (
+        "SELECT a.id, a.title, a.body, a.created_at, a.created_by AS author_id, a.club_id, "
+        "u.username AS author, c.name AS club_name "
+        "FROM announcements a JOIN users u ON a.created_by = u.id "
+        "LEFT JOIN clubs c ON a.club_id = c.id "
+    )
+    params = []
+    if not _is_global_officer():
+        if member_club_ids:
+            placeholders = ",".join(["?"] * len(member_club_ids))
+            sql += f"WHERE a.club_id IS NULL OR a.club_id IN ({placeholders}) "
+            params.extend(member_club_ids)
+        else:
+            sql += "WHERE a.club_id IS NULL "
+    sql += "ORDER BY datetime(a.created_at) DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    announcements = db.execute(sql, *params)
     has_next = len(announcements) > per_page
     announcements = announcements[:per_page]
     has_prev = page > 1
+    # annotate permissions
+    def _can_edit_ann(row):
+        if _is_global_officer():
+            return True
+        cid = row.get("club_id")
+        if cid:
+            membership = get_membership(session.get("user_id"), cid)
+            return membership and membership.get("can_manage_announcements")
+        return False
+    for a in announcements:
+        a["can_edit"] = _can_edit_ann(a)
 
     return render_template(
         "announcements.html",
@@ -928,6 +991,7 @@ def announcements():
         page=page,
         has_next=has_next,
         has_prev=has_prev,
+        can_post=can_post,
     )
 
 
@@ -1041,7 +1105,22 @@ def club_detail(club_id):
     is_member = membership is not None
     can_manage_members = _is_global_officer() or (membership and membership.get("can_manage_members"))
     can_manage_roles = _is_global_officer() or (membership and membership.get("can_manage_roles"))
-    return render_template("club_detail.html", club=club, events=events, is_officer=is_officer_for_club, is_president=is_president, is_member=is_member, can_manage_members=can_manage_members, can_manage_roles=can_manage_roles)
+    can_manage_join_code = _is_global_officer() or (membership and membership.get("can_manage_join_code"))
+    member_count = db.execute("SELECT COUNT(*) AS c FROM club_membership WHERE club_id = ?", club_id)[0]["c"]
+    role_name = membership.get("role_name") if membership else None
+    return render_template(
+        "club_detail.html",
+        club=club,
+        events=events,
+        is_officer=is_officer_for_club,
+        is_president=is_president,
+        is_member=is_member,
+        can_manage_members=can_manage_members,
+        can_manage_roles=can_manage_roles,
+        can_manage_join_code=can_manage_join_code,
+        member_count=member_count,
+        role_name=role_name,
+    )
 
 
 @app.route("/clubs/<int:club_id>/join", methods=["GET", "POST"])
@@ -1149,6 +1228,8 @@ def manage_club_members(club_id):
         flash("Club not found.", "danger")
         return redirect("/clubs")
     club = club[0]
+    membership = get_membership(session.get("user_id"), club_id)
+    can_manage_join_code = _is_global_officer() or (membership and membership.get("can_manage_join_code"))
     ensure_default_roles_for_club(club_id)
 
     # POST: add/update membership
@@ -1201,6 +1282,7 @@ def manage_club_members(club_id):
         page=page,
         has_next=has_next,
         has_prev=has_prev,
+        can_manage_join_code=can_manage_join_code,
     )
 
 
@@ -1225,6 +1307,41 @@ def remove_club_member(club_id):
             flash("Could not remove member.", "danger")
 
     return redirect(f"/clubs/{club_id}/members?page={page}")
+
+
+@app.route("/clubs/<int:club_id>/leave", methods=["POST"])
+@login_required
+def leave_club(club_id):
+    membership = get_membership(session.get("user_id"), club_id)
+    if not membership:
+        flash("You are not a member of this club.", "danger")
+        return redirect("/clubs")
+    if membership.get("is_president") == 1 and not _is_global_officer():
+        flash("Presidents cannot leave the club. Transfer role first.", "danger")
+        return redirect(f"/clubs/{club_id}")
+    try:
+        db.execute("DELETE FROM club_membership WHERE user_id = ? AND club_id = ?", session["user_id"], club_id)
+        flash("You left the club.", "success")
+    except Exception:
+        flash("Could not leave the club.", "danger")
+    return redirect("/clubs")
+
+
+@app.route("/clubs/<int:club_id>/join_code/regenerate", methods=["POST"])
+@login_required
+def regenerate_join_code(club_id):
+    require_club_permission(club_id, "can_manage_join_code")
+    club_rows = db.execute("SELECT id FROM clubs WHERE id = ?", club_id)
+    if len(club_rows) == 0:
+        flash("Club not found.", "danger")
+        return redirect("/clubs")
+    try:
+        new_code = generate_join_code()
+        db.execute("UPDATE clubs SET join_code = ? WHERE id = ?", new_code, club_id)
+        flash("Join code regenerated.", "success")
+    except Exception:
+        flash("Could not regenerate join code.", "danger")
+    return redirect(f"/clubs/{club_id}/members")
 
 
 @app.route("/clubs/<int:club_id>/roles", methods=["GET", "POST"])
@@ -1347,12 +1464,22 @@ def my_rsvps():
 # Create Announcement (officers only)
 @app.route("/announcements/new", methods=["GET", "POST"])
 @login_required
-@officer_required
 def new_announcement():
-    """Create a new announcement"""
+    """Create a new announcement (club-specific or global for admins)"""
+    user_id = session["user_id"]
+    # clubs where user can manage announcements
+    manageable = db.execute(
+        "SELECT c.id, c.name FROM clubs c "
+        "JOIN club_membership cm ON cm.club_id = c.id AND cm.user_id = ? "
+        "JOIN club_roles cr ON cr.id = cm.role_id AND cr.can_manage_announcements = 1 "
+        "ORDER BY c.name",
+        user_id,
+    )
+    is_global_admin = _is_global_officer()
     if request.method == "POST":
         title = request.form.get("title")
         body = request.form.get("body")
+        club_id_raw = request.form.get("club_id") or ""
 
         if not title:
             flash("Title is required.", "danger")
@@ -1361,13 +1488,31 @@ def new_announcement():
             flash("Body is required.", "danger")
             return redirect("/announcements/new")
 
+        club_id = None
+        if club_id_raw:
+            try:
+                club_id_int = int(club_id_raw)
+            except Exception:
+                flash("Invalid club selection.", "danger")
+                return redirect("/announcements/new")
+            allowed_ids = {row["id"] for row in manageable}
+            if club_id_int not in allowed_ids and not is_global_admin:
+                abort(403)
+            club_id = club_id_int
+        else:
+            # global announcements only allowed for global officers
+            if not is_global_admin:
+                flash("Choose a club for your announcement.", "danger")
+                return redirect("/announcements/new")
+
         try:
             db.execute(
-                "INSERT INTO announcements (title, body, created_by) "
-                "VALUES (?, ?, ?)",
+                "INSERT INTO announcements (title, body, created_by, club_id) "
+                "VALUES (?, ?, ?, ?)",
                 title,
                 body,
-                session["user_id"]
+                user_id,
+                club_id,
             )
         except Exception:
             flash("Could not create announcement.", "danger")
@@ -1376,10 +1521,105 @@ def new_announcement():
         flash("Announcement created successfully!", "success")
         return redirect("/")
 
-        # NOTE: This route design and query were assisted by ChatGPT,
-        # then reviewed, modified, and adapted manually by me.
+    if not manageable and not is_global_admin:
+        flash("You do not have permission to post announcements.", "danger")
+        return redirect("/announcements")
 
-    return render_template("new_announcement.html")
+    return render_template("new_announcement.html", manageable_clubs=manageable, is_global_admin=is_global_admin, announcement=None, edit_mode=False)
+
+
+def _announcement_or_404(announcement_id):
+    rows = db.execute(
+        "SELECT a.*, c.name AS club_name FROM announcements a LEFT JOIN clubs c ON a.club_id = c.id WHERE a.id = ?",
+        announcement_id,
+    )
+    if len(rows) == 0:
+        abort(404)
+    return rows[0]
+
+
+def _can_manage_announcement(row):
+    if _is_global_officer():
+        return True
+    cid = row.get("club_id")
+    if cid:
+        membership = get_membership(session.get("user_id"), cid)
+        return membership and membership.get("can_manage_announcements")
+    return False
+
+
+@app.route("/announcements/<int:announcement_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_announcement(announcement_id):
+    ann = _announcement_or_404(announcement_id)
+    if not _can_manage_announcement(ann):
+        abort(403)
+    user_id = session["user_id"]
+    manageable = db.execute(
+        "SELECT c.id, c.name FROM clubs c "
+        "JOIN club_membership cm ON cm.club_id = c.id AND cm.user_id = ? "
+        "JOIN club_roles cr ON cr.id = cm.role_id AND cr.can_manage_announcements = 1 "
+        "ORDER BY c.name",
+        user_id,
+    )
+    is_global_admin = _is_global_officer()
+    if request.method == "POST":
+        title = request.form.get("title")
+        body = request.form.get("body")
+        club_id_raw = request.form.get("club_id") or ""
+        if not title or not body:
+            flash("Title and body are required.", "danger")
+            return redirect(f"/announcements/{announcement_id}/edit")
+        club_id = None
+        if club_id_raw:
+            try:
+                club_id_int = int(club_id_raw)
+            except Exception:
+                flash("Invalid club selection.", "danger")
+                return redirect(f"/announcements/{announcement_id}/edit")
+            allowed_ids = {row["id"] for row in manageable}
+            if club_id_int not in allowed_ids and not is_global_admin:
+                abort(403)
+            club_id = club_id_int
+        else:
+            if not is_global_admin:
+                flash("Choose a club for your announcement.", "danger")
+                return redirect(f"/announcements/{announcement_id}/edit")
+        try:
+            db.execute(
+                "UPDATE announcements SET title = ?, body = ?, club_id = ? WHERE id = ?",
+                title,
+                body,
+                club_id,
+                announcement_id,
+            )
+            flash("Announcement updated.", "success")
+            return redirect("/announcements")
+        except Exception:
+            flash("Could not update announcement.", "danger")
+            return redirect(f"/announcements/{announcement_id}/edit")
+
+    return render_template(
+        "new_announcement.html",
+        manageable_clubs=manageable,
+        is_global_admin=is_global_admin,
+        announcement=ann,
+        edit_mode=True,
+    )
+
+
+@app.route("/announcements/<int:announcement_id>/delete", methods=["POST"])
+@login_required
+def delete_announcement(announcement_id):
+    ann = _announcement_or_404(announcement_id)
+    if not _can_manage_announcement(ann):
+        abort(403)
+    try:
+        db.execute("DELETE FROM announcements WHERE id = ?", announcement_id)
+        flash("Announcement deleted.", "success")
+    except Exception:
+        flash("Could not delete announcement.", "danger")
+    return redirect("/announcements")
 
 
 if __name__ == "__main__":

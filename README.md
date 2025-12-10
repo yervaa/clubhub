@@ -73,7 +73,7 @@ clubhub/
 │ ├── new_announcement.html # Officer announcement creation form
 │
 └── static/
-└── styles.css # Custom styling
+└── css/clubhub.css # Custom styling
 
 ---
 
