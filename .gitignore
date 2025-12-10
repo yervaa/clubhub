@@ -1,0 +1,31 @@
+# Virtual environments
+venv/
+.venv/
+
+# Bytecode / cache
+__pycache__/
+*.pyc
+
+# Flask session data
+flask_session/
+
+# Databases
+*.db
+
+# Logs
+*.log
+*.log.*
+
+# Alembic cache
+migrations/__pycache__/
+
+# Environment variables
+.env
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
