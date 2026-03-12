@@ -185,6 +185,11 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     return null;
   }
 
+  const clubRelation = Array.isArray(membership.clubs) ? membership.clubs[0] : membership.clubs;
+  if (!clubRelation) {
+    return null;
+  }
+
   const { data: membersData } = await supabase
     .from("club_members")
     .select("user_id, role")
@@ -216,10 +221,10 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       : { data: [] as { event_id: string; user_id: string; status: "yes" | "no" | "maybe" }[] };
 
   return {
-    id: membership.clubs.id,
-    name: membership.clubs.name,
-    description: membership.clubs.description,
-    joinCode: membership.clubs.join_code,
+    id: clubRelation.id,
+    name: clubRelation.name,
+    description: clubRelation.description,
+    joinCode: clubRelation.join_code,
     currentUserRole: membership.role,
     members: (membersData ?? []).map((member) => ({
       userId: member.user_id,
