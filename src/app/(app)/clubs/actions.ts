@@ -22,6 +22,46 @@ function getSafeValidationErrorMessage(result: { error: { issues: Array<{ messag
   return result.error.issues[0]?.message ?? "Please review your input and try again.";
 }
 
+async function ensureCreatorOfficerMembership(supabase: Awaited<ReturnType<typeof createClient>>, clubId: string, userId: string) {
+  const { data: membership, error: membershipError } = await supabase
+    .from("club_members")
+    .select("role")
+    .eq("club_id", clubId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (membershipError) {
+    return { ok: false as const };
+  }
+
+  if (membership?.role === "officer") {
+    return { ok: true as const, repaired: false };
+  }
+
+  console.warn(`Club creator membership missing after club insert for club ${clubId}. Falling back to ensure_club_creator_membership().`);
+
+  const { data: fallbackApplied, error: fallbackError } = await supabase.rpc("ensure_club_creator_membership", {
+    target_club_id: clubId,
+  });
+
+  if (fallbackError || !fallbackApplied) {
+    return { ok: false as const };
+  }
+
+  const { data: verifiedMembership, error: verifyError } = await supabase
+    .from("club_members")
+    .select("role")
+    .eq("club_id", clubId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (verifyError || verifiedMembership?.role !== "officer") {
+    return { ok: false as const };
+  }
+
+  return { ok: true as const, repaired: true };
+}
+
 export async function createClubAction(formData: FormData) {
   const parsed = clubCreateSchema.safeParse({
     name: formData.get("name"),
@@ -90,6 +130,12 @@ export async function createClubAction(formData: FormData) {
 
   if (!created) {
     redirect("/clubs/create?error=Could+not+generate+a+join+code.+Please+retry.");
+  }
+
+  const membershipCheck = await ensureCreatorOfficerMembership(supabase, clubId, user.id);
+
+  if (!membershipCheck.ok) {
+    redirect("/clubs/create?error=Club+created+but+officer+membership+verification+failed.+Apply+the+latest+database+migration.");
   }
 
   revalidatePath("/dashboard");

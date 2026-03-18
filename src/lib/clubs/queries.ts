@@ -72,13 +72,40 @@ export type DashboardData = {
 
 type ClubMemberRow = {
   role: "member" | "officer";
-  clubs: {
-    id: string;
-    name: string;
-    description: string;
-    join_code: string;
-  } | null;
+  clubs:
+    | {
+        id: string;
+        name: string;
+        description: string;
+        join_code: string;
+      }
+    | {
+        id: string;
+        name: string;
+        description: string;
+        join_code: string;
+      }[]
+    | null;
 };
+
+function normalizeClubRelation(
+  relation:
+    | {
+        id: string;
+        name: string;
+        description: string;
+        join_code: string;
+      }
+    | {
+        id: string;
+        name: string;
+        description: string;
+        join_code: string;
+      }[]
+    | null,
+) {
+  return Array.isArray(relation) ? relation[0] ?? null : relation;
+}
 
 export async function getCurrentUserClubs(): Promise<UserClub[]> {
   noStore();
@@ -105,12 +132,16 @@ export async function getCurrentUserClubs(): Promise<UserClub[]> {
   const rows = data as unknown as ClubMemberRow[];
 
   return rows
-    .filter((row) => row.clubs)
     .map((row) => ({
-      id: row.clubs!.id,
-      name: row.clubs!.name,
-      description: row.clubs!.description,
-      joinCode: row.clubs!.join_code,
+      role: row.role,
+      club: normalizeClubRelation(row.clubs),
+    }))
+    .filter((row) => row.club)
+    .map((row) => ({
+      id: row.club!.id,
+      name: row.club!.name,
+      description: row.club!.description,
+      joinCode: row.club!.join_code,
       role: row.role,
     }));
 }
@@ -192,7 +223,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     return null;
   }
 
-  const clubRelation = Array.isArray(membership.clubs) ? membership.clubs[0] : membership.clubs;
+  const clubRelation = normalizeClubRelation(membership.clubs);
   if (!clubRelation) {
     return null;
   }
