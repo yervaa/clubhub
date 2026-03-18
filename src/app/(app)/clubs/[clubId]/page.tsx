@@ -1,5 +1,11 @@
 import { notFound } from "next/navigation";
-import { createAnnouncementAction, createEventAction, upsertRsvpAction } from "@/app/(app)/clubs/actions";
+import {
+  createAnnouncementAction,
+  createEventAction,
+  removeMemberAction,
+  updateMemberRoleAction,
+  upsertRsvpAction,
+} from "@/app/(app)/clubs/actions";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubPageProps = {
@@ -11,6 +17,8 @@ type ClubPageProps = {
     eventSuccess?: string;
     rsvpError?: string;
     rsvpSuccess?: string;
+    memberError?: string;
+    memberSuccess?: string;
   }>;
 };
 
@@ -59,6 +67,8 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
           </div>
           <span className="badge-soft">{club.members.length} total</span>
         </div>
+        {query.memberSuccess ? <p className="alert-success mt-4">{query.memberSuccess}</p> : null}
+        {query.memberError ? <p className="alert-error mt-3">{query.memberError}</p> : null}
         {club.members.length === 0 ? (
           <div className="empty-state mt-4 p-6">
             <p className="empty-state-title">No members yet.</p>
@@ -67,9 +77,51 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         ) : (
           <ul className="list-stack mt-4">
             {club.members.map((member) => (
-              <li key={member.userId} className="surface-subcard flex items-center justify-between gap-3 px-4 py-3">
-                <span className="text-sm text-slate-700">{member.userId}</span>
-                <span className={member.role === "officer" ? "badge-strong" : "badge-soft"}>{member.role}</span>
+              <li key={member.userId} className="surface-subcard px-4 py-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {member.fullName?.trim() || member.email || member.userId}
+                      </p>
+                      {member.userId === club.currentUserId ? <span className="badge-soft">You</span> : null}
+                    </div>
+                    <p className="mt-1 truncate text-sm text-slate-600">{member.email ?? member.userId}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={member.role === "officer" ? "badge-strong" : "badge-soft"}>{member.role}</span>
+                  </div>
+                </div>
+                {club.currentUserRole === "officer" && member.userId !== club.currentUserId ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {member.role === "member" ? (
+                      <form action={updateMemberRoleAction}>
+                        <input type="hidden" name="club_id" value={club.id} />
+                        <input type="hidden" name="user_id" value={member.userId} />
+                        <input type="hidden" name="role" value="officer" />
+                        <button type="submit" className="btn-secondary text-xs">
+                          Promote to Officer
+                        </button>
+                      </form>
+                    ) : (
+                      <form action={updateMemberRoleAction}>
+                        <input type="hidden" name="club_id" value={club.id} />
+                        <input type="hidden" name="user_id" value={member.userId} />
+                        <input type="hidden" name="role" value="member" />
+                        <button type="submit" className="btn-secondary text-xs">
+                          Demote to Member
+                        </button>
+                      </form>
+                    )}
+                    <form action={removeMemberAction}>
+                      <input type="hidden" name="club_id" value={club.id} />
+                      <input type="hidden" name="user_id" value={member.userId} />
+                      <button type="submit" className="btn-secondary text-xs">
+                        Remove from Club
+                      </button>
+                    </form>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>

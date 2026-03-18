@@ -33,6 +33,8 @@ export type ClubEvent = {
 
 export type ClubMember = {
   userId: string;
+  fullName: string | null;
+  email: string | null;
   role: "member" | "officer";
 };
 
@@ -41,6 +43,7 @@ export type ClubDetail = {
   name: string;
   description: string;
   joinCode: string;
+  currentUserId: string;
   currentUserRole: "member" | "officer";
   members: ClubMember[];
   announcements: ClubAnnouncement[];
@@ -86,6 +89,13 @@ type ClubMemberRow = {
         join_code: string;
       }[]
     | null;
+};
+
+type ClubMemberViewRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  role: "member" | "officer";
 };
 
 function normalizeClubRelation(
@@ -229,10 +239,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
   }
 
   const { data: membersData } = await supabase
-    .from("club_members")
-    .select("user_id, role")
-    .eq("club_id", clubId)
-    .order("joined_at", { ascending: true });
+    .rpc("get_club_members_for_view", { target_club_id: clubId });
 
   const { data: announcementsData } = await supabase
     .from("announcements")
@@ -263,9 +270,12 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     name: clubRelation.name,
     description: clubRelation.description,
     joinCode: clubRelation.join_code,
+    currentUserId: user.id,
     currentUserRole: membership.role,
-    members: (membersData ?? []).map((member) => ({
+    members: ((membersData ?? []) as ClubMemberViewRow[]).map((member) => ({
       userId: member.user_id,
+      fullName: member.full_name,
+      email: member.email,
       role: member.role,
     })),
     announcements: (announcementsData ?? []).map((announcement) => ({

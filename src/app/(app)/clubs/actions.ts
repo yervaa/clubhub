@@ -11,6 +11,8 @@ import {
   clubCreateSchema,
   eventCreateSchema,
   joinCodeSchema,
+  memberRemovalSchema,
+  memberRoleUpdateSchema,
   rsvpSchema,
 } from "@/lib/validation/clubs";
 
@@ -306,6 +308,99 @@ export async function createAnnouncementAction(formData: FormData) {
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   redirect(`/clubs/${parsed.data.clubId}?annSuccess=Announcement+posted.`);
+}
+
+function getMemberManagementErrorMessage(status: string) {
+  switch (status) {
+    case "cannot_edit_self":
+      return "You cannot change your own membership from this screen.";
+    case "last_officer":
+      return "This club must keep at least one officer.";
+    case "not_found":
+      return "That member could not be found in this club.";
+    case "not_allowed":
+      return "Only officers can manage members.";
+    default:
+      return "Unable to update this member right now.";
+  }
+}
+
+export async function updateMemberRoleAction(formData: FormData) {
+  const parsed = memberRoleUpdateSchema.safeParse({
+    clubId: formData.get("club_id"),
+    userId: formData.get("user_id"),
+    role: formData.get("role"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}?memberError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    }
+    redirect("/clubs?error=Invalid+member+request.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: status, error } = await supabase.rpc("update_club_member_role", {
+    target_club_id: parsed.data.clubId,
+    target_user_id: parsed.data.userId,
+    new_role: parsed.data.role,
+  });
+
+  if (error || status !== "ok") {
+    redirect(`/clubs/${parsed.data.clubId}?memberError=${encodeURIComponent(getMemberManagementErrorMessage(status ?? "unknown"))}`);
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  revalidatePath("/clubs");
+  revalidatePath("/dashboard");
+  redirect(`/clubs/${parsed.data.clubId}?memberSuccess=Member+updated.`);
+}
+
+export async function removeMemberAction(formData: FormData) {
+  const parsed = memberRemovalSchema.safeParse({
+    clubId: formData.get("club_id"),
+    userId: formData.get("user_id"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}?memberError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    }
+    redirect("/clubs?error=Invalid+member+request.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: status, error } = await supabase.rpc("remove_club_member", {
+    target_club_id: parsed.data.clubId,
+    target_user_id: parsed.data.userId,
+  });
+
+  if (error || status !== "ok") {
+    redirect(`/clubs/${parsed.data.clubId}?memberError=${encodeURIComponent(getMemberManagementErrorMessage(status ?? "unknown"))}`);
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  revalidatePath("/clubs");
+  revalidatePath("/dashboard");
+  redirect(`/clubs/${parsed.data.clubId}?memberSuccess=Member+removed.`);
 }
 
 export async function createEventAction(formData: FormData) {
