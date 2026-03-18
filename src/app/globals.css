@@ -20,6 +20,10 @@ body {
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
 }
 
+a {
+  text-underline-offset: 0.2em;
+}
+
 .page-shell {
   margin: 0 auto;
   width: 100%;
@@ -44,6 +48,18 @@ body {
   text-align: center;
 }
 
+.empty-state-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgb(15 23 42);
+}
+
+.empty-state-copy {
+  margin-top: 0.45rem;
+  font-size: 0.92rem;
+  color: rgb(71 85 105);
+}
+
 .section-title {
   font-size: 1.55rem;
   font-weight: 700;
@@ -55,6 +71,108 @@ body {
   margin-top: 0.35rem;
   font-size: 0.93rem;
   color: rgb(71 85 105);
+}
+
+.section-kicker {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.section-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.surface-subcard {
+  border: 1px solid rgb(226 232 240 / 0.9);
+  border-radius: 0.95rem;
+  background: rgb(255 255 255 / 0.88);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+.stat-grid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.stat-card {
+  border: 1px solid rgb(226 232 240 / 0.95);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.96), rgb(248 250 252));
+  padding: 1rem;
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.stat-value {
+  margin-top: 0.45rem;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: rgb(15 23 42);
+}
+
+.stat-copy {
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  color: rgb(71 85 105);
+}
+
+.badge-soft {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgb(241 245 249);
+  padding: 0.32rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(51 65 85);
+}
+
+.badge-strong {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgb(15 23 42);
+  padding: 0.32rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: white;
+}
+
+.list-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: rgb(15 23 42);
+}
+
+.action-link:hover {
+  color: rgb(51 65 85);
 }
 
 .input-control,
