@@ -27,19 +27,25 @@ function logClubCreateError(stage: string, details: Record<string, unknown>) {
 }
 
 async function ensureCreatorOfficerMembership(supabase: Awaited<ReturnType<typeof createClient>>, clubId: string, userId: string) {
-  const { data: membership, error: membershipError } = await supabase
-    .from("club_members")
-    .select("role")
-    .eq("club_id", clubId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data: membership, error: membershipError } = await supabase
+      .from("club_members")
+      .select("role")
+      .eq("club_id", clubId)
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  if (membershipError) {
-    return { ok: false as const };
-  }
+    if (membershipError) {
+      return { ok: false as const };
+    }
 
-  if (membership?.role === "officer") {
-    return { ok: true as const, repaired: false };
+    if (membership?.role === "officer") {
+      return { ok: true as const, repaired: false };
+    }
+
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
   }
 
   console.warn(`Club creator membership missing after club insert for club ${clubId}. Falling back to ensure_club_creator_membership().`);
@@ -143,7 +149,14 @@ export async function createClubAction(formData: FormData) {
     });
 
     if (clubInsertError.code !== "23505") {
-      redirect("/clubs/create?error=Could+not+create+club.+Please+retry.");
+      const membershipCheck = await ensureCreatorOfficerMembership(supabase, clubId, user.id);
+
+      if (membershipCheck.ok) {
+        created = true;
+        break;
+      }
+
+      redirect("/clubs/create?error=Club+was+created,+but+setup+did+not+finish+correctly.");
     }
   }
 
