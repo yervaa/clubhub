@@ -37,7 +37,9 @@ export async function Navbar() {
                   Dashboard
                 </Link>
               </li>
-              <li className="hidden rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600 sm:block">{user.email}</li>
+              <li className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-500 sm:block">
+                {user.email}
+              </li>
               <li>
                 <form action={logoutAction}>
                   <button
