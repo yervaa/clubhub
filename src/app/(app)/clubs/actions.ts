@@ -22,6 +22,10 @@ function getSafeValidationErrorMessage(result: { error: { issues: Array<{ messag
   return result.error.issues[0]?.message ?? "Please review your input and try again.";
 }
 
+function logClubCreateError(stage: string, details: Record<string, unknown>) {
+  console.error(`[club-create:${stage}]`, details);
+}
+
 async function ensureCreatorOfficerMembership(supabase: Awaited<ReturnType<typeof createClient>>, clubId: string, userId: string) {
   const { data: membership, error: membershipError } = await supabase
     .from("club_members")
@@ -102,6 +106,12 @@ export async function createClubAction(formData: FormData) {
   );
 
   if (profileError) {
+    logClubCreateError("profile-upsert", {
+      userId: user.id,
+      code: profileError.code,
+      message: profileError.message,
+      details: profileError.details,
+    });
     redirect("/clubs/create?error=Unable+to+prepare+your+profile.+Please+retry.");
   }
 
@@ -123,6 +133,15 @@ export async function createClubAction(formData: FormData) {
       break;
     }
 
+    logClubCreateError("club-insert", {
+      userId: user.id,
+      clubId,
+      joinCode,
+      code: clubInsertError.code,
+      message: clubInsertError.message,
+      details: clubInsertError.details,
+    });
+
     if (clubInsertError.code !== "23505") {
       redirect("/clubs/create?error=Could+not+create+club.+Please+retry.");
     }
@@ -135,6 +154,10 @@ export async function createClubAction(formData: FormData) {
   const membershipCheck = await ensureCreatorOfficerMembership(supabase, clubId, user.id);
 
   if (!membershipCheck.ok) {
+    logClubCreateError("membership-verify", {
+      userId: user.id,
+      clubId,
+    });
     redirect("/clubs/create?error=Club+created+but+officer+membership+verification+failed.+Apply+the+latest+database+migration.");
   }
 
