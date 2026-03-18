@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
 import { loginAction } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/server";
@@ -9,6 +10,8 @@ type LoginPageProps = {
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  noStore();
+
   const supabase = await createClient();
   const {
     data: { user },

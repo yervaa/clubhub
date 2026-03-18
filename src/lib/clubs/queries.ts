@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_noStore as noStore } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export type UserClub = {
@@ -80,6 +81,8 @@ type ClubMemberRow = {
 };
 
 export async function getCurrentUserClubs(): Promise<UserClub[]> {
+  noStore();
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -113,6 +116,8 @@ export async function getCurrentUserClubs(): Promise<UserClub[]> {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
+  noStore();
+
   const clubs = await getCurrentUserClubs();
   const clubIds = clubs.map((club) => club.id);
 
@@ -165,6 +170,8 @@ export async function getDashboardData(): Promise<DashboardData> {
 }
 
 export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubDetail | null> {
+  noStore();
+
   const supabase = await createClient();
   const {
     data: { user },

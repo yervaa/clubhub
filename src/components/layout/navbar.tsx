@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { logoutAction } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/server";
 
 export async function Navbar() {
+  noStore();
+
   const supabase = await createClient();
   const {
     data: { user },

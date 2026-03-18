@@ -1,7 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
+import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { loginSchema, profileSchema, signupSchema } from "@/lib/validation/auth";
 
@@ -39,6 +41,14 @@ export async function loginAction(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
   }
 
+  const rateLimit = await enforceRateLimit({
+    policy: "login",
+    hint: parsed.data.email,
+  });
+  if (!rateLimit.success) {
+    redirect(`/login?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
+  }
+
   try {
     const supabase = await createClient();
     const { error } = await supabase.auth.signInWithPassword(parsed.data);
@@ -66,6 +76,14 @@ export async function signupAction(formData: FormData) {
 
   if (!parsed.success) {
     redirect(`/signup?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+  }
+
+  const rateLimit = await enforceRateLimit({
+    policy: "signup",
+    hint: parsed.data.email,
+  });
+  if (!rateLimit.success) {
+    redirect(`/signup?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
   try {
@@ -100,5 +118,8 @@ export async function signupAction(formData: FormData) {
 export async function logoutAction() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/clubs");
   redirect("/login?message=You+have+been+logged+out.");
 }

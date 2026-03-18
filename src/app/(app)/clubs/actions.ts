@@ -3,6 +3,7 @@
 import { randomBytes, randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeInlineText } from "@/lib/sanitize";
 import { createClient } from "@/lib/supabase/server";
@@ -41,6 +42,14 @@ export async function createClubAction(formData: FormData) {
 
   if (!user) {
     redirect("/login");
+  }
+
+  const rateLimit = await enforceRateLimit({
+    policy: "clubCreate",
+    userId: user.id,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/create?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
   const { error: profileError } = await supabase.from("profiles").upsert(
@@ -124,6 +133,14 @@ export async function joinClubAction(formData: FormData) {
     redirect("/login");
   }
 
+  const rateLimit = await enforceRateLimit({
+    policy: "clubJoin",
+    userId: user.id,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/join?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
+  }
+
   const admin = createAdminClient();
   const { data: club, error: clubLookupError } = await admin
     .from("clubs")
@@ -197,6 +214,14 @@ export async function createAnnouncementAction(formData: FormData) {
     redirect("/login");
   }
 
+  const rateLimit = await enforceRateLimit({
+    policy: "announcementCreate",
+    userId: user.id,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/${parsed.data.clubId}?annError=${encodeURIComponent(getRateLimitErrorMessage())}`);
+  }
+
   const { data: membership, error: membershipError } = await supabase
     .from("club_members")
     .select("role")
@@ -254,6 +279,14 @@ export async function createEventAction(formData: FormData) {
     redirect("/login");
   }
 
+  const rateLimit = await enforceRateLimit({
+    policy: "eventCreate",
+    userId: user.id,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/${parsed.data.clubId}?eventError=${encodeURIComponent(getRateLimitErrorMessage())}`);
+  }
+
   const { data: membership, error: membershipError } = await supabase
     .from("club_members")
     .select("role")
@@ -308,6 +341,14 @@ export async function upsertRsvpAction(formData: FormData) {
 
   if (!user) {
     redirect("/login");
+  }
+
+  const rateLimit = await enforceRateLimit({
+    policy: "rsvpWrite",
+    userId: user.id,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/${parsed.data.clubId}?rsvpError=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
   const { data: membership, error: membershipError } = await supabase
