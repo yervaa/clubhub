@@ -3,11 +3,7 @@
 import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { createClient } from "@/lib/supabase/server";
-
-function getStringValue(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
+import { loginSchema, profileSchema, signupSchema } from "@/lib/validation/auth";
 
 function getAuthErrorMessage(error: unknown) {
   if (error instanceof Error && error.message.toLowerCase().includes("fetch failed")) {
@@ -29,17 +25,23 @@ function normalizeSupabaseErrorMessage(message: string) {
   return message;
 }
 
-export async function loginAction(formData: FormData) {
-  const email = getStringValue(formData, "email");
-  const password = getStringValue(formData, "password");
+function getSafeValidationErrorMessage(result: { error: { issues: Array<{ message: string }> } }) {
+  return result.error.issues[0]?.message ?? "Please review your input and try again.";
+}
 
-  if (!email || !password) {
-    redirect("/login?error=Please+enter+email+and+password.");
+export async function loginAction(formData: FormData) {
+  const parsed = loginSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!parsed.success) {
+    redirect(`/login?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
   }
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
     if (error) {
       redirect(`/login?error=${encodeURIComponent(normalizeSupabaseErrorMessage(error.message))}`);
@@ -56,21 +58,24 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function signupAction(formData: FormData) {
-  const fullName = getStringValue(formData, "full_name");
-  const email = getStringValue(formData, "email");
-  const password = getStringValue(formData, "password");
+  const parsed = signupSchema.safeParse({
+    fullName: formData.get("full_name"),
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
 
-  if (!fullName || !email || !password) {
-    redirect("/signup?error=Please+fill+all+fields.");
+  if (!parsed.success) {
+    redirect(`/signup?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
   }
 
   try {
     const supabase = await createClient();
+    const safeProfile = profileSchema.parse({ fullName: parsed.data.fullName });
     const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+      email: parsed.data.email,
+      password: parsed.data.password,
       options: {
-        data: { full_name: fullName },
+        data: { full_name: safeProfile.fullName },
       },
     });
 
