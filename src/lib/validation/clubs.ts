@@ -2,10 +2,13 @@ import { z } from "zod";
 import { sanitizeCode, sanitizeInlineText, sanitizeMultilineText } from "@/lib/sanitize";
 
 const uuidSchema = z.uuid("Invalid record identifier.");
+const shortTitleSchema = z.string().transform(sanitizeInlineText).pipe(z.string().min(1).max(160));
+const plainTextSchema = z.string().transform(sanitizeMultilineText).pipe(z.string().min(1).max(2000));
+const shortInlineSchema = z.string().transform(sanitizeInlineText).pipe(z.string().min(1).max(160));
 
 export const clubCreateSchema = z.object({
-  name: z.string().min(2).max(80).transform(sanitizeInlineText),
-  description: z.string().min(10).max(500).transform(sanitizeMultilineText),
+  name: shortTitleSchema,
+  description: z.string().transform(sanitizeMultilineText).pipe(z.string().min(1).max(500)),
 });
 
 export const joinCodeSchema = z.object({
@@ -17,16 +20,16 @@ export const joinCodeSchema = z.object({
 
 export const announcementCreateSchema = z.object({
   clubId: uuidSchema,
-  title: z.string().min(2).max(120).transform(sanitizeInlineText),
-  content: z.string().min(2).max(2000).transform(sanitizeMultilineText),
+  title: shortTitleSchema,
+  content: plainTextSchema,
 });
 
 export const eventCreateSchema = z
   .object({
     clubId: uuidSchema,
-    title: z.string().min(2).max(120).transform(sanitizeInlineText),
-    description: z.string().min(2).max(2000).transform(sanitizeMultilineText),
-    location: z.string().min(2).max(160).transform(sanitizeInlineText),
+    title: shortTitleSchema,
+    description: plainTextSchema,
+    location: shortInlineSchema,
     eventDate: z.string().min(1),
   })
   .superRefine((value, ctx) => {

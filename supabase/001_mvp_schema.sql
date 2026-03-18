@@ -14,7 +14,7 @@ create table if not exists public.profiles (
 -- Clubs
 create table if not exists public.clubs (
   id uuid primary key default gen_random_uuid(),
-  name text not null check (char_length(name) >= 2),
+  name text not null check (char_length(name) >= 1),
   description text not null default '',
   join_code text not null unique check (char_length(join_code) >= 6),
   created_by uuid not null references public.profiles(id) on delete cascade,
@@ -35,7 +35,7 @@ create table if not exists public.club_members (
 create table if not exists public.announcements (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.clubs(id) on delete cascade,
-  title text not null check (char_length(title) >= 2),
+  title text not null check (char_length(title) >= 1),
   content text not null,
   created_by uuid not null references public.profiles(id) on delete cascade,
   created_at timestamptz not null default now()
@@ -45,7 +45,7 @@ create table if not exists public.announcements (
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.clubs(id) on delete cascade,
-  title text not null check (char_length(title) >= 2),
+  title text not null check (char_length(title) >= 1),
   description text not null,
   location text not null,
   event_date timestamptz not null,
