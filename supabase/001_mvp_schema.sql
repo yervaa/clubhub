@@ -94,6 +94,27 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
 
+-- Automatically make the club creator an officer member of the club.
+create or replace function public.handle_new_club()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.club_members (club_id, user_id, role)
+  values (new.id, new.created_by, 'officer')
+  on conflict (club_id, user_id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_club_created on public.clubs;
+create trigger on_club_created
+after insert on public.clubs
+for each row execute procedure public.handle_new_club();
+
 -- Policy helper functions
 create or replace function public.is_club_member(target_club_id uuid, target_user_id uuid)
 returns boolean
@@ -125,6 +146,22 @@ as $$
   );
 $$;
 
+create or replace function public.find_club_by_join_code(target_join_code text)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select c.id
+  from public.clubs c
+  where c.join_code = upper(trim(target_join_code))
+  limit 1;
+$$;
+
+revoke all on function public.find_club_by_join_code(text) from public;
+grant execute on function public.find_club_by_join_code(text) to authenticated;
+
 alter table public.profiles enable row level security;
 alter table public.clubs enable row level security;
 alter table public.club_members enable row level security;
@@ -155,7 +192,7 @@ for insert
 to authenticated
 with check (auth.uid() = id);
 
--- Clubs: members can view; authenticated users can create; officers can manage.
+-- Clubs: members can view; authenticated users can create.
 drop policy if exists "clubs_select_member" on public.clubs;
 create policy "clubs_select_member"
 on public.clubs
@@ -171,19 +208,7 @@ to authenticated
 with check (auth.uid() = created_by);
 
 drop policy if exists "clubs_update_officer" on public.clubs;
-create policy "clubs_update_officer"
-on public.clubs
-for update
-to authenticated
-using (public.is_club_officer(id, auth.uid()))
-with check (public.is_club_officer(id, auth.uid()));
-
 drop policy if exists "clubs_delete_officer" on public.clubs;
-create policy "clubs_delete_officer"
-on public.clubs
-for delete
-to authenticated
-using (public.is_club_officer(id, auth.uid()));
 
 -- Club members: members can view same club roster.
 drop policy if exists "club_members_select_same_club" on public.club_members;
@@ -193,7 +218,7 @@ for select
 to authenticated
 using (public.is_club_member(club_id, auth.uid()));
 
--- User can join as member, or create own officer membership on club creation.
+-- User can join as member. Officer membership is created by the club trigger.
 drop policy if exists "club_members_insert_self" on public.club_members;
 create policy "club_members_insert_self"
 on public.club_members
@@ -201,38 +226,13 @@ for insert
 to authenticated
 with check (
   auth.uid() = user_id
-  and (
-    role = 'member'
-    or (
-      role = 'officer'
-      and exists (
-        select 1
-        from public.clubs c
-        where c.id = club_id and c.created_by = auth.uid()
-      )
-    )
-  )
+  and role = 'member'
 );
 
 drop policy if exists "club_members_update_officer" on public.club_members;
-create policy "club_members_update_officer"
-on public.club_members
-for update
-to authenticated
-using (public.is_club_officer(club_id, auth.uid()))
-with check (public.is_club_officer(club_id, auth.uid()));
-
 drop policy if exists "club_members_delete_officer_or_self" on public.club_members;
-create policy "club_members_delete_officer_or_self"
-on public.club_members
-for delete
-to authenticated
-using (
-  auth.uid() = user_id
-  or public.is_club_officer(club_id, auth.uid())
-);
 
--- Announcements: members can read, officers can write.
+-- Announcements: members can read, officers can create.
 drop policy if exists "announcements_select_member" on public.announcements;
 create policy "announcements_select_member"
 on public.announcements
@@ -250,21 +250,9 @@ with check (
 );
 
 drop policy if exists "announcements_update_officer" on public.announcements;
-create policy "announcements_update_officer"
-on public.announcements
-for update
-to authenticated
-using (public.is_club_officer(club_id, auth.uid()))
-with check (public.is_club_officer(club_id, auth.uid()));
-
 drop policy if exists "announcements_delete_officer" on public.announcements;
-create policy "announcements_delete_officer"
-on public.announcements
-for delete
-to authenticated
-using (public.is_club_officer(club_id, auth.uid()));
 
--- Events: members can read, officers can write.
+-- Events: members can read, officers can create.
 drop policy if exists "events_select_member" on public.events;
 create policy "events_select_member"
 on public.events
@@ -282,19 +270,7 @@ with check (
 );
 
 drop policy if exists "events_update_officer" on public.events;
-create policy "events_update_officer"
-on public.events
-for update
-to authenticated
-using (public.is_club_officer(club_id, auth.uid()))
-with check (public.is_club_officer(club_id, auth.uid()));
-
 drop policy if exists "events_delete_officer" on public.events;
-create policy "events_delete_officer"
-on public.events
-for delete
-to authenticated
-using (public.is_club_officer(club_id, auth.uid()));
 
 -- RSVPs: club members can read event RSVPs; users can upsert their own RSVP.
 drop policy if exists "rsvps_select_member" on public.rsvps;

@@ -55,6 +55,7 @@ if (!globalThis.__clubhubRateLimitStore) {
 
 let redisClient: Redis | null = null;
 const ratelimiters = new Map<PolicyName, Ratelimit>();
+let hasWarnedAboutLocalFallback = false;
 
 function getRedisClient() {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -148,6 +149,13 @@ export async function enforceRateLimit(options: EnforceRateLimitOptions): Promis
   const ratelimiter = getRatelimiter(options.policy);
 
   if (!ratelimiter) {
+    if (process.env.NODE_ENV === "production" && !hasWarnedAboutLocalFallback) {
+      hasWarnedAboutLocalFallback = true;
+      console.warn(
+        "Rate limiting is using the in-memory fallback because UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN is missing.",
+      );
+    }
+
     return localLimit(options.policy, identifier);
   }
 

@@ -4,13 +4,11 @@ import { randomBytes, randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeInlineText } from "@/lib/sanitize";
 import { createClient } from "@/lib/supabase/server";
 import {
   announcementCreateSchema,
   clubCreateSchema,
-  clubMembershipSchema,
   eventCreateSchema,
   joinCodeSchema,
   rsvpSchema,
@@ -35,7 +33,6 @@ export async function createClubAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const admin = createAdminClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -95,21 +92,6 @@ export async function createClubAction(formData: FormData) {
     redirect("/clubs/create?error=Could+not+generate+a+join+code.+Please+retry.");
   }
 
-  const membershipPayload = clubMembershipSchema.parse({
-    clubId,
-    userId: user.id,
-    role: "officer",
-  });
-  const { error: memberError } = await admin.from("club_members").insert({
-    club_id: membershipPayload.clubId,
-    user_id: membershipPayload.userId,
-    role: membershipPayload.role,
-  });
-
-  if (memberError) {
-    redirect("/clubs/create?error=Club+created+but+membership+failed.+Contact+support.");
-  }
-
   revalidatePath("/dashboard");
   revalidatePath("/clubs");
   redirect("/clubs?success=Club+created+successfully.");
@@ -141,25 +123,22 @@ export async function joinClubAction(formData: FormData) {
     redirect(`/clubs/join?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
-  const admin = createAdminClient();
-  const { data: club, error: clubLookupError } = await admin
-    .from("clubs")
-    .select("id")
-    .eq("join_code", parsed.data.joinCode)
-    .maybeSingle();
+  const { data: clubId, error: clubLookupError } = await supabase.rpc("find_club_by_join_code", {
+    target_join_code: parsed.data.joinCode,
+  });
 
   if (clubLookupError) {
     redirect("/clubs/join?error=Could+not+validate+join+code.+Please+retry.");
   }
 
-  if (!club) {
+  if (!clubId) {
     redirect("/clubs/join?error=Invalid+join+code.");
   }
 
   const { data: existingMembership } = await supabase
     .from("club_members")
     .select("id")
-    .eq("club_id", club.id)
+    .eq("club_id", clubId)
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -167,15 +146,10 @@ export async function joinClubAction(formData: FormData) {
     redirect("/clubs/join?error=You+are+already+a+member+of+this+club.");
   }
 
-  const membershipPayload = clubMembershipSchema.parse({
-    clubId: club.id,
-    userId: user.id,
-    role: "member",
-  });
   const { error: joinError } = await supabase.from("club_members").insert({
-    club_id: membershipPayload.clubId,
-    user_id: membershipPayload.userId,
-    role: membershipPayload.role,
+    club_id: clubId,
+    user_id: user.id,
+    role: "member",
   });
 
   if (joinError) {

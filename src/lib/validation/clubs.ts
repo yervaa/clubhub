@@ -2,7 +2,6 @@ import { z } from "zod";
 import { sanitizeCode, sanitizeInlineText, sanitizeMultilineText } from "@/lib/sanitize";
 
 const uuidSchema = z.uuid("Invalid record identifier.");
-const roleSchema = z.enum(["member", "officer"]);
 
 export const clubCreateSchema = z.object({
   name: z.string().min(2).max(80).transform(sanitizeInlineText),
@@ -54,10 +53,4 @@ export const rsvpSchema = z.object({
   clubId: uuidSchema,
   eventId: uuidSchema,
   status: z.enum(["yes", "no", "maybe"]),
-});
-
-export const clubMembershipSchema = z.object({
-  clubId: uuidSchema,
-  userId: uuidSchema,
-  role: roleSchema,
 });

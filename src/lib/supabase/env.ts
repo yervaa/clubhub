@@ -3,6 +3,17 @@ function cleanEnvValue(value: string | undefined) {
   return value.trim().replace(/^['"]|['"]$/g, "");
 }
 
+function ensureValidUrl(value: string, envName: string) {
+  try {
+    const parsed = new URL(value);
+    if (!parsed.protocol.startsWith("http")) {
+      throw new Error("Invalid protocol");
+    }
+  } catch {
+    throw new Error(`Invalid ${envName}. Expected a full https URL.`);
+  }
+}
+
 export function getSupabaseEnv() {
   const url = cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const anonKey = cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -12,6 +23,8 @@ export function getSupabaseEnv() {
       "Missing Supabase environment variables. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
     );
   }
+
+  ensureValidUrl(url, "NEXT_PUBLIC_SUPABASE_URL");
 
   return { url, anonKey };
 }

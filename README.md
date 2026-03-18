@@ -1,27 +1,42 @@
-<<<<<<< HEAD
 # ClubHub
 
-ClubHub is a modern web app for school clubs to manage announcements, events, and member engagement in one place.
+ClubHub is a Next.js + Supabase web app for school clubs to manage announcements, events, and member engagement in one place.
 
 ## MVP Features
 
-- User signup, login, logout
-- Protected app routes
-- Create and join clubs
-- Club detail page with members, announcements, and events
-- Officer-only announcement and event creation
-- Member RSVP (`yes` / `no` / `maybe`)
-- Personalized dashboard with:
-  - user clubs
-  - recent announcements
-  - upcoming events
+- Email signup, login, and logout
+- Protected dashboard and club routes
+- Create a club and join a club with a join code
+- Officer/member club roles
+- Club announcements
+- Club events
+- RSVP (`yes`, `no`, `maybe`)
+- Personalized dashboard with clubs, recent announcements, and upcoming events
 
 ## Tech Stack
 
-- Next.js (App Router)
+- Next.js 16 (App Router)
 - TypeScript
-- Tailwind CSS
-- Supabase (Auth + Postgres + RLS)
+- Tailwind CSS 4
+- Supabase Auth + Postgres + Row Level Security
+- Zod for server-side validation
+- Upstash Redis for distributed rate limiting
+
+## Required Environment Variables
+
+Add these to `.env.local` for local development and to Vercel for preview/production:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_publishable_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+UPSTASH_REDIS_REST_URL=https://your-upstash-instance.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_rest_token
+```
+
+Notes:
+- `SUPABASE_SERVICE_ROLE_KEY` is server-only and must never be exposed to the browser.
+- Upstash env vars are required for durable rate limiting in preview/production. Without them, the app falls back to an in-memory limiter that is not reliable across serverless instances.
 
 ## Local Development
 
@@ -31,65 +46,66 @@ ClubHub is a modern web app for school clubs to manage announcements, events, an
 npm install
 ```
 
-2. Create local env file:
+2. Create your local env file:
 
 ```bash
 cp .env.example .env.local
 ```
 
-3. Fill in `.env.local` values:
+3. Fill in the Supabase and Upstash values in `.env.local`.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-```
+4. Apply the database schema in the Supabase SQL Editor:
+- Run [`supabase/001_mvp_schema.sql`](./supabase/001_mvp_schema.sql)
 
-4. Apply schema in Supabase SQL Editor:
-- Run `supabase/001_mvp_schema.sql`
-
-5. Start dev server:
+5. Start the app:
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+6. Open `http://localhost:3000`.
 
 ## Deployment (Vercel)
 
-1. Push repo to GitHub.
-2. Import project in Vercel.
-3. In Vercel project settings, add Environment Variables:
+1. Push the repo to GitHub.
+2. Import the repo into Vercel.
+3. Add these environment variables in Vercel Project Settings:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
-4. Set variables for `Production` (and `Preview` if desired).
-5. Deploy.
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
+4. Add the variables to both `Preview` and `Production`.
+5. Redeploy after any env change.
 
-## Supabase Settings Checklist
+## Supabase Configuration Checklist
 
-- SQL schema applied from `supabase/001_mvp_schema.sql`
-- RLS enabled on app tables (included in schema file)
-- Email auth provider enabled in Supabase Auth settings
-- If using email confirmation, test confirmation flow in production
-- API keys copied from the same Supabase project used by deployment
+- Apply [`supabase/001_mvp_schema.sql`](./supabase/001_mvp_schema.sql)
+- Confirm the `profiles`, `clubs`, `club_members`, `announcements`, `events`, and `rsvps` tables exist
+- Set the correct production `Site URL`
+- Add your Vercel preview and production URLs to allowed redirect URLs
+- Review Auth session settings:
+  - JWT lifetime
+  - inactivity timeout
+  - session max lifetime
+  - single-session policy if desired
+- Decide whether email confirmation is required and test that flow
 
-## Post-Deployment Smoke Test
+## Post-Deploy Smoke Test
 
-1. Open deployed app URL.
-2. Sign up a new user, then log in.
-3. Create a club.
-4. Join the club from another account.
-5. Open club page and verify:
-   - member list visible
-   - officer can post announcement
-   - officer can create event
+1. Sign up a new user
+2. Log in and log out
+3. Create a club
+4. Join a club from a second account using the join code
+5. Open a club page and verify:
+   - officer can post announcements
+   - officer can create events
    - members can RSVP
-6. Open dashboard and verify:
-   - clubs list
-   - recent announcements
-   - upcoming events
+6. Open the dashboard and verify:
+   - clubs render
+   - recent announcements render
+   - upcoming events render
+7. Verify protected routes redirect unauthenticated users to `/login`
 
 ## Project Structure
 
@@ -97,292 +113,23 @@ Open `http://localhost:3000`.
 src/
   app/
     (app)/
-      dashboard/
       clubs/
+      dashboard/
       layout.tsx
     auth/
       actions.ts
     login/
     signup/
+    layout.tsx
   components/
     layout/
   lib/
     clubs/
+    rate-limit.ts
+    sanitize.ts
     supabase/
+    validation/
 supabase/
   001_mvp_schema.sql
+middleware.ts
 ```
-=======
-# ClubHub – A Web Application for School Clubs
-#### Video Demo: https://www.youtube.com/watch?v=rWseNQfRKuk
-#### Description:
-ClubHub is a web-based platform designed to make school club management easier and more organized. The purpose of the project is to provide a central place where club members and officers can track events, view announcements, manage attendance, earn participation points, and monitor personal involvement through a dedicated dashboard.  
-
-The motivation behind this project was to solve a real problem in many high-school organizations: clubs often lack an organized system for communicating with members and tracking engagement. Most clubs rely on group chats, paper sign-in sheets, or disorganized spreadsheets. ClubHub consolidates all these needs into a single clean, simple, and secure application.
-
-This project was built entirely in Python using the Flask framework, along with SQLite for the database, Jinja templating for the UI, and Bootstrap for styling. The application supports user authentication, role-based permissions (officers vs. members), event creation, attendance tracking, point calculation, announcements, dashboards, and CRUD-style workflows. It is designed to be easily expandable to support additional clubs, features, and future integrations.
-
----
-
-## Features
-
-### **User Authentication**
-Users can register, log in, and log out. Passwords are securely hashed using Werkzeug’s security utilities. Sessions are managed with Flask-Session.
-
-### **Role-Based Permissions**
-ClubHub distinguishes between:
-- **Officers** – can create events, post announcements, and manage attendance.
-- **Members** – can view events, announcements, and their own dashboard.
-
-The first account ever created automatically becomes an officer. All subsequent accounts are members by default.
-
-### **Events System**
-Officers can:
-- Create new events with title, description, type, time, and location.
-- Access an “Attendance Management” page for each event.
-
-Members can:
-- View all events sorted by date.
-- See upcoming events on the homepage.
-
-### **Attendance Tracking**
-Officers can open an event and check off which users attended.  
-
-Upon saving:
-- Attendance is stored in the `attendance` table.
-- User points are automatically recalculated (1 point per event attended).
-
-### **Announcements**
-Officers may post announcements.  
-Members can view them in reverse-chronological order on:
-- The homepage (`/`)
-- The announcements list (`/announcements`)
-
-### **User Dashboard**
-Every logged-in user has a dashboard showing:
-- Total points earned
-- Total events attended
-- Recent events attended (last 10)
-- Account role status (Officer or Member)
-
----
-
-## File Structure
-
-clubhub/
-│
-├── app.py # Main Flask application with all routes and logic
-├── clubhub.db # SQLite database file
-├── schema.sql # Database schema for tables
-│
-├── templates/
-│ ├── layout.html # Base layout with navbar, Bootstrap, and flash messages
-│ ├── index.html # Homepage showing announcements + upcoming events
-│ ├── login.html # Login form
-│ ├── register.html # Registration form
-│ ├── dashboard.html # User stats and event history
-│ ├── events.html # Event list + officer attendance controls
-│ ├── new_event.html # Event creation form
-│ ├── attendance.html # Officer attendance checklist
-│ ├── announcements.html # Announcements list
-│ ├── new_announcement.html # Officer announcement creation form
-│
-└── static/
-└── css/clubhub.css # Custom styling
-
----
-
-## Database Design
-
-### **users**
-| Column     | Type     | Notes                               |
-|------------|----------|-------------------------------------|
-| id         | INTEGER  | Primary key                         |
-| username   | TEXT     | Unique                              |
-| hash       | TEXT     | Hashed password                     |
-| is_officer | INTEGER  | 1 = officer, 0 = member             |
-| points     | INTEGER  | Automatically updated from attendance |
-
-### **events**
-Stores all club events created by officers.
-
-### **announcements**
-Stores announcements posted by club officers.
-
-### **attendance**
-Tracks which users attended which events.  
-Each user-event combination is unique.
-
----
-
-## How Attendance and Points Work
-
-1. Officer opens event → clicks “Manage Attendance”
-2. Officer checks which users attended → submits form
-3. Server:
-   - Deletes old attendance for that event
-   - Inserts new attendance rows
-   - Recalculates points for all users:
-     ```sql
-     points = COUNT(attendance_records)
-     ```
-4. Dashboard updates automatically
-
-This system ensures:
-- No duplicates  
-- Easy recalculation  
-- Clean relational structure  
-
----
-
-## Design Decisions
-
-### **Why Flask?**
-Flask is lightweight, flexible, and matches the CS50 curriculum. It also pairs well with Jinja templates, allowing a simple full-stack workflow.
-
-### **Why role-based access?**
-In real club environments, officers have more responsibilities.  
-This feature simulates an actual organizational structure.
-
-### **Why auto-assign the first user as officer?**
-Simple solution for deployments with no manual database editing.  
-The very first account is always the admin.
-
-### **Why recalculate points on every attendance update?**
-Keeps data consistent and avoids stale values if attendance is modified.
-
-### **Why SQLite?**
-CS50 Codespace supports SQLite natively and it requires no server setup.
-
----
-
-## How to Run the App
-
-1. Navigate into the project folder: `cd clubhub`
-2. Install deps: `pip install -r requirements.txt`
-3. Set env vars (recommended):
-   - `export SECRET_KEY="change-me"`
-   - `export DATABASE_URL="sqlite:///clubhub.db"` (or your DB string)
-   - `export DEBUG=true` (only for local dev)
-4. Run the Flask server: `flask run` (or `python app.py`)
-5. Open the provided URL in your browser.
-
-## Seed sample data
-
-To load demo users/clubs/events (safe to re-run; uses upsert logic):
-
-```bash
-export DATABASE_URL="sqlite:///clubhub.db"
-python seed.py
-```
-
-Demo users created: `alice_officer` (officer), `bob_student`, `carol_student` — all with password `password123`.
-
-## Database migrations (Alembic)
-
-Use Alembic instead of rerunning `schema.sql` once you have real data:
-
-```bash
-pip install -r requirements.txt  # includes alembic
-alembic init migrations
-```
-
-Then edit `alembic.ini` to point `sqlalchemy.url` at your `DATABASE_URL`, and update `env.py` to use your models/metadata (or reflect). To capture the current schema and apply it:
-
-```bash
-alembic revision --autogenerate -m "initial schema"
-alembic upgrade head
-```
-
-Repeat with a new revision whenever the schema changes; deploys should run `alembic upgrade head`.
-
----
-
-## Design Decisions
-
-I chose Flask because it is lightweight, easy to control, and closely matches the patterns used in CS50. The decision to auto-assign the first user as an officer removes the need for database editing. Attendance is stored simply using a join table (user_id + event_id), allowing clean counting and recalculating points whenever needed.
-
-I used Bootstrap to ensure the site looks clean without heavy custom CSS. Pages are organized using Jinja templates to avoid repeating layout code.
-
-The app is intentionally structured so new features (such as resource uploads, multiple clubs, analytics, or RSVP features) could be added later.
-
----
-
-## AI Assistance Statement (Required)
-
-Some parts of this project (such as structuring routes, designing templates, and debugging) were assisted by ChatGPT. All generated code was reviewed, modified, and integrated manually by me. Comments inside `app.py` also mark where AI assistance occurred.
-
----
-
-## Future Improvements
-
-If I had more time, I would add:
-- File/resource upload system  
-- Multiple clubs support  
-- Event RSVP  
-- Messaging or notification system  
-- Officer dashboards with graphs and charts  
-
----
-
-## Features
-
-### 1. Event RSVP System
-
-Users can RSVP to events with **“I’m going”** or **“Maybe”** and update their choice at any time.
-
-**What it does**
-
-- Allows each user to RSVP per event with a status of `going` or `maybe`
-- Displays real-time RSVP counts on each event card
-- Changes button appearance based on the user’s current RSVP status
-- Stores RSVPs centrally in the database so officers can see engagement
-
-**How it’s implemented**
-
-- `attendance` table now includes a `status` field
-- `POST /events/<event_id>/rsvp` route in `app.py` handles creating/updating RSVPs
-- `events()` route aggregates RSVP counts with SQL (e.g., `COUNT(CASE WHEN status = 'going' THEN 1 END)`)
-- `events.html` template shows RSVP statistics and interactive buttons
-
----
-
-### 2. Search and Filter for Events
-
-The Events page now supports searching and filtering so members can quickly find what they need.
-
-**What it does**
-
-- Full-text search by event title and description via a query box
-- Filter by event type (e.g., Meeting, Practice, Fundraiser)
-- Event types in the dropdown are pulled dynamically from the database
-- Active filters are reflected in the UI with a “Clear filters” option
-
-**How it’s implemented**
-
-- `events()` route reads query parameters `q` (search) and `type` (filter)
-- Builds the SQL `WHERE` clause conditionally based on those parameters
-- Fetches distinct `event_type` values from the database for the filter dropdown
-- `events.html` uses a search card with an input and `<select>` for filtering
-
----
-
-### 3. Improved Events UI
-
-The Events page has been redesigned to be more usable and mobile-friendly.
-
-**What it includes**
-
-- Responsive card-based layout for events
-- Search/filter card at the top of the page
-- On each event card:
-  - Title, type, description
-  - Date/time and location
-  - Created-by username
-  - RSVP statistics (Going / Maybe)
-  - RSVP buttons with visual feedback
-- Officers see an additional “Manage Attendance” button for check-ins
-
-
-# End of README
->>>>>>> a41d9280b4558affec64355df0615d71c6c58b49
