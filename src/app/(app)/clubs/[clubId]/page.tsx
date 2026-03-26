@@ -6,6 +6,8 @@ import {
   updateMemberRoleAction,
   upsertRsvpAction,
 } from "@/app/(app)/clubs/actions";
+import { CTAButton } from "@/components/ui/cta-button";
+import { GettingStartedChecklist } from "@/components/ui/getting-started-checklist";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubPageProps = {
@@ -58,7 +60,15 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         </div>
       </header>
 
-      <div className="card-surface p-6">
+      {club.currentUserRole === "officer" ? (
+        <GettingStartedChecklist
+          membersCount={club.members.length}
+          announcementsCount={club.announcements.length}
+          eventsCount={club.events.length}
+        />
+      ) : null}
+
+      <div className="card-surface p-6" id="members">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">People</p>
@@ -70,9 +80,25 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         {query.memberSuccess ? <p className="alert-success mt-4">{query.memberSuccess}</p> : null}
         {query.memberError ? <p className="alert-error mt-3">{query.memberError}</p> : null}
         {club.members.length === 0 ? (
-          <div className="empty-state mt-4 p-6">
-            <p className="empty-state-title">No members yet.</p>
-            <p className="empty-state-copy">Once people join using the club code, they will show up here.</p>
+          <div className="mt-4 rounded-lg border border-slate-200 bg-gradient-to-br from-blue-50 to-slate-50 p-6">
+            <p className="font-semibold text-slate-900">Share your join code</p>
+            <p className="mt-1 text-sm text-slate-600">Let people join using this code:</p>
+            <div className="mt-3 rounded-md bg-white p-3 border border-slate-200">
+              <p className="text-center text-lg font-bold tracking-wider text-slate-900">
+                {club.currentUserRole === "officer" ? club.joinCode : "Only officers see this"}
+              </p>
+            </div>
+            {club.currentUserRole === "officer" && (
+              <CTAButton
+                onClick={() => {
+                  navigator.clipboard.writeText(club.joinCode);
+                  alert("Join code copied!");
+                }}
+                className="btn-secondary mt-3 w-full text-xs"
+              >
+                Copy Join Code
+              </CTAButton>
+            )}
           </div>
         ) : (
           <ul className="list-stack mt-4">
@@ -128,7 +154,7 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         )}
       </div>
 
-      <div className="card-surface p-6">
+      <div className="card-surface p-6" id="announcements">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">Communication</p>
@@ -166,9 +192,25 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         ) : null}
 
         {club.announcements.length === 0 ? (
-          <div className="empty-state mt-4 p-6">
-            <p className="empty-state-title">No announcements yet.</p>
-            <p className="empty-state-copy">When officers post updates, they will appear here in reverse chronological order.</p>
+          <div className="mt-4 rounded-lg border border-slate-200 bg-gradient-to-br from-purple-50 to-slate-50 p-6">
+            <p className="font-semibold text-slate-900">Keep your club in the loop</p>
+            <p className="mt-1 text-sm text-slate-600">Post updates about meetings, schedule changes, or important info.</p>
+            {club.currentUserRole === "officer" && (
+              <CTAButton
+                onClick={() => {
+                  const titleInput = document.querySelector(
+                    'input[name="title"]'
+                  ) as HTMLInputElement;
+                  if (titleInput) {
+                    titleInput.focus();
+                    titleInput.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
+                className="btn-secondary mt-3"
+              >
+                Create First Announcement
+              </CTAButton>
+            )}
           </div>
         ) : (
           <div className="list-stack mt-4">
@@ -185,7 +227,7 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         )}
       </div>
 
-      <div className="card-surface p-6">
+      <div className="card-surface p-6" id="events">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">Planning</p>
@@ -253,9 +295,25 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         ) : null}
 
         {club.events.length === 0 ? (
-          <div className="empty-state mt-4 p-6">
-            <p className="empty-state-title">No events on the calendar.</p>
-            <p className="empty-state-copy">Create your first event to help members know what is coming up next.</p>
+          <div className="mt-4 rounded-lg border border-slate-200 bg-gradient-to-br from-indigo-50 to-slate-50 p-6">
+            <p className="font-semibold text-slate-900">Schedule your first meeting</p>
+            <p className="mt-1 text-sm text-slate-600">Create an event so members know when you&#39;re meeting and can RSVP.</p>
+            {club.currentUserRole === "officer" && (
+              <CTAButton
+                onClick={() => {
+                  const titleInput = document.querySelector(
+                    'input[id="event_title"]'
+                  ) as HTMLInputElement;
+                  if (titleInput) {
+                    titleInput.focus();
+                    titleInput.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
+                className="btn-secondary mt-3"
+              >
+                Create First Event
+              </CTAButton>
+            )}
           </div>
         ) : (
           <div className="list-stack mt-4">

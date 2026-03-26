@@ -57,16 +57,20 @@ export default async function DashboardPage() {
       </div>
 
       {clubs.length === 0 ? (
-        <div className="empty-state">
-          <p className="empty-state-title">Your workspace is empty.</p>
-          <p className="empty-state-copy">Join an existing club with a code or create one and start organizing right away.</p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            <Link href="/clubs/join" className="btn-secondary">
-              Join your first club
-            </Link>
-            <Link href="/clubs/create" className="btn-primary">
-              Create a club
-            </Link>
+        <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-blue-50 via-slate-50 to-slate-50 p-8">
+          <div className="max-w-md">
+            <p className="text-lg font-semibold text-slate-900">Ready to get started?</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Create your first club to organize members, post announcements, and plan events. Or join an existing club using a code.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link href="/clubs/create" className="btn-primary flex-1 text-center">
+                Create Club
+              </Link>
+              <Link href="/clubs/join" className="btn-secondary flex-1 text-center">
+                Join Club
+              </Link>
+            </div>
           </div>
         </div>
       ) : (
@@ -104,9 +108,9 @@ export default async function DashboardPage() {
             </div>
           </div>
           {recentAnnouncements.length === 0 ? (
-            <div className="empty-state mt-4 p-6">
-              <p className="empty-state-title">No announcements yet.</p>
-              <p className="empty-state-copy">When club officers post updates, they will show up here first.</p>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 p-6">
+              <p className="text-sm font-semibold text-slate-900">No updates yet</p>
+              <p className="mt-1 text-xs text-slate-600">Club officers will post announcements here.</p>
             </div>
           ) : (
             <ul className="list-stack mt-4">
@@ -131,9 +135,9 @@ export default async function DashboardPage() {
             </div>
           </div>
           {upcomingEvents.length === 0 ? (
-            <div className="empty-state mt-4 p-6">
-              <p className="empty-state-title">Nothing on the calendar yet.</p>
-              <p className="empty-state-copy">Upcoming events from your clubs will appear here in date order.</p>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 p-6">
+              <p className="text-sm font-semibold text-slate-900">No events scheduled</p>
+              <p className="mt-1 text-xs text-slate-600">Check back soon for upcoming club meetings.</p>
             </div>
           ) : (
             <ul className="list-stack mt-4">
