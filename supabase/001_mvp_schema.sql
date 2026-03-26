@@ -63,11 +63,21 @@ create table if not exists public.rsvps (
   unique (event_id, user_id)
 );
 
+create table if not exists public.event_attendance (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  marked_by uuid not null references public.profiles(id) on delete cascade,
+  marked_at timestamptz not null default now(),
+  unique (event_id, user_id)
+);
+
 create index if not exists idx_club_members_user_id on public.club_members (user_id);
 create index if not exists idx_announcements_club_id on public.announcements (club_id);
 create index if not exists idx_events_club_id on public.events (club_id);
 create index if not exists idx_events_event_date on public.events (event_date);
 create index if not exists idx_rsvps_event_id on public.rsvps (event_id);
+create index if not exists idx_event_attendance_event_id on public.event_attendance (event_id);
 
 -- Automatically create profile rows for new auth users.
 create or replace function public.handle_new_user()
@@ -411,6 +421,7 @@ alter table public.club_members enable row level security;
 alter table public.announcements enable row level security;
 alter table public.events enable row level security;
 alter table public.rsvps enable row level security;
+alter table public.event_attendance enable row level security;
 
 -- Profiles: users can read/update/insert their own profile.
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -564,3 +575,48 @@ on public.rsvps
 for delete
 to authenticated
 using (auth.uid() = user_id);
+
+-- Event attendance: club members can read; officers can mark present members.
+drop policy if exists "event_attendance_select_member" on public.event_attendance;
+create policy "event_attendance_select_member"
+on public.event_attendance
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.events e
+    where e.id = event_id and public.is_club_member(e.club_id, auth.uid())
+  )
+);
+
+drop policy if exists "event_attendance_insert_officer" on public.event_attendance;
+create policy "event_attendance_insert_officer"
+on public.event_attendance
+for insert
+to authenticated
+with check (
+  auth.uid() = marked_by
+  and exists (
+    select 1
+    from public.events e
+    join public.club_members cm on cm.club_id = e.club_id and cm.user_id = user_id
+    where e.id = event_id
+      and public.is_club_officer(e.club_id, auth.uid())
+  )
+);
+
+drop policy if exists "event_attendance_delete_officer" on public.event_attendance;
+create policy "event_attendance_delete_officer"
+on public.event_attendance
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.events e
+    join public.club_members cm on cm.club_id = e.club_id and cm.user_id = user_id
+    where e.id = event_id
+      and public.is_club_officer(e.club_id, auth.uid())
+  )
+);

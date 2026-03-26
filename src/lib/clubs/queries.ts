@@ -25,6 +25,8 @@ export type ClubEvent = {
   eventDate: string;
   eventDateRaw: Date;
   userRsvpStatus: "yes" | "no" | "maybe" | null;
+  attendanceCount: number;
+  presentMemberIds: string[];
   rsvpCounts: {
     yes: number;
     no: number;
@@ -288,6 +290,14 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
           .in("event_id", eventIds)
       : { data: [] as { event_id: string; user_id: string; status: "yes" | "no" | "maybe" }[] };
 
+  const { data: attendanceData } =
+    eventIds.length > 0
+      ? await supabase
+          .from("event_attendance")
+          .select("event_id, user_id")
+          .in("event_id", eventIds)
+      : { data: [] as { event_id: string; user_id: string }[] };
+
   return {
     id: clubRelation.id,
     name: clubRelation.name,
@@ -322,6 +332,10 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       eventDateRaw: new Date(event.event_date),
       userRsvpStatus:
         (rsvpData ?? []).find((rsvp) => rsvp.event_id === event.id && rsvp.user_id === user.id)?.status ?? null,
+      attendanceCount: (attendanceData ?? []).filter((attendance) => attendance.event_id === event.id).length,
+      presentMemberIds: (attendanceData ?? [])
+        .filter((attendance) => attendance.event_id === event.id)
+        .map((attendance) => attendance.user_id),
       rsvpCounts: {
         yes: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "yes").length,
         no: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "no").length,

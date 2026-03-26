@@ -5,9 +5,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
 import { sanitizeInlineText } from "@/lib/sanitize";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   announcementCreateSchema,
+  attendanceToggleSchema,
   clubCreateSchema,
   eventCreateSchema,
   joinCodeSchema,
@@ -26,6 +28,10 @@ function getSafeValidationErrorMessage(result: { error: { issues: Array<{ messag
 
 function logClubCreateError(stage: string, details: Record<string, unknown>) {
   console.error(`[club-create:${stage}]`, details);
+}
+
+function logJoinClub(step: string, details: Record<string, unknown>) {
+  console.info(`[club-join:${step}]`, details);
 }
 
 async function ensureCreatorOfficerMembership(supabase: Awaited<ReturnType<typeof createClient>>, clubId: string, userId: string) {
@@ -199,25 +205,52 @@ export async function joinClubAction(formData: FormData) {
     redirect("/login");
   }
 
+  const normalizedJoinCode = parsed.data.joinCode;
+  logJoinClub("start", {
+    userId: user.id,
+    joinCode: normalizedJoinCode,
+  });
+
   const rateLimit = await enforceRateLimit({
     policy: "clubJoin",
     userId: user.id,
   });
   if (!rateLimit.success) {
-    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&error=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
-  const { data: clubId, error: clubLookupError } = await supabase.rpc("find_club_by_join_code", {
-    target_join_code: parsed.data.joinCode,
-  });
+  const admin = createAdminClient();
+  const { data: clubRow, error: clubLookupError } = await admin
+    .from("clubs")
+    .select("id")
+    .eq("join_code", normalizedJoinCode)
+    .maybeSingle();
 
   if (clubLookupError) {
-    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&error=Could+not+validate+join+code.+Please+retry.`);
+    logJoinClub("lookup-error", {
+      userId: user.id,
+      joinCode: normalizedJoinCode,
+      code: clubLookupError.code,
+      message: clubLookupError.message,
+      details: clubLookupError.details,
+    });
+    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Unexpected+DB+error.+Please+retry.`);
   }
 
-  if (!clubId) {
-    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&error=Invalid+join+code.`);
+  if (!clubRow?.id) {
+    logJoinClub("invalid-code", {
+      userId: user.id,
+      joinCode: normalizedJoinCode,
+    });
+    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Invalid+join+code.`);
   }
+
+  const clubId = clubRow.id;
+  logJoinClub("lookup-success", {
+    userId: user.id,
+    clubId,
+    joinCode: normalizedJoinCode,
+  });
 
   const { data: existingMembership } = await supabase
     .from("club_members")
@@ -227,8 +260,40 @@ export async function joinClubAction(formData: FormData) {
     .maybeSingle();
 
   if (existingMembership) {
-    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
+    logJoinClub("already-member", {
+      userId: user.id,
+      clubId,
+    });
+    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
   }
+
+  const { error: profileError } = await supabase.from("profiles").upsert(
+    {
+      id: user.id,
+      email: user.email ?? "",
+      full_name:
+        typeof user.user_metadata?.full_name === "string"
+          ? sanitizeInlineText(user.user_metadata.full_name).slice(0, 80)
+          : "",
+    },
+    { onConflict: "id" },
+  );
+
+  if (profileError) {
+    logJoinClub("profile-error", {
+      userId: user.id,
+      clubId,
+      code: profileError.code,
+      message: profileError.message,
+      details: profileError.details,
+    });
+    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Missing+profile.+Please+sign+out+and+back+in,+then+retry.`);
+  }
+
+  logJoinClub("profile-ready", {
+    userId: user.id,
+    clubId,
+  });
 
   const { error: joinError } = await supabase.from("club_members").insert({
     club_id: clubId,
@@ -238,15 +303,32 @@ export async function joinClubAction(formData: FormData) {
 
   if (joinError) {
     if (joinError.code === "23505") {
-      redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
+      logJoinClub("duplicate-membership", {
+        userId: user.id,
+        clubId,
+      });
+      redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
     }
-    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&error=Unable+to+join+club.+Please+retry.`);
+
+    logJoinClub("membership-insert-error", {
+      userId: user.id,
+      clubId,
+      code: joinError.code,
+      message: joinError.message,
+      details: joinError.details,
+    });
+    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Membership+insert+failed.+Please+retry.`);
   }
+
+  logJoinClub("success", {
+    userId: user.id,
+    clubId,
+  });
 
   revalidatePath("/dashboard");
   revalidatePath("/clubs");
   revalidatePath(`/clubs/${clubId}`);
-  redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&clubId=${clubId}&success=You+joined+the+club.`);
+  redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&success=You+joined+the+club.`);
 }
 
 export async function createAnnouncementAction(formData: FormData) {
@@ -539,4 +621,102 @@ export async function upsertRsvpAction(formData: FormData) {
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   redirect(`/clubs/${parsed.data.clubId}?rsvpSuccess=RSVP+saved.`);
+}
+
+export async function toggleAttendanceAction(formData: FormData) {
+  const parsed = attendanceToggleSchema.safeParse({
+    clubId: formData.get("club_id"),
+    eventId: formData.get("event_id"),
+    userId: formData.get("user_id"),
+    present: formData.get("present"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}?attendanceError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    }
+    redirect("/clubs?error=Invalid+attendance+request.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const rateLimit = await enforceRateLimit({
+    policy: "rsvpWrite",
+    userId: user.id,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/${parsed.data.clubId}?attendanceError=${encodeURIComponent(getRateLimitErrorMessage())}`);
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("club_members")
+    .select("role")
+    .eq("club_id", parsed.data.clubId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (membershipError || !membership) {
+    redirect(`/clubs/${parsed.data.clubId}?attendanceError=You+do+not+have+access+to+this+club.`);
+  }
+
+  if (membership.role !== "officer") {
+    redirect(`/clubs/${parsed.data.clubId}?attendanceError=Only+officers+can+track+attendance.`);
+  }
+
+  const { data: eventRow, error: eventError } = await supabase
+    .from("events")
+    .select("id, club_id")
+    .eq("id", parsed.data.eventId)
+    .maybeSingle();
+
+  if (eventError || !eventRow || eventRow.club_id !== parsed.data.clubId) {
+    redirect(`/clubs/${parsed.data.clubId}?attendanceError=Event+not+found+for+this+club.`);
+  }
+
+  const { data: targetMember, error: targetMemberError } = await supabase
+    .from("club_members")
+    .select("id")
+    .eq("club_id", parsed.data.clubId)
+    .eq("user_id", parsed.data.userId)
+    .maybeSingle();
+
+  if (targetMemberError || !targetMember) {
+    redirect(`/clubs/${parsed.data.clubId}?attendanceError=Member+not+found+in+this+club.`);
+  }
+
+  if (parsed.data.present) {
+    const { error: attendanceError } = await supabase.from("event_attendance").upsert(
+      {
+        event_id: parsed.data.eventId,
+        user_id: parsed.data.userId,
+        marked_by: user.id,
+      },
+      { onConflict: "event_id,user_id" },
+    );
+
+    if (attendanceError) {
+      redirect(`/clubs/${parsed.data.clubId}?attendanceError=Unable+to+save+attendance.+Please+retry.`);
+    }
+  } else {
+    const { error: attendanceError } = await supabase
+      .from("event_attendance")
+      .delete()
+      .eq("event_id", parsed.data.eventId)
+      .eq("user_id", parsed.data.userId);
+
+    if (attendanceError) {
+      redirect(`/clubs/${parsed.data.clubId}?attendanceError=Unable+to+save+attendance.+Please+retry.`);
+    }
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  redirect(`/clubs/${parsed.data.clubId}?attendanceSuccess=Attendance+updated.`);
 }

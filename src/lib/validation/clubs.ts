@@ -58,6 +58,13 @@ export const rsvpSchema = z.object({
   status: z.enum(["yes", "no", "maybe"]),
 });
 
+export const attendanceToggleSchema = z.object({
+  clubId: uuidSchema,
+  eventId: uuidSchema,
+  userId: uuidSchema,
+  present: z.enum(["true", "false"]).transform((value) => value === "true"),
+});
+
 export const memberRoleUpdateSchema = z.object({
   clubId: uuidSchema,
   userId: uuidSchema,

@@ -8,6 +8,7 @@ import {
 } from "@/app/(app)/clubs/actions";
 import { GettingStartedChecklist } from "@/components/ui/getting-started-checklist";
 import { AnnouncementGenerator } from "@/components/ui/announcement-generator";
+import { AttendanceChecklist } from "@/components/ui/attendance-checklist";
 import { ClubSummary } from "@/components/ui/club-summary";
 import { CopyJoinCodeButton } from "@/components/ui/copy-join-code-button";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
@@ -25,6 +26,8 @@ type ClubPageProps = {
     rsvpSuccess?: string;
     memberError?: string;
     memberSuccess?: string;
+    attendanceError?: string;
+    attendanceSuccess?: string;
   }>;
 };
 
@@ -427,6 +430,8 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         {query.eventError ? <p className="alert-error mt-3">{query.eventError}</p> : null}
         {query.rsvpSuccess ? <p className="alert-success mt-3">{query.rsvpSuccess}</p> : null}
         {query.rsvpError ? <p className="alert-error mt-3">{query.rsvpError}</p> : null}
+        {query.attendanceSuccess ? <p className="alert-success mt-3">{query.attendanceSuccess}</p> : null}
+        {query.attendanceError ? <p className="alert-error mt-3">{query.attendanceError}</p> : null}
 
         {club.currentUserRole === "officer" ? (
           <form action={createEventAction} className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
@@ -557,6 +562,11 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
                       Based on RSVP response volume
                     </p>
                   </div>
+                  <div className="stat-card p-4">
+                    <p className="stat-label">Attendance</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{event.attendanceCount} present</p>
+                    <p className="mt-1 text-xs text-slate-500">Checked in during the meeting</p>
+                  </div>
                 </div>
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -593,6 +603,14 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
                     </form>
                   ))}
                 </div>
+                {club.currentUserRole === "officer" ? (
+                  <AttendanceChecklist
+                    clubId={club.id}
+                    eventId={event.id}
+                    members={club.members}
+                    presentMemberIds={event.presentMemberIds}
+                  />
+                ) : null}
               </article>
               );
             })}
