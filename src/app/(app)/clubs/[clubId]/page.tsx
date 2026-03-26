@@ -6,8 +6,10 @@ import {
   updateMemberRoleAction,
   upsertRsvpAction,
 } from "@/app/(app)/clubs/actions";
-import { CTAButton } from "@/components/ui/cta-button";
 import { GettingStartedChecklist } from "@/components/ui/getting-started-checklist";
+import { ClubSummary } from "@/components/ui/club-summary";
+import { CopyJoinCodeButton } from "@/components/ui/copy-join-code-button";
+import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubPageProps = {
@@ -60,6 +62,8 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         </div>
       </header>
 
+      <ClubSummary club={club} />
+
       {club.currentUserRole === "officer" ? (
         <GettingStartedChecklist
           membersCount={club.members.length}
@@ -89,15 +93,10 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
               </p>
             </div>
             {club.currentUserRole === "officer" && (
-              <CTAButton
-                onClick={() => {
-                  navigator.clipboard.writeText(club.joinCode);
-                  alert("Join code copied!");
-                }}
+              <CopyJoinCodeButton
+                joinCode={club.joinCode}
                 className="btn-secondary mt-3 w-full text-xs"
-              >
-                Copy Join Code
-              </CTAButton>
+              />
             )}
           </div>
         ) : (
@@ -196,20 +195,12 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
             <p className="font-semibold text-slate-900">Keep your club in the loop</p>
             <p className="mt-1 text-sm text-slate-600">Post updates about meetings, schedule changes, or important info.</p>
             {club.currentUserRole === "officer" && (
-              <CTAButton
-                onClick={() => {
-                  const titleInput = document.querySelector(
-                    'input[name="title"]'
-                  ) as HTMLInputElement;
-                  if (titleInput) {
-                    titleInput.focus();
-                    titleInput.scrollIntoView({ behavior: "smooth" });
-                  }
-                }}
+              <ScrollToInputButton
+                inputSelector='input[name="title"]'
                 className="btn-secondary mt-3"
               >
                 Create First Announcement
-              </CTAButton>
+              </ScrollToInputButton>
             )}
           </div>
         ) : (
@@ -299,20 +290,12 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
             <p className="font-semibold text-slate-900">Schedule your first meeting</p>
             <p className="mt-1 text-sm text-slate-600">Create an event so members know when you&#39;re meeting and can RSVP.</p>
             {club.currentUserRole === "officer" && (
-              <CTAButton
-                onClick={() => {
-                  const titleInput = document.querySelector(
-                    'input[id="event_title"]'
-                  ) as HTMLInputElement;
-                  if (titleInput) {
-                    titleInput.focus();
-                    titleInput.scrollIntoView({ behavior: "smooth" });
-                  }
-                }}
+              <ScrollToInputButton
+                inputSelector='input[id="event_title"]'
                 className="btn-secondary mt-3"
               >
                 Create First Event
-              </CTAButton>
+              </ScrollToInputButton>
             )}
           </div>
         ) : (

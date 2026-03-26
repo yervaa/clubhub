@@ -1,9 +1,9 @@
 "use client";
 
 type CTAButtonProps = {
-  onClick: () => void;
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 };
 
 export function CTAButton({ onClick, children, className = "" }: CTAButtonProps) {

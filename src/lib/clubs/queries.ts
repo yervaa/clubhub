@@ -23,6 +23,7 @@ export type ClubEvent = {
   description: string;
   location: string;
   eventDate: string;
+  eventDateRaw: Date;
   userRsvpStatus: "yes" | "no" | "maybe" | null;
   rsvpCounts: {
     yes: number;
@@ -290,6 +291,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       description: event.description,
       location: event.location,
       eventDate: new Date(event.event_date).toLocaleString(),
+      eventDateRaw: new Date(event.event_date),
       userRsvpStatus:
         (rsvpData ?? []).find((rsvp) => rsvp.event_id === event.id && rsvp.user_id === user.id)?.status ?? null,
       rsvpCounts: {
