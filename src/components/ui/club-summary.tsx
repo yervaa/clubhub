@@ -7,6 +7,8 @@ type ClubSummaryProps = {
 };
 
 export function ClubSummary({ club }: ClubSummaryProps) {
+  const memberCount = club.memberCount;
+
   // Find next upcoming event
   const now = new Date();
   const nextEvent = club.events
@@ -130,9 +132,9 @@ export function ClubSummary({ club }: ClubSummaryProps) {
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-slate-600">Total Members</p>
-              <p className="text-lg font-semibold text-slate-900">{club.members.length}</p>
+              <p className="text-lg font-semibold text-slate-900">{memberCount}</p>
               <p className="text-sm text-slate-500">
-                {club.members.length <= 5 ? "Growing your community!" : "Active participants"}
+                {memberCount === 0 ? "Invite your first members." : memberCount <= 5 ? "Growing your community!" : "Active participants"}
               </p>
             </div>
           </div>

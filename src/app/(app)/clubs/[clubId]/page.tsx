@@ -13,6 +13,7 @@ import { ClubSummary } from "@/components/ui/club-summary";
 import { CopyJoinCodeButton } from "@/components/ui/copy-join-code-button";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
 import { MemberInvite } from "@/components/ui/member-invite";
+import { getMemberDisplayName, getMemberInitials, getMemberSecondaryText } from "@/lib/member-display";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubPageProps = {
@@ -58,6 +59,7 @@ function getRelatedEventForAnnouncement(
 }
 
 function getNextBestAction(club: Awaited<ReturnType<typeof getClubDetailForCurrentUser>> extends infer T ? NonNullable<T> : never): NextBestAction {
+  const memberCount = club.memberCount;
   const upcomingEvent = [...club.events]
     .filter((event) => event.eventDateRaw.getTime() > Date.now())
     .sort((a, b) => a.eventDateRaw.getTime() - b.eventDateRaw.getTime())[0];
@@ -81,7 +83,7 @@ function getNextBestAction(club: Awaited<ReturnType<typeof getClubDetailForCurre
       };
     }
 
-    if (upcomingEvent && upcomingEvent.rsvpCounts.yes < Math.min(3, club.members.length)) {
+    if (upcomingEvent && upcomingEvent.rsvpCounts.yes < Math.min(3, memberCount)) {
       return {
         title: "Invite more members",
         copy: "Your next event needs a few more yes responses.",
@@ -90,7 +92,7 @@ function getNextBestAction(club: Awaited<ReturnType<typeof getClubDetailForCurre
       };
     }
 
-    if (club.members.length <= 3) {
+    if (memberCount <= 3) {
       return {
         title: "Invite more members",
         copy: "Share the join code and grow the club.",
@@ -137,6 +139,7 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
 
   const nextBestAction = getNextBestAction(club);
   const latestAnnouncement = getLatestAnnouncement(club);
+  const memberCount = club.memberCount;
   const pinnedAnnouncementEvent = latestAnnouncement
     ? getRelatedEventForAnnouncement(club, latestAnnouncement)
     : null;
@@ -156,7 +159,7 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
           </div>
           <div className="stat-card">
             <p className="stat-label">Members</p>
-            <p className="stat-value text-[1.2rem]">{club.members.length}</p>
+            <p className="stat-value text-[1.2rem]">{memberCount}</p>
             <p className="stat-copy">People currently in this club.</p>
           </div>
         </div>
@@ -250,13 +253,13 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
 
       {club.currentUserRole === "officer" && (
         <div id="invite-members">
-          <MemberInvite joinCode={club.joinCode} membersCount={club.members.length} />
+          <MemberInvite joinCode={club.joinCode} membersCount={memberCount} />
         </div>
       )}
 
       {club.currentUserRole === "officer" ? (
         <GettingStartedChecklist
-          membersCount={club.members.length}
+          membersCount={memberCount}
           announcementsCount={club.announcements.length}
           eventsCount={club.events.length}
         />
@@ -269,11 +272,11 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
             <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">Members</h2>
             <p className="mt-1 text-sm text-slate-600">See who is part of the club and what role they hold.</p>
           </div>
-          <span className="badge-soft">{club.members.length} total</span>
+          <span className="badge-soft">{memberCount} total</span>
         </div>
         {query.memberSuccess ? <p className="alert-success mt-4">{query.memberSuccess}</p> : null}
         {query.memberError ? <p className="alert-error mt-3">{query.memberError}</p> : null}
-        {club.members.length === 0 ? (
+        {memberCount === 0 ? (
           <div className="mt-4 rounded-lg border border-slate-200 bg-gradient-to-br from-blue-50 to-slate-50 p-6">
             <p className="font-semibold text-slate-900">Share your join code</p>
             <p className="mt-1 text-sm text-slate-600">Let people join using this code:</p>
@@ -294,14 +297,19 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
             {club.members.map((member) => (
               <li key={member.userId} className="surface-subcard px-4 py-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {member.fullName?.trim() || member.email || member.userId}
-                      </p>
+                  <div className="min-w-0 flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
+                      {getMemberInitials(member)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {getMemberDisplayName(member)}
+                        </p>
                       {member.userId === club.currentUserId ? <span className="badge-soft">You</span> : null}
                     </div>
-                    <p className="mt-1 truncate text-sm text-slate-600">{member.email ?? member.userId}</p>
+                    <p className="mt-1 truncate text-sm text-slate-600">{getMemberSecondaryText(member)}</p>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={member.role === "officer" ? "badge-strong" : "badge-soft"}>{member.role}</span>
@@ -508,12 +516,13 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
               const hoursDiff = timeDiff / (1000 * 60 * 60);
               const isComingSoon = hoursDiff > 0 && hoursDiff <= 48;
               const totalResponses = event.rsvpCounts.yes + event.rsvpCounts.no + event.rsvpCounts.maybe;
-              const responsePercent = club.members.length > 0
-                ? Math.min(100, Math.round((totalResponses / club.members.length) * 100))
+              const responsePercent = memberCount > 0
+                ? Math.min(100, Math.round((totalResponses / memberCount) * 100))
                 : 0;
-              const attendancePercent = club.members.length > 0
-                ? Math.min(100, Math.round((event.rsvpCounts.yes / club.members.length) * 100))
+              const attendancePercent = memberCount > 0
+                ? Math.min(100, Math.round((event.rsvpCounts.yes / memberCount) * 100))
                 : 0;
+              const goingLabel = event.rsvpCounts.yes === 1 ? "person going" : "people going";
 
               return (
                 <article key={event.id} className="surface-subcard p-5">
@@ -544,9 +553,9 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
                   </div>
                   <div className="stat-card p-4">
                     <p className="stat-label">Going</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{event.rsvpCounts.yes} people going</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{event.rsvpCounts.yes} {goingLabel}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {attendancePercent}% of the club right now
+                      {memberCount > 0 ? `${attendancePercent}% of the club right now` : "Attendance updates will appear here"}
                     </p>
                   </div>
                   <div className="stat-card p-4">
@@ -573,7 +582,9 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
                     <div>
                       <p className="text-sm font-semibold text-slate-900">Participation</p>
                       <p className="mt-1 text-sm text-slate-600">
-                        {totalResponses} of {club.members.length} members responded
+                        {memberCount > 0
+                          ? `${totalResponses} of ${memberCount} ${memberCount === 1 ? "member" : "members"} responded`
+                          : "Waiting for members to join this club."}
                       </p>
                     </div>
                     <span className="badge-soft">

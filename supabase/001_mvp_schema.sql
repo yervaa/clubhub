@@ -205,6 +205,49 @@ $$;
 revoke all on function public.ensure_club_creator_membership(uuid) from public;
 grant execute on function public.ensure_club_creator_membership(uuid) to authenticated;
 
+create or replace function public.create_club_with_creator_membership(
+  target_club_id uuid,
+  target_name text,
+  target_description text,
+  target_join_code text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  insert into public.clubs (
+    id,
+    name,
+    description,
+    join_code,
+    created_by
+  )
+  values (
+    target_club_id,
+    target_name,
+    target_description,
+    upper(trim(target_join_code)),
+    auth.uid()
+  );
+
+  insert into public.club_members (club_id, user_id, role)
+  values (target_club_id, auth.uid(), 'officer')
+  on conflict (club_id, user_id) do update
+  set role = 'officer';
+
+  return target_club_id;
+end;
+$$;
+
+revoke all on function public.create_club_with_creator_membership(uuid, text, text, text) from public;
+grant execute on function public.create_club_with_creator_membership(uuid, text, text, text) to authenticated;
+
 create or replace function public.get_club_members_for_view(target_club_id uuid)
 returns table (
   user_id uuid,
@@ -223,13 +266,13 @@ as $$
     p.email,
     cm.role
   from public.club_members cm
-  join public.profiles p on p.id = cm.user_id
+  left join public.profiles p on p.id = cm.user_id
   where cm.club_id = target_club_id
     and public.is_club_member(target_club_id, auth.uid())
   order by
     case when cm.role = 'officer' then 0 else 1 end,
-    nullif(trim(p.full_name), ''),
-    p.email;
+    nullif(trim(coalesce(p.full_name, '')), ''),
+    coalesce(p.email, cm.user_id::text);
 $$;
 
 revoke all on function public.get_club_members_for_view(uuid) from public;

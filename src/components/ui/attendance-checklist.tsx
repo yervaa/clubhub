@@ -2,6 +2,7 @@
 
 import { toggleAttendanceAction } from "@/app/(app)/clubs/actions";
 import type { ClubMember } from "@/lib/clubs/queries";
+import { getMemberDisplayName, getMemberSecondaryText } from "@/lib/member-display";
 
 type AttendanceChecklistProps = {
   clubId: string;
@@ -42,7 +43,7 @@ export function AttendanceChecklist({
       <ul className="mt-4 space-y-2">
         {members.map((member) => {
           const isPresent = presentMemberIds.includes(member.userId);
-          const displayName = member.fullName?.trim() || member.email || member.userId;
+          const displayName = getMemberDisplayName(member);
 
           return (
             <li key={member.userId}>
@@ -54,7 +55,7 @@ export function AttendanceChecklist({
                 <label className="flex cursor-pointer items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900">{displayName}</p>
-                    <p className="truncate text-xs text-slate-500">{member.email ?? member.userId}</p>
+                    <p className="truncate text-xs text-slate-500">{getMemberSecondaryText(member)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-medium ${isPresent ? "text-emerald-700" : "text-slate-500"}`}>

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
 import { getSafeNextPath } from "@/lib/auth/redirects";
+import { upsertCurrentUserProfile } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/server";
 import { loginSchema, profileSchema, signupSchema } from "@/lib/validation/auth";
 
@@ -57,10 +58,17 @@ export async function loginAction(formData: FormData) {
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
     if (error) {
       redirect(`/login?error=${encodeURIComponent(normalizeSupabaseErrorMessage(error.message))}&next=${encodeURIComponent(nextPath)}`);
+    }
+
+    if (data.user) {
+      const { error: profileError } = await upsertCurrentUserProfile(supabase, data.user);
+      if (profileError) {
+        redirect(`/login?error=Could+not+prepare+your+profile.+Please+retry.&next=${encodeURIComponent(nextPath)}`);
+      }
     }
   } catch (error) {
     if (isRedirectError(error)) {
@@ -113,6 +121,12 @@ export async function signupAction(formData: FormData) {
     }
 
     if (data.session) {
+      if (data.user) {
+        const { error: profileError } = await upsertCurrentUserProfile(supabase, data.user);
+        if (profileError) {
+          redirect(`/signup?error=Could+not+prepare+your+profile.+Please+retry.&next=${encodeURIComponent(nextPath)}`);
+        }
+      }
       redirect(nextPath);
     }
   } catch (error) {

@@ -55,6 +55,7 @@ export type ClubDetail = {
   joinCode: string;
   currentUserId: string;
   currentUserRole: "member" | "officer";
+  memberCount: number;
   members: ClubMember[];
   recentActivity: ClubActivityItem[];
   announcements: ClubAnnouncement[];
@@ -108,6 +109,11 @@ type ClubMemberViewRow = {
   user_id: string;
   full_name: string | null;
   email: string | null;
+  role: "member" | "officer";
+};
+
+type ClubMemberBaseRow = {
+  user_id: string;
   role: "member" | "officer";
 };
 
@@ -260,8 +266,29 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     return null;
   }
 
+  const { data: memberBaseData } = await supabase
+    .from("club_members")
+    .select("user_id, role")
+    .eq("club_id", clubId)
+    .order("role", { ascending: false });
+
   const { data: membersData } = await supabase
     .rpc("get_club_members_for_view", { target_club_id: clubId });
+
+  const memberViewById = new Map(
+    ((membersData ?? []) as ClubMemberViewRow[]).map((member) => [member.user_id, member]),
+  );
+
+  const members = ((memberBaseData ?? []) as ClubMemberBaseRow[]).map((member) => {
+    const detail = memberViewById.get(member.user_id);
+
+    return {
+      userId: member.user_id,
+      fullName: detail?.full_name ?? null,
+      email: detail?.email ?? null,
+      role: member.role,
+    };
+  });
 
   const { data: announcementsData } = await supabase
     .from("announcements")
@@ -305,12 +332,8 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     joinCode: clubRelation.join_code,
     currentUserId: user.id,
     currentUserRole: membership.role,
-    members: ((membersData ?? []) as ClubMemberViewRow[]).map((member) => ({
-      userId: member.user_id,
-      fullName: member.full_name,
-      email: member.email,
-      role: member.role,
-    })),
+    memberCount: ((memberBaseData ?? []) as ClubMemberBaseRow[]).length,
+    members,
     recentActivity: ((activityData ?? []) as ClubActivityRow[]).map((item) => ({
       id: item.id,
       kind: item.kind,
