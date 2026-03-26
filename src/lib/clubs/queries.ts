@@ -39,6 +39,13 @@ export type ClubMember = {
   role: "member" | "officer";
 };
 
+export type ClubActivityItem = {
+  id: string;
+  kind: "member_joined" | "announcement_posted" | "event_created" | "rsvp_updated";
+  message: string;
+  createdAt: string;
+};
+
 export type ClubDetail = {
   id: string;
   name: string;
@@ -47,6 +54,7 @@ export type ClubDetail = {
   currentUserId: string;
   currentUserRole: "member" | "officer";
   members: ClubMember[];
+  recentActivity: ClubActivityItem[];
   announcements: ClubAnnouncement[];
   events: ClubEvent[];
 };
@@ -97,6 +105,13 @@ type ClubMemberViewRow = {
   full_name: string | null;
   email: string | null;
   role: "member" | "officer";
+};
+
+type ClubActivityRow = {
+  id: string;
+  kind: ClubActivityItem["kind"];
+  message: string;
+  created_at: string;
 };
 
 function normalizeClubRelation(
@@ -249,6 +264,9 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     .order("created_at", { ascending: false })
     .limit(10);
 
+  const { data: activityData } = await supabase
+    .rpc("get_club_recent_activity", { target_club_id: clubId });
+
   const { data: eventsData } = await supabase
     .from("events")
     .select("id, title, description, location, event_date")
@@ -278,6 +296,12 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       fullName: member.full_name,
       email: member.email,
       role: member.role,
+    })),
+    recentActivity: ((activityData ?? []) as ClubActivityRow[]).map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      message: item.message,
+      createdAt: new Date(item.created_at).toLocaleString(),
     })),
     announcements: (announcementsData ?? []).map((announcement) => ({
       id: announcement.id,

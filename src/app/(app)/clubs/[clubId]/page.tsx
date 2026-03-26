@@ -10,6 +10,7 @@ import { GettingStartedChecklist } from "@/components/ui/getting-started-checkli
 import { ClubSummary } from "@/components/ui/club-summary";
 import { CopyJoinCodeButton } from "@/components/ui/copy-join-code-button";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
+import { MemberInvite } from "@/components/ui/member-invite";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubPageProps = {
@@ -41,7 +42,7 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
         <p className="section-kicker">Club Profile</p>
         <h1 className="section-title mt-2">{club.name}</h1>
         <p className="section-subtitle max-w-3xl">{club.description}</p>
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
           <div className="stat-card">
             <p className="stat-label">Your Role</p>
             <p className="stat-value text-[1.2rem]">{club.currentUserRole}</p>
@@ -52,17 +53,43 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
             <p className="stat-value text-[1.2rem]">{club.members.length}</p>
             <p className="stat-copy">People currently in this club.</p>
           </div>
-          <div className="stat-card">
-            <p className="stat-label">Officer Join Code</p>
-            <p className="stat-value text-[1.2rem]">{club.currentUserRole === "officer" ? club.joinCode : "Hidden"}</p>
-            <p className="stat-copy">
-              {club.currentUserRole === "officer" ? "Share this with new members." : "Only officers can see the join code."}
-            </p>
-          </div>
         </div>
       </header>
 
       <ClubSummary club={club} />
+
+      <div className="card-surface p-6">
+        <div className="section-card-header">
+          <div>
+            <p className="section-kicker">Recent Activity</p>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">What happened lately</h2>
+            <p className="mt-1 text-sm text-slate-600">A quick feed of club movement, updates, and responses.</p>
+          </div>
+          <span className="badge-soft">{club.recentActivity.length} items</span>
+        </div>
+
+        {club.recentActivity.length === 0 ? (
+          <div className="empty-state mt-4 p-6">
+            <p className="empty-state-title">No recent activity yet.</p>
+            <p className="empty-state-copy">As people join, announcements are posted, and events are scheduled, they will appear here.</p>
+          </div>
+        ) : (
+          <div className="list-stack mt-4">
+            {club.recentActivity.map((item) => (
+              <article key={item.id} className="surface-subcard p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-900">{item.message}</p>
+                  <span className="whitespace-nowrap text-xs text-slate-500">{item.createdAt}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {club.currentUserRole === "officer" && (
+        <MemberInvite joinCode={club.joinCode} membersCount={club.members.length} />
+      )}
 
       {club.currentUserRole === "officer" ? (
         <GettingStartedChecklist
@@ -300,17 +327,31 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
           </div>
         ) : (
           <div className="list-stack mt-4">
-            {club.events.map((event) => (
-              <article key={event.id} className="surface-subcard p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="max-w-2xl">
-                    <h3 className="text-base font-semibold text-slate-900">{event.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{event.description}</p>
+            {club.events.map((event) => {
+              // Check if event is coming soon (within 48 hours)
+              const now = new Date();
+              const timeDiff = event.eventDateRaw.getTime() - now.getTime();
+              const hoursDiff = timeDiff / (1000 * 60 * 60);
+              const isComingSoon = hoursDiff > 0 && hoursDiff <= 48;
+
+              return (
+                <article key={event.id} className="surface-subcard p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="max-w-2xl">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-semibold text-slate-900">{event.title}</h3>
+                        {isComingSoon && (
+                          <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                            Coming Soon
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">{event.description}</p>
+                    </div>
+                    <span className={event.userRsvpStatus ? "badge-strong" : "badge-soft"}>
+                      {event.userRsvpStatus ? `RSVP ${event.userRsvpStatus}` : "No RSVP"}
+                    </span>
                   </div>
-                  <span className={event.userRsvpStatus ? "badge-strong" : "badge-soft"}>
-                    {event.userRsvpStatus ? `RSVP ${event.userRsvpStatus}` : "No RSVP"}
-                  </span>
-                </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   <div className="stat-card p-4">
                     <p className="stat-label">Date</p>
@@ -321,9 +362,23 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
                     <p className="mt-2 text-sm font-semibold text-slate-900">{event.location}</p>
                   </div>
                   <div className="stat-card p-4">
-                    <p className="stat-label">Responses</p>
+                    <p className="stat-label">Going</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{event.rsvpCounts.yes} people going</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {event.rsvpCounts.maybe} maybe · {event.rsvpCounts.no} no
+                    </p>
+                  </div>
+                  <div className="stat-card p-4">
+                    <p className="stat-label">Engagement</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900">
-                      Yes {event.rsvpCounts.yes} · No {event.rsvpCounts.no} · Maybe {event.rsvpCounts.maybe}
+                      {event.rsvpCounts.yes + event.rsvpCounts.maybe >= 5
+                        ? "Strong"
+                        : event.rsvpCounts.yes + event.rsvpCounts.maybe >= 2
+                          ? "Building"
+                          : "Early"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Based on RSVP response volume
                     </p>
                   </div>
                 </div>
@@ -347,7 +402,8 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
                   ))}
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
