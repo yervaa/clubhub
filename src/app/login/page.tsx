@@ -2,11 +2,12 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
 import { loginAction } from "@/app/auth/actions";
+import { getSafeNextPath } from "@/lib/auth/redirects";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/layout/navbar";
 
 type LoginPageProps = {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; next?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
@@ -17,11 +18,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
-    redirect("/dashboard");
-  }
-
   const params = await searchParams;
+  const nextPath = getSafeNextPath(params.next);
+
+  if (user) {
+    redirect(nextPath);
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -36,6 +38,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           {params.error ? <p className="alert-error mt-4">{params.error}</p> : null}
 
           <form action={loginAction} className="mt-7 space-y-4">
+            <input type="hidden" name="next" value={nextPath} />
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Email
@@ -62,7 +65,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
           <p className="mt-6 text-sm text-slate-600">
             New to ClubHub?{" "}
-            <Link href="/signup" className="font-semibold text-slate-900 hover:text-slate-700">
+            <Link href={`/signup?next=${encodeURIComponent(nextPath)}`} className="font-semibold text-slate-900 hover:text-slate-700">
               Create an account
             </Link>
           </p>

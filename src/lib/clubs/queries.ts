@@ -65,6 +65,7 @@ export type DashboardAnnouncement = {
   clubName: string;
   title: string;
   createdAt: string;
+  createdAtRaw: string;
 };
 
 export type DashboardEvent = {
@@ -74,6 +75,7 @@ export type DashboardEvent = {
   title: string;
   location: string;
   eventDate: string;
+  eventDateRaw: string;
 };
 
 export type DashboardData = {
@@ -214,6 +216,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       clubName: clubNameById.get(announcement.club_id) ?? "Club",
       title: announcement.title,
       createdAt: new Date(announcement.created_at).toLocaleString(),
+      createdAtRaw: announcement.created_at,
     })),
     upcomingEvents: (eventsData ?? []).map((event) => ({
       id: event.id,
@@ -222,6 +225,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       title: event.title,
       location: event.location,
       eventDate: new Date(event.event_date).toLocaleString(),
+      eventDateRaw: event.event_date,
     })),
   };
 }

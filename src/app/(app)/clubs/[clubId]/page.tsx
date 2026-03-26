@@ -7,6 +7,7 @@ import {
   upsertRsvpAction,
 } from "@/app/(app)/clubs/actions";
 import { GettingStartedChecklist } from "@/components/ui/getting-started-checklist";
+import { AnnouncementGenerator } from "@/components/ui/announcement-generator";
 import { ClubSummary } from "@/components/ui/club-summary";
 import { CopyJoinCodeButton } from "@/components/ui/copy-join-code-button";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
@@ -27,6 +28,101 @@ type ClubPageProps = {
   }>;
 };
 
+type NextBestAction = {
+  title: string;
+  copy: string;
+  buttonLabel: string;
+  href?: string;
+  inputSelector?: string;
+};
+
+function getLatestAnnouncement(club: Awaited<ReturnType<typeof getClubDetailForCurrentUser>> extends infer T ? NonNullable<T> : never) {
+  return club.announcements[0] ?? null;
+}
+
+function getRelatedEventForAnnouncement(
+  club: Awaited<ReturnType<typeof getClubDetailForCurrentUser>> extends infer T ? NonNullable<T> : never,
+  announcement: NonNullable<ReturnType<typeof getLatestAnnouncement>>,
+) {
+  const haystack = `${announcement.title} ${announcement.content}`.toLowerCase();
+
+  return club.events.find((event) => {
+    const eventTitle = event.title.toLowerCase();
+    const eventLocation = event.location.toLowerCase();
+
+    return haystack.includes(eventTitle) || haystack.includes(eventLocation);
+  }) ?? null;
+}
+
+function getNextBestAction(club: Awaited<ReturnType<typeof getClubDetailForCurrentUser>> extends infer T ? NonNullable<T> : never): NextBestAction {
+  const upcomingEvent = [...club.events]
+    .filter((event) => event.eventDateRaw.getTime() > Date.now())
+    .sort((a, b) => a.eventDateRaw.getTime() - b.eventDateRaw.getTime())[0];
+
+  if (club.currentUserRole === "officer") {
+    if (club.events.length === 0) {
+      return {
+        title: "Create your next meeting",
+        copy: "Give members something concrete to join.",
+        buttonLabel: "Create event",
+        inputSelector: 'input[id="event_title"]',
+      };
+    }
+
+    if (club.announcements.length === 0) {
+      return {
+        title: "Post an update",
+        copy: "Set the tone with one clear announcement.",
+        buttonLabel: "Post update",
+        inputSelector: 'input[name="title"]',
+      };
+    }
+
+    if (upcomingEvent && upcomingEvent.rsvpCounts.yes < Math.min(3, club.members.length)) {
+      return {
+        title: "Invite more members",
+        copy: "Your next event needs a few more yes responses.",
+        buttonLabel: "Open invite tools",
+        href: "#invite-members",
+      };
+    }
+
+    if (club.members.length <= 3) {
+      return {
+        title: "Invite more members",
+        copy: "Share the join code and grow the club.",
+        buttonLabel: "Open invite tools",
+        href: "#invite-members",
+      };
+    }
+  }
+
+  if (upcomingEvent && !upcomingEvent.userRsvpStatus) {
+    return {
+      title: "RSVP to the next event",
+      copy: "Let the club know if you can make it.",
+      buttonLabel: "View events",
+      href: "#events",
+    };
+  }
+
+  if (club.announcements.length > 0) {
+    return {
+      title: "Catch up on updates",
+      copy: "Check the latest announcement before the next meeting.",
+      buttonLabel: "View announcements",
+      href: "#announcements",
+    };
+  }
+
+  return {
+    title: "See who is in the club",
+    copy: "Start with the member list and current roles.",
+    buttonLabel: "View members",
+    href: "#members",
+  };
+}
+
 export default async function ClubPage({ params, searchParams }: ClubPageProps) {
   const { clubId } = await params;
   const query = await searchParams;
@@ -35,6 +131,13 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
   if (!club) {
     notFound();
   }
+
+  const nextBestAction = getNextBestAction(club);
+  const latestAnnouncement = getLatestAnnouncement(club);
+  const pinnedAnnouncementEvent = latestAnnouncement
+    ? getRelatedEventForAnnouncement(club, latestAnnouncement)
+    : null;
+  const olderAnnouncements = latestAnnouncement ? club.announcements.slice(1) : [];
 
   return (
     <section className="space-y-8">
@@ -57,6 +160,61 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
       </header>
 
       <ClubSummary club={club} />
+
+      {latestAnnouncement ? (
+        <div className="card-surface border-amber-200 bg-gradient-to-r from-amber-50 via-white to-orange-50 p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-3xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="badge-strong">Pinned</span>
+                <p className="section-kicker text-amber-700">Latest Announcement</p>
+              </div>
+              <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">{latestAnnouncement.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{latestAnnouncement.content}</p>
+              <p className="mt-3 text-xs font-medium text-slate-500">{latestAnnouncement.createdAt}</p>
+            </div>
+            <div className="w-full max-w-sm rounded-xl border border-amber-200 bg-white/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Why it matters</p>
+              {pinnedAnnouncementEvent ? (
+                <>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">Connected to {pinnedAnnouncementEvent.title}</p>
+                  <p className="mt-1 text-sm text-slate-600">{pinnedAnnouncementEvent.eventDate} · {pinnedAnnouncementEvent.location}</p>
+                  <a href="#events" className="btn-secondary mt-3 inline-block text-xs">
+                    View event details
+                  </a>
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">Most important update right now</p>
+                  <p className="mt-1 text-sm text-slate-600">Members can find the key announcement here without scrolling through every post.</p>
+                  <a href="#announcements" className="btn-secondary mt-3 inline-block text-xs">
+                    View all announcements
+                  </a>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="card-surface border-blue-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="section-kicker">Next Best Action</p>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">{nextBestAction.title}</h2>
+            <p className="mt-1 text-sm text-slate-600">{nextBestAction.copy}</p>
+          </div>
+          {nextBestAction.inputSelector ? (
+            <ScrollToInputButton inputSelector={nextBestAction.inputSelector} className="btn-primary whitespace-nowrap">
+              {nextBestAction.buttonLabel}
+            </ScrollToInputButton>
+          ) : (
+            <a href={nextBestAction.href} className="btn-primary whitespace-nowrap">
+              {nextBestAction.buttonLabel}
+            </a>
+          )}
+        </div>
+      </div>
 
       <div className="card-surface p-6">
         <div className="section-card-header">
@@ -88,7 +246,9 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
       </div>
 
       {club.currentUserRole === "officer" && (
-        <MemberInvite joinCode={club.joinCode} membersCount={club.members.length} />
+        <div id="invite-members">
+          <MemberInvite joinCode={club.joinCode} membersCount={club.members.length} />
+        </div>
       )}
 
       {club.currentUserRole === "officer" ? (
@@ -199,6 +359,10 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
               <p className="text-sm font-semibold text-slate-900">Post a new update</p>
               <p className="mt-1 text-sm text-slate-600">Share meeting changes, reminders, or important news with everyone in the club.</p>
             </div>
+            <AnnouncementGenerator
+              titleSelector='input[name="title"]'
+              contentSelector='textarea[name="content"]'
+            />
             <div>
               <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Title
@@ -232,7 +396,12 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
           </div>
         ) : (
           <div className="list-stack mt-4">
-            {club.announcements.map((announcement) => (
+            {olderAnnouncements.length === 0 ? (
+              <div className="surface-subcard p-4">
+                <p className="text-sm font-semibold text-slate-900">No older announcements yet</p>
+                <p className="mt-1 text-sm text-slate-600">The latest announcement is pinned above so members see it first.</p>
+              </div>
+            ) : olderAnnouncements.map((announcement) => (
               <article key={announcement.id} className="surface-subcard p-4">
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-sm font-semibold text-slate-900">{announcement.title}</h3>
@@ -333,6 +502,13 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
               const timeDiff = event.eventDateRaw.getTime() - now.getTime();
               const hoursDiff = timeDiff / (1000 * 60 * 60);
               const isComingSoon = hoursDiff > 0 && hoursDiff <= 48;
+              const totalResponses = event.rsvpCounts.yes + event.rsvpCounts.no + event.rsvpCounts.maybe;
+              const responsePercent = club.members.length > 0
+                ? Math.min(100, Math.round((totalResponses / club.members.length) * 100))
+                : 0;
+              const attendancePercent = club.members.length > 0
+                ? Math.min(100, Math.round((event.rsvpCounts.yes / club.members.length) * 100))
+                : 0;
 
               return (
                 <article key={event.id} className="surface-subcard p-5">
@@ -365,7 +541,7 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
                     <p className="stat-label">Going</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900">{event.rsvpCounts.yes} people going</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {event.rsvpCounts.maybe} maybe · {event.rsvpCounts.no} no
+                      {attendancePercent}% of the club right now
                     </p>
                   </div>
                   <div className="stat-card p-4">
@@ -380,6 +556,22 @@ export default async function ClubPage({ params, searchParams }: ClubPageProps) 
                     <p className="mt-1 text-xs text-slate-500">
                       Based on RSVP response volume
                     </p>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Participation</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {totalResponses} of {club.members.length} members responded
+                      </p>
+                    </div>
+                    <span className="badge-soft">
+                      {event.rsvpCounts.yes} yes · {event.rsvpCounts.maybe} maybe · {event.rsvpCounts.no} no
+                    </span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full rounded-full bg-slate-900 transition-all" style={{ width: `${responsePercent}%` }} />
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">

@@ -2,11 +2,12 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
 import { signupAction } from "@/app/auth/actions";
+import { getSafeNextPath } from "@/lib/auth/redirects";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/layout/navbar";
 
 type SignupPageProps = {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 };
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
@@ -17,11 +18,12 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
-    redirect("/dashboard");
-  }
-
   const params = await searchParams;
+  const nextPath = getSafeNextPath(params.next);
+
+  if (user) {
+    redirect(nextPath);
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -35,6 +37,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
           {params.error ? <p className="alert-error mt-6">{params.error}</p> : null}
 
           <form action={signupAction} className="mt-7 space-y-4">
+            <input type="hidden" name="next" value={nextPath} />
             <div>
               <label htmlFor="full_name" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Full name
@@ -68,7 +71,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
 
           <p className="mt-6 text-sm text-slate-600">
             Already have an account?{" "}
-            <Link href="/login" className="font-semibold text-slate-900 hover:text-slate-700">
+            <Link href={`/login?next=${encodeURIComponent(nextPath)}`} className="font-semibold text-slate-900 hover:text-slate-700">
               Log in
             </Link>
           </p>

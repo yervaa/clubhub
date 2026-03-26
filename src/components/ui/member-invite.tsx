@@ -1,5 +1,7 @@
 "use client";
 
+import { CopyInviteLinkButton } from "@/components/ui/copy-invite-link-button";
+
 type MemberInviteProps = {
   joinCode: string;
   membersCount: number;
@@ -43,6 +45,9 @@ export function MemberInvite({ joinCode, membersCount }: MemberInviteProps) {
             >
               Copy Code
             </button>
+            <CopyInviteLinkButton joinCode={joinCode} className="btn-secondary whitespace-nowrap">
+              Copy Invite Link
+            </CopyInviteLinkButton>
           </div>
 
           {isLowMembers && (

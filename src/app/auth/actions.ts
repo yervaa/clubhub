@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
+import { getSafeNextPath } from "@/lib/auth/redirects";
 import { createClient } from "@/lib/supabase/server";
 import { loginSchema, profileSchema, signupSchema } from "@/lib/validation/auth";
 
@@ -32,13 +33,18 @@ function getSafeValidationErrorMessage(result: { error: { issues: Array<{ messag
 }
 
 export async function loginAction(formData: FormData) {
+  const rawNext = formData.get("next");
+  const nextPath = getSafeNextPath(
+    typeof rawNext === "string" ? rawNext : null,
+  );
+
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
 
   if (!parsed.success) {
-    redirect(`/login?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    redirect(`/login?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}&next=${encodeURIComponent(nextPath)}`);
   }
 
   const rateLimit = await enforceRateLimit({
@@ -46,7 +52,7 @@ export async function loginAction(formData: FormData) {
     hint: parsed.data.email,
   });
   if (!rateLimit.success) {
-    redirect(`/login?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/login?error=${encodeURIComponent(getRateLimitErrorMessage())}&next=${encodeURIComponent(nextPath)}`);
   }
 
   try {
@@ -54,20 +60,25 @@ export async function loginAction(formData: FormData) {
     const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
     if (error) {
-      redirect(`/login?error=${encodeURIComponent(normalizeSupabaseErrorMessage(error.message))}`);
+      redirect(`/login?error=${encodeURIComponent(normalizeSupabaseErrorMessage(error.message))}&next=${encodeURIComponent(nextPath)}`);
     }
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
 
-    redirect(`/login?error=${encodeURIComponent(getAuthErrorMessage(error))}`);
+    redirect(`/login?error=${encodeURIComponent(getAuthErrorMessage(error))}&next=${encodeURIComponent(nextPath)}`);
   }
 
-  redirect("/dashboard");
+  redirect(nextPath);
 }
 
 export async function signupAction(formData: FormData) {
+  const rawNext = formData.get("next");
+  const nextPath = getSafeNextPath(
+    typeof rawNext === "string" ? rawNext : null,
+  );
+
   const parsed = signupSchema.safeParse({
     fullName: formData.get("full_name"),
     email: formData.get("email"),
@@ -75,7 +86,7 @@ export async function signupAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/signup?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    redirect(`/signup?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}&next=${encodeURIComponent(nextPath)}`);
   }
 
   const rateLimit = await enforceRateLimit({
@@ -83,7 +94,7 @@ export async function signupAction(formData: FormData) {
     hint: parsed.data.email,
   });
   if (!rateLimit.success) {
-    redirect(`/signup?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/signup?error=${encodeURIComponent(getRateLimitErrorMessage())}&next=${encodeURIComponent(nextPath)}`);
   }
 
   try {
@@ -98,21 +109,21 @@ export async function signupAction(formData: FormData) {
     });
 
     if (error) {
-      redirect(`/signup?error=${encodeURIComponent(normalizeSupabaseErrorMessage(error.message))}`);
+      redirect(`/signup?error=${encodeURIComponent(normalizeSupabaseErrorMessage(error.message))}&next=${encodeURIComponent(nextPath)}`);
     }
 
     if (data.session) {
-      redirect("/dashboard");
+      redirect(nextPath);
     }
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
 
-    redirect(`/signup?error=${encodeURIComponent(getAuthErrorMessage(error))}`);
+    redirect(`/signup?error=${encodeURIComponent(getAuthErrorMessage(error))}&next=${encodeURIComponent(nextPath)}`);
   }
 
-  redirect("/login?message=Check+your+email+to+confirm+your+account.");
+  redirect(`/login?message=Check+your+email+to+confirm+your+account.&next=${encodeURIComponent(nextPath)}`);
 }
 
 export async function logoutAction() {

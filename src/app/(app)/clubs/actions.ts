@@ -187,7 +187,7 @@ export async function joinClubAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/clubs/join?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    redirect(`/join?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
   }
 
   const supabase = await createClient();
@@ -204,7 +204,7 @@ export async function joinClubAction(formData: FormData) {
     userId: user.id,
   });
   if (!rateLimit.success) {
-    redirect(`/clubs/join?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&error=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
   const { data: clubId, error: clubLookupError } = await supabase.rpc("find_club_by_join_code", {
@@ -212,11 +212,11 @@ export async function joinClubAction(formData: FormData) {
   });
 
   if (clubLookupError) {
-    redirect("/clubs/join?error=Could+not+validate+join+code.+Please+retry.");
+    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&error=Could+not+validate+join+code.+Please+retry.`);
   }
 
   if (!clubId) {
-    redirect("/clubs/join?error=Invalid+join+code.");
+    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&error=Invalid+join+code.`);
   }
 
   const { data: existingMembership } = await supabase
@@ -227,7 +227,7 @@ export async function joinClubAction(formData: FormData) {
     .maybeSingle();
 
   if (existingMembership) {
-    redirect("/clubs/join?error=You+are+already+a+member+of+this+club.");
+    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
   }
 
   const { error: joinError } = await supabase.from("club_members").insert({
@@ -238,14 +238,15 @@ export async function joinClubAction(formData: FormData) {
 
   if (joinError) {
     if (joinError.code === "23505") {
-      redirect("/clubs/join?error=You+are+already+a+member+of+this+club.");
+      redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
     }
-    redirect("/clubs/join?error=Unable+to+join+club.+Please+retry.");
+    redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&error=Unable+to+join+club.+Please+retry.`);
   }
 
   revalidatePath("/dashboard");
   revalidatePath("/clubs");
-  redirect("/clubs?success=You+joined+the+club.");
+  revalidatePath(`/clubs/${clubId}`);
+  redirect(`/join?code=${encodeURIComponent(parsed.data.joinCode)}&clubId=${clubId}&success=You+joined+the+club.`);
 }
 
 export async function createAnnouncementAction(formData: FormData) {

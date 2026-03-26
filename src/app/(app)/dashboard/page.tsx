@@ -4,6 +4,23 @@ import { getDashboardData } from "@/lib/clubs/queries";
 export default async function DashboardPage() {
   const { clubs, recentAnnouncements, upcomingEvents } = await getDashboardData();
   const officerClubs = clubs.filter((club) => club.role === "officer").length;
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysFromNow = new Date(now);
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
+  const thisWeekEvents = upcomingEvents.filter((event) => {
+    const eventDate = new Date(event.eventDateRaw);
+    return eventDate >= now && eventDate <= sevenDaysFromNow;
+  });
+
+  const thisWeekAnnouncements = recentAnnouncements.filter((announcement) => {
+    const createdAt = new Date(announcement.createdAtRaw);
+    return createdAt >= sevenDaysAgo && createdAt <= now;
+  }).slice(0, 5);
+
+  const weeklyActivityCount = thisWeekEvents.length + thisWeekAnnouncements.length;
 
   return (
     <section className="space-y-7">
@@ -47,6 +64,105 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <section className="card-surface border-blue-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50 p-6">
+        <div className="section-card-header">
+          <div>
+            <p className="section-kicker">This Week</p>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">What needs your attention</h2>
+            <p className="mt-1 text-sm text-slate-600">A fast view of the events, updates, and activity coming up in the next 7 days.</p>
+          </div>
+          <span className="badge-soft">{weeklyActivityCount} items</span>
+        </div>
+
+        {thisWeekEvents.length === 0 && thisWeekAnnouncements.length === 0 ? (
+          <div className="empty-state mt-4 p-6">
+            <p className="empty-state-title">Nothing planned for this week yet.</p>
+            <p className="empty-state-copy">Create a meeting or post a quick update so members have a reason to check back.</p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Link href="/clubs/create" className="btn-primary text-center">
+                Create Club
+              </Link>
+              <Link href="/clubs" className="btn-secondary text-center">
+                View Clubs
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr,1fr]">
+            <div className="surface-subcard p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Upcoming</p>
+                  <h3 className="mt-1 text-sm font-semibold text-slate-900">Next 7 days</h3>
+                </div>
+                <span className="badge-soft">{thisWeekEvents.length} events</span>
+              </div>
+              {thisWeekEvents.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-600">No events in the next week. Add one from a club page to give members something to plan around.</p>
+              ) : (
+                <ul className="list-stack mt-4">
+                  {thisWeekEvents.map((event) => (
+                    <li key={event.id} className="rounded-lg border border-slate-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{event.clubName}</p>
+                          <p className="mt-2 text-sm font-semibold text-slate-900">{event.title}</p>
+                        </div>
+                        <span className="badge-strong">This week</span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-600">{event.location}</p>
+                      <p className="mt-1 text-xs text-slate-500">{event.eventDate}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="surface-subcard p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Recent announcements</p>
+                {thisWeekAnnouncements.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-600">No new announcements this week.</p>
+                ) : (
+                  <ul className="list-stack mt-3">
+                    {thisWeekAnnouncements.map((announcement) => (
+                      <li key={announcement.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{announcement.clubName}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{announcement.title}</p>
+                        <p className="mt-1 text-xs text-slate-500">{announcement.createdAt}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="surface-subcard p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Quick summary</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-xs font-medium text-slate-500">Events this week</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">{thisWeekEvents.length}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-xs font-medium text-slate-500">Announcements</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">{thisWeekAnnouncements.length}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-xs font-medium text-slate-500">Active clubs</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">
+                      {new Set([
+                        ...thisWeekEvents.map((event) => event.clubId),
+                        ...thisWeekAnnouncements.map((announcement) => announcement.clubId),
+                      ]).size}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
