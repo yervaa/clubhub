@@ -39,6 +39,8 @@ export type ClubEvent = {
     whatDidnt: string;
     notes: string | null;
     updatedAt: string;
+    /** Raw ISO-8601 string for sorting and relative-time formatting */
+    updatedAtIso: string;
   } | null;
 };
 
@@ -57,6 +59,8 @@ export type ClubActivityItem = {
   kind: "member_joined" | "announcement_posted" | "event_created" | "rsvp_updated";
   message: string;
   createdAt: string;
+  /** Raw ISO-8601 string for sorting and relative-time formatting */
+  createdAtIso: string;
 };
 
 export type ClubAttentionAlert = {
@@ -739,6 +743,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       kind: item.kind,
       message: item.message,
       createdAt: new Date(item.created_at).toLocaleString(),
+      createdAtIso: item.created_at,
     })),
     announcements: (announcementsData ?? []).map((announcement) => ({
       id: announcement.id,
@@ -777,6 +782,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
           whatDidnt: reflection.what_didnt,
           notes: reflection.notes,
           updatedAt: new Date(reflection.updated_at).toLocaleString(),
+          updatedAtIso: reflection.updated_at,
         };
       })(),
     })),
