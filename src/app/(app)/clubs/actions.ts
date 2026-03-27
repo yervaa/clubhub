@@ -13,6 +13,7 @@ import {
   attendanceToggleSchema,
   clubCreateSchema,
   eventCreateSchema,
+  eventReflectionSchema,
   joinCodeSchema,
   memberRemovalSchema,
   memberRoleUpdateSchema,
@@ -57,6 +58,22 @@ function getAttendanceErrorMessage(code?: string, message?: string) {
   }
 
   return "Unable to save attendance. Please retry.";
+}
+
+function getReflectionErrorMessage(code?: string, message?: string) {
+  if (code === "42P01") {
+    return "Reflections table is missing. Apply the latest database migration.";
+  }
+
+  if (code === "42501") {
+    return "Reflection permissions are not configured correctly.";
+  }
+
+  if (message?.toLowerCase().includes("row-level security")) {
+    return "Reflection permissions are not configured correctly.";
+  }
+
+  return "Unable to save reflection. Please retry.";
 }
 
 async function ensureCreatorOfficerMembership(supabase: Awaited<ReturnType<typeof createClient>>, clubId: string, userId: string) {
@@ -339,7 +356,7 @@ export async function createAnnouncementAction(formData: FormData) {
   if (!parsed.success) {
     const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
     if (fallbackClubId) {
-      redirect(`/clubs/${fallbackClubId}?annError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+      redirect(`/clubs/${fallbackClubId}/announcements?annError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
     }
     redirect("/clubs?error=Invalid+club.");
   }
@@ -358,7 +375,7 @@ export async function createAnnouncementAction(formData: FormData) {
     userId: user.id,
   });
   if (!rateLimit.success) {
-    redirect(`/clubs/${parsed.data.clubId}?annError=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
   const { data: membership, error: membershipError } = await supabase
@@ -369,11 +386,11 @@ export async function createAnnouncementAction(formData: FormData) {
     .maybeSingle();
 
   if (membershipError || !membership) {
-    redirect(`/clubs/${parsed.data.clubId}?annError=You+do+not+have+access+to+this+club.`);
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+access+to+this+club.`);
   }
 
   if (membership.role !== "officer") {
-    redirect(`/clubs/${parsed.data.clubId}?annError=Only+officers+can+create+announcements.`);
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Only+officers+can+create+announcements.`);
   }
 
   const { error: insertError } = await supabase.from("announcements").insert({
@@ -384,11 +401,11 @@ export async function createAnnouncementAction(formData: FormData) {
   });
 
   if (insertError) {
-    redirect(`/clubs/${parsed.data.clubId}?annError=Unable+to+create+announcement.+Please+retry.`);
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Unable+to+create+announcement.+Please+retry.`);
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
-  redirect(`/clubs/${parsed.data.clubId}?annSuccess=Announcement+posted.`);
+  redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=Announcement+posted.`);
 }
 
 function getMemberManagementErrorMessage(status: string) {
@@ -416,7 +433,7 @@ export async function updateMemberRoleAction(formData: FormData) {
   if (!parsed.success) {
     const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
     if (fallbackClubId) {
-      redirect(`/clubs/${fallbackClubId}?memberError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+      redirect(`/clubs/${fallbackClubId}/members?memberError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
     }
     redirect("/clubs?error=Invalid+member+request.");
   }
@@ -437,13 +454,13 @@ export async function updateMemberRoleAction(formData: FormData) {
   });
 
   if (error || status !== "ok") {
-    redirect(`/clubs/${parsed.data.clubId}?memberError=${encodeURIComponent(getMemberManagementErrorMessage(status ?? "unknown"))}`);
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=${encodeURIComponent(getMemberManagementErrorMessage(status ?? "unknown"))}`);
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   revalidatePath("/clubs");
   revalidatePath("/dashboard");
-  redirect(`/clubs/${parsed.data.clubId}?memberSuccess=Member+updated.`);
+  redirect(`/clubs/${parsed.data.clubId}/members?memberSuccess=Member+updated.`);
 }
 
 export async function removeMemberAction(formData: FormData) {
@@ -455,7 +472,7 @@ export async function removeMemberAction(formData: FormData) {
   if (!parsed.success) {
     const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
     if (fallbackClubId) {
-      redirect(`/clubs/${fallbackClubId}?memberError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+      redirect(`/clubs/${fallbackClubId}/members?memberError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
     }
     redirect("/clubs?error=Invalid+member+request.");
   }
@@ -475,28 +492,34 @@ export async function removeMemberAction(formData: FormData) {
   });
 
   if (error || status !== "ok") {
-    redirect(`/clubs/${parsed.data.clubId}?memberError=${encodeURIComponent(getMemberManagementErrorMessage(status ?? "unknown"))}`);
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=${encodeURIComponent(getMemberManagementErrorMessage(status ?? "unknown"))}`);
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   revalidatePath("/clubs");
   revalidatePath("/dashboard");
-  redirect(`/clubs/${parsed.data.clubId}?memberSuccess=Member+removed.`);
+  redirect(`/clubs/${parsed.data.clubId}/members?memberSuccess=Member+removed.`);
 }
 
 export async function createEventAction(formData: FormData) {
+  const duplicateEventId = typeof formData.get("duplicate_event_id") === "string"
+    ? formData.get("duplicate_event_id")
+    : "";
+  const duplicateQuery = duplicateEventId ? `&duplicateEventId=${encodeURIComponent(duplicateEventId)}` : "";
+
   const parsed = eventCreateSchema.safeParse({
     clubId: formData.get("club_id"),
     title: formData.get("title"),
     description: formData.get("description"),
     location: formData.get("location"),
+    eventType: formData.get("event_type"),
     eventDate: formData.get("event_date"),
   });
 
   if (!parsed.success) {
     const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
     if (fallbackClubId) {
-      redirect(`/clubs/${fallbackClubId}?eventError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+      redirect(`/clubs/${fallbackClubId}/events?eventError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}${duplicateQuery}#create-event`);
     }
     redirect("/clubs?error=Invalid+club.");
   }
@@ -516,7 +539,7 @@ export async function createEventAction(formData: FormData) {
     userId: user.id,
   });
   if (!rateLimit.success) {
-    redirect(`/clubs/${parsed.data.clubId}?eventError=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(getRateLimitErrorMessage())}${duplicateQuery}#create-event`);
   }
 
   const { data: membership, error: membershipError } = await supabase
@@ -527,11 +550,11 @@ export async function createEventAction(formData: FormData) {
     .maybeSingle();
 
   if (membershipError || !membership) {
-    redirect(`/clubs/${parsed.data.clubId}?eventError=You+do+not+have+access+to+this+club.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+do+not+have+access+to+this+club.${duplicateQuery}#create-event`);
   }
 
   if (membership.role !== "officer") {
-    redirect(`/clubs/${parsed.data.clubId}?eventError=Only+officers+can+create+events.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Only+officers+can+create+events.${duplicateQuery}#create-event`);
   }
 
   const { error: insertError } = await supabase.from("events").insert({
@@ -539,16 +562,17 @@ export async function createEventAction(formData: FormData) {
     title: parsed.data.title,
     description: parsed.data.description,
     location: parsed.data.location,
+    event_type: parsed.data.eventType,
     event_date: eventDate.toISOString(),
     created_by: user.id,
   });
 
   if (insertError) {
-    redirect(`/clubs/${parsed.data.clubId}?eventError=Unable+to+create+event.+Please+retry.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+create+event.+Please+retry.${duplicateQuery}#create-event`);
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
-  redirect(`/clubs/${parsed.data.clubId}?eventSuccess=Event+created.`);
+  redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=Event+created.#events`);
 }
 
 export async function upsertRsvpAction(formData: FormData) {
@@ -561,7 +585,7 @@ export async function upsertRsvpAction(formData: FormData) {
   if (!parsed.success) {
     const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
     if (fallbackClubId) {
-      redirect(`/clubs/${fallbackClubId}?rsvpError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+      redirect(`/clubs/${fallbackClubId}/events?rsvpError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
     }
     redirect("/clubs?error=Invalid+event+request.");
   }
@@ -580,7 +604,7 @@ export async function upsertRsvpAction(formData: FormData) {
     userId: user.id,
   });
   if (!rateLimit.success) {
-    redirect(`/clubs/${parsed.data.clubId}?rsvpError=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
   const { data: membership, error: membershipError } = await supabase
@@ -591,7 +615,7 @@ export async function upsertRsvpAction(formData: FormData) {
     .maybeSingle();
 
   if (membershipError || !membership) {
-    redirect(`/clubs/${parsed.data.clubId}?rsvpError=You+do+not+have+access+to+this+club+event.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=You+do+not+have+access+to+this+club+event.`);
   }
 
   const { data: eventRow, error: eventError } = await supabase
@@ -601,7 +625,7 @@ export async function upsertRsvpAction(formData: FormData) {
     .maybeSingle();
 
   if (eventError || !eventRow || eventRow.club_id !== parsed.data.clubId) {
-    redirect(`/clubs/${parsed.data.clubId}?rsvpError=Event+not+found+for+this+club.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=Event+not+found+for+this+club.`);
   }
 
   const { error: upsertError } = await supabase.from("rsvps").upsert(
@@ -614,11 +638,124 @@ export async function upsertRsvpAction(formData: FormData) {
   );
 
   if (upsertError) {
-    redirect(`/clubs/${parsed.data.clubId}?rsvpError=Unable+to+save+RSVP.+Please+retry.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=Unable+to+save+RSVP.+Please+retry.`);
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
-  redirect(`/clubs/${parsed.data.clubId}?rsvpSuccess=RSVP+saved.`);
+  redirect(
+    `/clubs/${parsed.data.clubId}/events?rsvpSuccess=RSVP+saved.&rsvpEventId=${encodeURIComponent(parsed.data.eventId)}&rsvpStatus=${encodeURIComponent(parsed.data.status)}`,
+  );
+}
+
+export async function saveEventReflectionAction(formData: FormData) {
+  const parsed = eventReflectionSchema.safeParse({
+    clubId: formData.get("club_id"),
+    eventId: formData.get("event_id"),
+    whatWorked: formData.get("what_worked"),
+    whatDidnt: formData.get("what_didnt"),
+    notes: formData.get("notes"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    const fallbackEventId = typeof formData.get("event_id") === "string" ? formData.get("event_id") : "";
+    if (fallbackClubId) {
+      const eventQuery = fallbackEventId ? `&reflectionEventId=${encodeURIComponent(fallbackEventId)}` : "";
+      redirect(`/clubs/${fallbackClubId}/events?reflectionError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}${eventQuery}#events`);
+    }
+    redirect("/clubs?error=Invalid+reflection+request.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const rateLimit = await enforceRateLimit({
+    policy: "announcementCreate",
+    userId: user.id,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=${encodeURIComponent(getRateLimitErrorMessage())}&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("club_members")
+    .select("role")
+    .eq("club_id", parsed.data.clubId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (membershipError || !membership) {
+    redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=You+do+not+have+access+to+this+club.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+  }
+
+  if (membership.role !== "officer") {
+    redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=Only+officers+can+save+reflections.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+  }
+
+  const { data: eventRow, error: eventError } = await supabase
+    .from("events")
+    .select("id, club_id, event_date")
+    .eq("id", parsed.data.eventId)
+    .maybeSingle();
+
+  if (eventError || !eventRow || eventRow.club_id !== parsed.data.clubId) {
+    redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=Event+not+found+for+this+club.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+  }
+
+  if (new Date(eventRow.event_date).getTime() > Date.now()) {
+    redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=Reflections+can+only+be+saved+for+past+events.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+  }
+
+  const normalizedNotes = parsed.data.notes.trim() ? parsed.data.notes : null;
+
+  const { data: existingReflection, error: existingReflectionError } = await supabase
+    .from("event_reflections")
+    .select("id")
+    .eq("event_id", parsed.data.eventId)
+    .maybeSingle();
+
+  if (existingReflectionError) {
+    redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=${encodeURIComponent(getReflectionErrorMessage(existingReflectionError.code, existingReflectionError.message))}&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+  }
+
+  if (existingReflection) {
+    const { error: updateError } = await supabase
+      .from("event_reflections")
+      .update({
+        what_worked: parsed.data.whatWorked,
+        what_didnt: parsed.data.whatDidnt,
+        notes: normalizedNotes,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingReflection.id);
+
+    if (updateError) {
+      redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=${encodeURIComponent(getReflectionErrorMessage(updateError.code, updateError.message))}&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+    }
+  } else {
+    const { error: insertError } = await supabase.from("event_reflections").insert({
+      event_id: parsed.data.eventId,
+      what_worked: parsed.data.whatWorked,
+      what_didnt: parsed.data.whatDidnt,
+      notes: normalizedNotes,
+      created_by: user.id,
+      updated_by: user.id,
+    });
+
+    if (insertError) {
+      redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=${encodeURIComponent(getReflectionErrorMessage(insertError.code, insertError.message))}&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+    }
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  redirect(`/clubs/${parsed.data.clubId}/events?reflectionSuccess=Reflection+saved.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
 }
 
 export async function toggleAttendanceAction(formData: FormData) {
@@ -632,7 +769,7 @@ export async function toggleAttendanceAction(formData: FormData) {
   if (!parsed.success) {
     const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
     if (fallbackClubId) {
-      redirect(`/clubs/${fallbackClubId}?attendanceError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+      redirect(`/clubs/${fallbackClubId}/events?attendanceError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
     }
     redirect("/clubs?error=Invalid+attendance+request.");
   }
@@ -662,7 +799,7 @@ export async function toggleAttendanceAction(formData: FormData) {
       message: currentProfileError.message,
       details: currentProfileError.details,
     });
-    redirect(`/clubs/${parsed.data.clubId}?attendanceError=Could+not+prepare+your+profile.+Please+retry.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=Could+not+prepare+your+profile.+Please+retry.`);
   }
 
   const rateLimit = await enforceRateLimit({
@@ -670,7 +807,7 @@ export async function toggleAttendanceAction(formData: FormData) {
     userId: user.id,
   });
   if (!rateLimit.success) {
-    redirect(`/clubs/${parsed.data.clubId}?attendanceError=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
   const { data: membership, error: membershipError } = await supabase
@@ -689,7 +826,7 @@ export async function toggleAttendanceAction(formData: FormData) {
       details: membershipError?.details,
       foundMembership: Boolean(membership),
     });
-    redirect(`/clubs/${parsed.data.clubId}?attendanceError=You+do+not+have+access+to+this+club.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=You+do+not+have+access+to+this+club.`);
   }
 
   if (membership.role !== "officer") {
@@ -698,7 +835,7 @@ export async function toggleAttendanceAction(formData: FormData) {
       clubId: parsed.data.clubId,
       role: membership.role,
     });
-    redirect(`/clubs/${parsed.data.clubId}?attendanceError=Only+officers+can+track+attendance.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=Only+officers+can+track+attendance.`);
   }
 
   logAttendance("membership-check-passed", {
@@ -724,7 +861,7 @@ export async function toggleAttendanceAction(formData: FormData) {
       foundEvent: Boolean(eventRow),
       eventClubId: eventRow?.club_id,
     });
-    redirect(`/clubs/${parsed.data.clubId}?attendanceError=Event+not+found+for+this+club.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=Event+not+found+for+this+club.`);
   }
 
   logAttendance("event-check-passed", {
@@ -750,7 +887,7 @@ export async function toggleAttendanceAction(formData: FormData) {
       details: targetMemberError?.details,
       foundTargetMember: Boolean(targetMember),
     });
-    redirect(`/clubs/${parsed.data.clubId}?attendanceError=Member+not+found+in+this+club.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=Member+not+found+in+this+club.`);
   }
 
   logAttendance("target-member-check-passed", {
@@ -801,10 +938,10 @@ export async function toggleAttendanceAction(formData: FormData) {
             message: targetProfileError.message,
             details: targetProfileError.details,
           });
-          redirect(`/clubs/${parsed.data.clubId}?attendanceError=This+member+profile+is+missing.+Have+them+sign+in+again,+then+retry.`);
+          redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=This+member+profile+is+missing.+Have+them+sign+in+again,+then+retry.`);
         }
       } else {
-        redirect(`/clubs/${parsed.data.clubId}?attendanceError=This+member+profile+is+missing.+Have+them+sign+in+again,+then+retry.`);
+        redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=This+member+profile+is+missing.+Have+them+sign+in+again,+then+retry.`);
       }
     }
 
@@ -824,7 +961,7 @@ export async function toggleAttendanceAction(formData: FormData) {
         message: existingAttendanceError.message,
         details: existingAttendanceError.details,
       });
-      redirect(`/clubs/${parsed.data.clubId}?attendanceError=${encodeURIComponent(getAttendanceErrorMessage(existingAttendanceError.code, existingAttendanceError.message))}`);
+      redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=${encodeURIComponent(getAttendanceErrorMessage(existingAttendanceError.code, existingAttendanceError.message))}`);
     }
 
     if (existingAttendance) {
@@ -850,7 +987,7 @@ export async function toggleAttendanceAction(formData: FormData) {
           message: attendanceError.message,
           details: attendanceError.details,
         });
-        redirect(`/clubs/${parsed.data.clubId}?attendanceError=${encodeURIComponent(getAttendanceErrorMessage(attendanceError.code, attendanceError.message))}`);
+        redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=${encodeURIComponent(getAttendanceErrorMessage(attendanceError.code, attendanceError.message))}`);
       }
 
       logAttendance("insert-success", {
@@ -877,7 +1014,7 @@ export async function toggleAttendanceAction(formData: FormData) {
         message: attendanceError.message,
         details: attendanceError.details,
       });
-      redirect(`/clubs/${parsed.data.clubId}?attendanceError=${encodeURIComponent(getAttendanceErrorMessage(attendanceError.code, attendanceError.message))}`);
+      redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=${encodeURIComponent(getAttendanceErrorMessage(attendanceError.code, attendanceError.message))}`);
     }
 
     logAttendance("delete-success", {
@@ -889,5 +1026,7 @@ export async function toggleAttendanceAction(formData: FormData) {
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
-  redirect(`/clubs/${parsed.data.clubId}?attendanceSuccess=Attendance+updated.`);
+  redirect(
+    `/clubs/${parsed.data.clubId}/events?attendanceSuccess=Attendance+updated.&attendanceEventId=${encodeURIComponent(parsed.data.eventId)}&attendanceUserId=${encodeURIComponent(parsed.data.userId)}&attendancePresent=${parsed.data.present ? "true" : "false"}`,
+  );
 }

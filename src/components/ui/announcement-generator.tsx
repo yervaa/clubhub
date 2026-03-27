@@ -101,13 +101,13 @@ export function AnnouncementGenerator({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">AI-style draft</p>
-          <p className="mt-1 text-sm text-slate-600">Type a short prompt and fill the announcement form in one click.</p>
+          <p className="text-sm font-semibold text-slate-900">Quick draft</p>
+          <p className="mt-1 text-sm text-slate-600">Describe what you want to say and get a draft filled in instantly.</p>
         </div>
-        <span className="badge-soft">Template-based</span>
+        <span className="badge-soft">Template</span>
       </div>
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <input

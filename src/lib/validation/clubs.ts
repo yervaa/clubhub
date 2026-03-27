@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { EVENT_TYPE_OPTIONS } from "@/lib/events";
 import { sanitizeCode, sanitizeInlineText, sanitizeMultilineText } from "@/lib/sanitize";
 
 const uuidSchema = z.uuid("Invalid record identifier.");
 const shortTitleSchema = z.string().transform(sanitizeInlineText).pipe(z.string().min(1).max(160));
 const plainTextSchema = z.string().transform(sanitizeMultilineText).pipe(z.string().min(1).max(2000));
 const shortInlineSchema = z.string().transform(sanitizeInlineText).pipe(z.string().min(1).max(160));
+const eventTypeSchema = z.enum(EVENT_TYPE_OPTIONS);
 
 export const clubCreateSchema = z.object({
   name: shortTitleSchema,
@@ -24,12 +26,15 @@ export const announcementCreateSchema = z.object({
   content: plainTextSchema,
 });
 
+const optionalNotesSchema = z.string().transform(sanitizeMultilineText).pipe(z.string().max(2000));
+
 export const eventCreateSchema = z
   .object({
     clubId: uuidSchema,
     title: shortTitleSchema,
     description: plainTextSchema,
     location: shortInlineSchema,
+    eventType: eventTypeSchema,
     eventDate: z.string().min(1),
   })
   .superRefine((value, ctx) => {
@@ -63,6 +68,14 @@ export const attendanceToggleSchema = z.object({
   eventId: uuidSchema,
   userId: uuidSchema,
   present: z.enum(["true", "false"]).transform((value) => value === "true"),
+});
+
+export const eventReflectionSchema = z.object({
+  clubId: uuidSchema,
+  eventId: uuidSchema,
+  whatWorked: plainTextSchema,
+  whatDidnt: plainTextSchema,
+  notes: optionalNotesSchema,
 });
 
 export const memberRoleUpdateSchema = z.object({

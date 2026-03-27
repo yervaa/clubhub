@@ -1,5 +1,6 @@
 import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
+import { normalizeEventType, type EventType } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
 
 export type UserClub = {
@@ -22,6 +23,7 @@ export type ClubEvent = {
   title: string;
   description: string;
   location: string;
+  eventType: EventType;
   eventDate: string;
   eventDateRaw: Date;
   userRsvpStatus: "yes" | "no" | "maybe" | null;
@@ -32,6 +34,12 @@ export type ClubEvent = {
     no: number;
     maybe: number;
   };
+  reflection: {
+    whatWorked: string;
+    whatDidnt: string;
+    notes: string | null;
+    updatedAt: string;
+  } | null;
 };
 
 export type ClubMember = {
@@ -39,6 +47,9 @@ export type ClubMember = {
   fullName: string | null;
   email: string | null;
   role: "member" | "officer";
+  attendanceCount: number;
+  totalTrackedEvents: number;
+  attendanceRate: number;
 };
 
 export type ClubActivityItem = {
@@ -46,6 +57,27 @@ export type ClubActivityItem = {
   kind: "member_joined" | "announcement_posted" | "event_created" | "rsvp_updated";
   message: string;
   createdAt: string;
+};
+
+export type ClubAttentionAlert = {
+  id: string;
+  type: "upcoming_event_low_rsvp" | "no_upcoming_events" | "no_recent_announcement" | "attendance_not_marked";
+  title: string;
+  description: string;
+  ctaLabel: string;
+  ctaTarget: string;
+};
+
+export type DashboardAttentionAlert = {
+  id: string;
+  clubId: string;
+  clubName: string;
+  type: ClubAttentionAlert["type"];
+  title: string;
+  description: string;
+  ctaLabel: string;
+  ctaHref: string;
+  priority: number;
 };
 
 export type ClubDetail = {
@@ -57,6 +89,10 @@ export type ClubDetail = {
   currentUserRole: "member" | "officer";
   memberCount: number;
   members: ClubMember[];
+  totalTrackedEvents: number;
+  clubAverageAttendance: number;
+  topMembers: ClubMember[];
+  attentionAlerts: ClubAttentionAlert[];
   recentActivity: ClubActivityItem[];
   announcements: ClubAnnouncement[];
   events: ClubEvent[];
@@ -77,6 +113,7 @@ export type DashboardEvent = {
   clubName: string;
   title: string;
   location: string;
+  eventType: EventType;
   eventDate: string;
   eventDateRaw: string;
 };
@@ -85,6 +122,7 @@ export type DashboardData = {
   clubs: UserClub[];
   recentAnnouncements: DashboardAnnouncement[];
   upcomingEvents: DashboardEvent[];
+  needsAttentionAlerts: DashboardAttentionAlert[];
 };
 
 type ClubMemberRow = {
@@ -124,6 +162,33 @@ type ClubActivityRow = {
   created_at: string;
 };
 
+type AttentionAlertDraft = ClubAttentionAlert & {
+  priority: number;
+};
+
+type AttentionAlertContext = {
+  now: Date;
+  sevenDaysAgo: Date;
+  memberCount: number;
+  nextUpcomingEvent:
+    | {
+        id: string;
+        title: string;
+        eventDate: string;
+      }
+    | null;
+  nextEventResponseCount: number;
+  latestAnnouncementCreatedAt: string | null;
+  hasAnnouncement: boolean;
+  mostRecentPastEvent:
+    | {
+        id: string;
+        title: string;
+      }
+    | null;
+  latestPastEventHasTrackedAttendance: boolean;
+};
+
 function normalizeClubRelation(
   relation:
     | {
@@ -141,6 +206,91 @@ function normalizeClubRelation(
     | null,
 ) {
   return Array.isArray(relation) ? relation[0] ?? null : relation;
+}
+
+function getSortableMemberName(member: { fullName: string | null; email: string | null }) {
+  const fullName = member.fullName?.trim();
+
+  if (fullName) {
+    return fullName.toLowerCase();
+  }
+
+  if (member.email) {
+    return member.email.toLowerCase();
+  }
+
+  return "member";
+}
+
+function buildAttentionAlertDrafts({
+  now,
+  sevenDaysAgo,
+  memberCount,
+  nextUpcomingEvent,
+  nextEventResponseCount,
+  latestAnnouncementCreatedAt,
+  hasAnnouncement,
+  mostRecentPastEvent,
+  latestPastEventHasTrackedAttendance,
+}: AttentionAlertContext): AttentionAlertDraft[] {
+  const drafts: AttentionAlertDraft[] = [];
+
+  if (nextUpcomingEvent && memberCount > 0) {
+    const hoursUntilNextEvent = (new Date(nextUpcomingEvent.eventDate).getTime() - now.getTime()) / (1000 * 60 * 60);
+    const nextEventResponseRate = Math.round((nextEventResponseCount / memberCount) * 100);
+
+    if (hoursUntilNextEvent <= 48 && nextEventResponseRate < 50) {
+      drafts.push({
+        id: `upcoming-low-rsvp-${nextUpcomingEvent.id}`,
+        type: "upcoming_event_low_rsvp",
+        title: "Upcoming event needs more responses",
+        description: `${nextUpcomingEvent.title} is within 48 hours, but only ${nextEventResponseRate}% of members have RSVP'd so far.`,
+        ctaLabel: "Review events",
+        ctaTarget: "/events",
+        priority: 100,
+      });
+    }
+  }
+
+  if (!nextUpcomingEvent) {
+    drafts.push({
+      id: "no-upcoming-events",
+      type: "no_upcoming_events",
+      title: "No upcoming events scheduled",
+      description: "Add the next meeting or event so members know what is coming up.",
+      ctaLabel: "Create event",
+      ctaTarget: "/events#create-event",
+      priority: 80,
+    });
+  }
+
+  if (!hasAnnouncement || !latestAnnouncementCreatedAt || new Date(latestAnnouncementCreatedAt).getTime() < sevenDaysAgo.getTime()) {
+    drafts.push({
+      id: "no-recent-announcement",
+      type: "no_recent_announcement",
+      title: "Members have not seen a recent update",
+      description: hasAnnouncement
+        ? "Your latest announcement is older than 7 days. Post a fresh update to keep the club informed."
+        : "No announcement has been posted yet. Share a quick update so members know what is happening.",
+      ctaLabel: "Post announcement",
+      ctaTarget: "/announcements",
+      priority: 60,
+    });
+  }
+
+  if (mostRecentPastEvent && !latestPastEventHasTrackedAttendance) {
+    drafts.push({
+      id: `attendance-missing-${mostRecentPastEvent.id}`,
+      type: "attendance_not_marked",
+      title: "Attendance was not marked for the latest past event",
+      description: `${mostRecentPastEvent.title} has no attendance tracked yet, so attendance insights are incomplete.`,
+      ctaLabel: "Track attendance",
+      ctaTarget: "/events",
+      priority: 90,
+    });
+  }
+
+  return drafts;
 }
 
 export async function getCurrentUserClubs(): Promise<UserClub[]> {
@@ -193,32 +343,135 @@ export async function getDashboardData(): Promise<DashboardData> {
       clubs: [],
       recentAnnouncements: [],
       upcomingEvents: [],
+      needsAttentionAlerts: [],
     };
   }
 
   const supabase = await createClient();
-  const nowIso = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const { data: clubMembersData } = await supabase
+    .from("club_members")
+    .select("club_id")
+    .in("club_id", clubIds);
 
   const { data: announcementsData } = await supabase
     .from("announcements")
     .select("id, title, created_at, club_id")
     .in("club_id", clubIds)
-    .order("created_at", { ascending: false })
-    .limit(8);
+    .order("created_at", { ascending: false });
 
-  const { data: eventsData } = await supabase
+  const { data: upcomingEventsData } = await supabase
     .from("events")
-    .select("id, title, location, event_date, club_id")
+    .select("id, title, location, event_type, event_date, club_id")
     .in("club_id", clubIds)
     .gte("event_date", nowIso)
-    .order("event_date", { ascending: true })
-    .limit(8);
+    .order("event_date", { ascending: true });
+
+  const { data: pastEventsData } = await supabase
+    .from("events")
+    .select("id, title, event_date, club_id")
+    .in("club_id", clubIds)
+    .lt("event_date", nowIso)
+    .order("event_date", { ascending: false });
 
   const clubNameById = new Map(clubs.map((club) => [club.id, club.name]));
+  const memberCountByClubId = new Map<string, number>();
+
+  for (const row of clubMembersData ?? []) {
+    memberCountByClubId.set(row.club_id, (memberCountByClubId.get(row.club_id) ?? 0) + 1);
+  }
+
+  const nextUpcomingEventByClubId = new Map<string, { id: string; title: string; eventDate: string }>();
+  for (const event of upcomingEventsData ?? []) {
+    if (!nextUpcomingEventByClubId.has(event.club_id)) {
+      nextUpcomingEventByClubId.set(event.club_id, {
+        id: event.id,
+        title: event.title,
+        eventDate: event.event_date,
+      });
+    }
+  }
+
+  const nextUpcomingEventIds = Array.from(nextUpcomingEventByClubId.values()).map((event) => event.id);
+  const { data: nextEventRsvpData } =
+    nextUpcomingEventIds.length > 0
+      ? await supabase
+          .from("rsvps")
+          .select("event_id")
+          .in("event_id", nextUpcomingEventIds)
+      : { data: [] as { event_id: string }[] };
+
+  const nextEventResponseCountByEventId = new Map<string, number>();
+  for (const rsvp of nextEventRsvpData ?? []) {
+    nextEventResponseCountByEventId.set(rsvp.event_id, (nextEventResponseCountByEventId.get(rsvp.event_id) ?? 0) + 1);
+  }
+
+  const latestAnnouncementByClubId = new Map<string, { createdAt: string }>();
+  for (const announcement of announcementsData ?? []) {
+    if (!latestAnnouncementByClubId.has(announcement.club_id)) {
+      latestAnnouncementByClubId.set(announcement.club_id, { createdAt: announcement.created_at });
+    }
+  }
+
+  const mostRecentPastEventByClubId = new Map<string, { id: string; title: string }>();
+  for (const event of pastEventsData ?? []) {
+    if (!mostRecentPastEventByClubId.has(event.club_id)) {
+      mostRecentPastEventByClubId.set(event.club_id, {
+        id: event.id,
+        title: event.title,
+      });
+    }
+  }
+
+  const pastEventIds = (pastEventsData ?? []).map((event) => event.id);
+  const { data: pastAttendanceData } =
+    pastEventIds.length > 0
+      ? await supabase
+          .from("event_attendance")
+          .select("event_id")
+          .in("event_id", pastEventIds)
+      : { data: [] as { event_id: string }[] };
+
+  const trackedPastEventIds = new Set((pastAttendanceData ?? []).map((attendance) => attendance.event_id));
+  const needsAttentionAlerts = clubs
+    .flatMap((club) => {
+      const nextUpcomingEvent = nextUpcomingEventByClubId.get(club.id) ?? null;
+      const latestAnnouncement = latestAnnouncementByClubId.get(club.id) ?? null;
+      const mostRecentPastEvent = mostRecentPastEventByClubId.get(club.id) ?? null;
+      const drafts = buildAttentionAlertDrafts({
+        now,
+        sevenDaysAgo,
+        memberCount: memberCountByClubId.get(club.id) ?? 0,
+        nextUpcomingEvent,
+        nextEventResponseCount: nextUpcomingEvent ? (nextEventResponseCountByEventId.get(nextUpcomingEvent.id) ?? 0) : 0,
+        latestAnnouncementCreatedAt: latestAnnouncement?.createdAt ?? null,
+        hasAnnouncement: Boolean(latestAnnouncement),
+        mostRecentPastEvent,
+        latestPastEventHasTrackedAttendance: mostRecentPastEvent ? trackedPastEventIds.has(mostRecentPastEvent.id) : true,
+      });
+
+      return drafts.map((draft) => ({
+        id: `${club.id}-${draft.id}`,
+        clubId: club.id,
+        clubName: club.name,
+        type: draft.type,
+        title: draft.title,
+        description: draft.description,
+        ctaLabel: draft.ctaLabel,
+        ctaHref: `/clubs/${club.id}${draft.ctaTarget}`,
+        priority: draft.priority + (club.role === "officer" ? 20 : 0),
+      }));
+    })
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 4);
 
   return {
     clubs,
-    recentAnnouncements: (announcementsData ?? []).map((announcement) => ({
+    recentAnnouncements: (announcementsData ?? []).slice(0, 8).map((announcement) => ({
       id: announcement.id,
       clubId: announcement.club_id,
       clubName: clubNameById.get(announcement.club_id) ?? "Club",
@@ -226,15 +479,17 @@ export async function getDashboardData(): Promise<DashboardData> {
       createdAt: new Date(announcement.created_at).toLocaleString(),
       createdAtRaw: announcement.created_at,
     })),
-    upcomingEvents: (eventsData ?? []).map((event) => ({
+    upcomingEvents: (upcomingEventsData ?? []).slice(0, 8).map((event) => ({
       id: event.id,
       clubId: event.club_id,
       clubName: clubNameById.get(event.club_id) ?? "Club",
       title: event.title,
       location: event.location,
+      eventType: normalizeEventType(event.event_type),
       eventDate: new Date(event.event_date).toLocaleString(),
       eventDateRaw: event.event_date,
     })),
+    needsAttentionAlerts,
   };
 }
 
@@ -278,17 +533,10 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
   const memberViewById = new Map(
     ((membersData ?? []) as ClubMemberViewRow[]).map((member) => [member.user_id, member]),
   );
-
-  const members = ((memberBaseData ?? []) as ClubMemberBaseRow[]).map((member) => {
-    const detail = memberViewById.get(member.user_id);
-
-    return {
-      userId: member.user_id,
-      fullName: detail?.full_name ?? null,
-      email: detail?.email ?? null,
-      role: member.role,
-    };
-  });
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
   const { data: announcementsData } = await supabase
     .from("announcements")
@@ -302,12 +550,26 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
 
   const { data: eventsData } = await supabase
     .from("events")
-    .select("id, title, description, location, event_date")
+    .select("id, title, description, location, event_type, event_date")
     .eq("club_id", clubId)
     .order("event_date", { ascending: true })
     .limit(10);
 
-  const eventIds = (eventsData ?? []).map((event) => event.id);
+  const { data: nextUpcomingEventData } = await supabase
+    .from("events")
+    .select("id, title, description, location, event_type, event_date")
+    .eq("club_id", clubId)
+    .gt("event_date", nowIso)
+    .order("event_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const eventIds = Array.from(
+    new Set([
+      ...(eventsData ?? []).map((event) => event.id),
+      ...(nextUpcomingEventData ? [nextUpcomingEventData.id] : []),
+    ]),
+  );
 
   const { data: rsvpData } =
     eventIds.length > 0
@@ -325,6 +587,140 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
           .in("event_id", eventIds)
       : { data: [] as { event_id: string; user_id: string }[] };
 
+  const { data: reflectionData } =
+    membership.role === "officer" && eventIds.length > 0
+      ? await supabase
+          .from("event_reflections")
+          .select("event_id, what_worked, what_didnt, notes, updated_at")
+          .in("event_id", eventIds)
+      : {
+          data: [] as {
+            event_id: string;
+            what_worked: string;
+            what_didnt: string;
+            notes: string | null;
+            updated_at: string;
+          }[],
+        };
+
+  const { data: pastEventsData } = await supabase
+    .from("events")
+    .select("id")
+    .eq("club_id", clubId)
+    .lt("event_date", nowIso);
+
+  const { data: mostRecentPastEventData } = await supabase
+    .from("events")
+    .select("id, title, event_date")
+    .eq("club_id", clubId)
+    .lt("event_date", nowIso)
+    .order("event_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const pastEventIds = (pastEventsData ?? []).map((event) => event.id);
+
+  const { data: pastAttendanceData } =
+    pastEventIds.length > 0
+      ? await supabase
+          .from("event_attendance")
+          .select("event_id, user_id")
+          .in("event_id", pastEventIds)
+      : { data: [] as { event_id: string; user_id: string }[] };
+
+  const trackedEventIds = new Set((pastAttendanceData ?? []).map((attendance) => attendance.event_id));
+  const totalTrackedEvents = trackedEventIds.size;
+  const trackedAttendanceByUser = new Map<string, Set<string>>();
+
+  for (const attendance of pastAttendanceData ?? []) {
+    if (!trackedEventIds.has(attendance.event_id)) {
+      continue;
+    }
+
+    const userAttendance = trackedAttendanceByUser.get(attendance.user_id) ?? new Set<string>();
+    userAttendance.add(attendance.event_id);
+    trackedAttendanceByUser.set(attendance.user_id, userAttendance);
+  }
+
+  const membersWithAttendance = ((memberBaseData ?? []) as ClubMemberBaseRow[]).map((member) => {
+    const detail = memberViewById.get(member.user_id);
+    const attendanceCount = trackedAttendanceByUser.get(member.user_id)?.size ?? 0;
+    const attendanceRate = totalTrackedEvents > 0
+      ? Math.round((attendanceCount / totalTrackedEvents) * 100)
+      : 0;
+
+    return {
+      userId: member.user_id,
+      fullName: detail?.full_name ?? null,
+      email: detail?.email ?? null,
+      role: member.role,
+      attendanceCount,
+      totalTrackedEvents,
+      attendanceRate,
+    };
+  });
+
+  const clubAverageAttendance =
+    totalTrackedEvents > 0 && membersWithAttendance.length > 0
+      ? Math.round(
+          (membersWithAttendance.reduce((sum, member) => sum + member.attendanceCount, 0)
+            / (totalTrackedEvents * membersWithAttendance.length))
+            * 100,
+        )
+      : 0;
+
+  const topMembers = [...membersWithAttendance]
+    .sort((a, b) => {
+      if (b.attendanceRate !== a.attendanceRate) {
+        return b.attendanceRate - a.attendanceRate;
+      }
+
+      if (b.attendanceCount !== a.attendanceCount) {
+        return b.attendanceCount - a.attendanceCount;
+      }
+
+      return getSortableMemberName(a).localeCompare(getSortableMemberName(b));
+    })
+    .slice(0, 3);
+
+  const memberCount = ((memberBaseData ?? []) as ClubMemberBaseRow[]).length;
+  const nextUpcomingEvent = nextUpcomingEventData
+    ? {
+        id: nextUpcomingEventData.id,
+        title: nextUpcomingEventData.title,
+        eventDate: nextUpcomingEventData.event_date,
+      }
+    : null;
+  const latestAnnouncementData = (announcementsData ?? [])[0] ?? null;
+  const attentionAlertDrafts = buildAttentionAlertDrafts({
+    now,
+    sevenDaysAgo,
+    memberCount,
+    nextUpcomingEvent,
+    nextEventResponseCount: nextUpcomingEvent ? (rsvpData ?? []).filter((rsvp) => rsvp.event_id === nextUpcomingEvent.id).length : 0,
+    latestAnnouncementCreatedAt: latestAnnouncementData?.created_at ?? null,
+    hasAnnouncement: Boolean(latestAnnouncementData),
+    mostRecentPastEvent: mostRecentPastEventData
+      ? {
+          id: mostRecentPastEventData.id,
+          title: mostRecentPastEventData.title,
+        }
+      : null,
+    latestPastEventHasTrackedAttendance: mostRecentPastEventData ? trackedEventIds.has(mostRecentPastEventData.id) : true,
+  });
+
+  const attentionAlerts = attentionAlertDrafts
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 3)
+    .map((alert) => ({
+      id: alert.id,
+      type: alert.type,
+      title: alert.title,
+      description: alert.description,
+      ctaLabel: alert.ctaLabel,
+      ctaTarget: alert.ctaTarget,
+    }));
+
   return {
     id: clubRelation.id,
     name: clubRelation.name,
@@ -333,7 +729,11 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     currentUserId: user.id,
     currentUserRole: membership.role,
     memberCount: ((memberBaseData ?? []) as ClubMemberBaseRow[]).length,
-    members,
+    members: membersWithAttendance,
+    totalTrackedEvents,
+    clubAverageAttendance,
+    topMembers,
+    attentionAlerts,
     recentActivity: ((activityData ?? []) as ClubActivityRow[]).map((item) => ({
       id: item.id,
       kind: item.kind,
@@ -351,6 +751,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       title: event.title,
       description: event.description,
       location: event.location,
+      eventType: normalizeEventType(event.event_type),
       eventDate: new Date(event.event_date).toLocaleString(),
       eventDateRaw: new Date(event.event_date),
       userRsvpStatus:
@@ -364,6 +765,20 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
         no: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "no").length,
         maybe: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "maybe").length,
       },
+      reflection: (() => {
+        const reflection = (reflectionData ?? []).find((item) => item.event_id === event.id);
+
+        if (!reflection) {
+          return null;
+        }
+
+        return {
+          whatWorked: reflection.what_worked,
+          whatDidnt: reflection.what_didnt,
+          notes: reflection.notes,
+          updatedAt: new Date(reflection.updated_at).toLocaleString(),
+        };
+      })(),
     })),
   };
 }

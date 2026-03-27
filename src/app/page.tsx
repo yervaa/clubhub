@@ -114,15 +114,15 @@ export default async function Home() {
             </div>
 
             <div className="mt-5 grid gap-3">
-              <Link href="/dashboard" className="surface-subcard p-4 transition hover:border-slate-300">
+              <Link href="/dashboard" className="surface-subcard interactive-surface p-4">
                 <p className="text-sm font-semibold text-slate-900">Dashboard</p>
                 <p className="mt-1 text-sm text-slate-600">See clubs, updates, and events.</p>
               </Link>
-              <Link href="/clubs/create" className="surface-subcard p-4 transition hover:border-slate-300">
+              <Link href="/clubs/create" className="surface-subcard interactive-surface p-4">
                 <p className="text-sm font-semibold text-slate-900">Create a Club</p>
                 <p className="mt-1 text-sm text-slate-600">Start a new club and invite members.</p>
               </Link>
-              <Link href="/clubs/join" className="surface-subcard p-4 transition hover:border-slate-300">
+              <Link href="/clubs/join" className="surface-subcard interactive-surface p-4">
                 <p className="text-sm font-semibold text-slate-900">Join with a Code</p>
                 <p className="mt-1 text-sm text-slate-600">Enter an officer’s join code.</p>
               </Link>

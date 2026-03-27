@@ -24,7 +24,7 @@ export function CopyInviteLinkButton({
   };
 
   return (
-    <button onClick={handleCopy} className={className}>
+    <button type="button" onClick={handleCopy} className={className} disabled={copied} aria-live="polite">
       {copied ? "Invite Link Copied" : children}
     </button>
   );
