@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ClubRole, MemberWithRoles } from "@/lib/rbac/role-actions";
 import type { PermissionKey } from "@/lib/rbac/permissions";
 import { RolePermissionEditor } from "@/components/ui/role-permission-editor";
-import { createCustomRoleAction } from "@/app/(app)/clubs/rbac-actions";
+import { CreateRolePanel } from "@/components/ui/create-role-panel";
 
 type ClubSettingsSectionProps = {
   clubId: string;
@@ -164,7 +164,7 @@ export function ClubSettingsSection({
         {/* ── Right: Editor ───────────────────────────────────────────────────── */}
         <div>
           {isCreating ? (
-            <CreateRolePanel clubId={clubId} />
+            <CreateRolePanel key="create" clubId={clubId} />
           ) : selectedRole ? (
             <RolePermissionEditor
               key={selectedRole.id}
@@ -250,66 +250,3 @@ function RoleListItem({ role, memberCount, isActive, href }: RoleListItemProps) 
   );
 }
 
-// ─── Create role panel (server-rendered form) ─────────────────────────────────
-
-function CreateRolePanel({ clubId }: { clubId: string }) {
-  return (
-    <div className="card-surface p-6 md:p-8">
-      <div className="mb-6">
-        <p className="section-kicker">New Role</p>
-        <h2 className="section-title mt-2 text-xl">Create a custom role</h2>
-        <p className="section-subtitle mt-1">
-          Add a new role with a custom set of permissions. You can adjust its permissions after saving.
-        </p>
-      </div>
-
-      <form action={createCustomRoleAction} className="space-y-5">
-        <input type="hidden" name="club_id" value={clubId} />
-
-        <div className="space-y-1.5">
-          <label htmlFor="role-name" className="block text-sm font-semibold text-slate-700">
-            Role name <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="role-name"
-            name="name"
-            type="text"
-            required
-            maxLength={50}
-            placeholder="e.g. Social Media Lead"
-            className="input-control"
-            autoFocus
-          />
-          <p className="text-xs text-slate-400">Max 50 characters.</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="role-desc" className="block text-sm font-semibold text-slate-700">
-            Description
-          </label>
-          <input
-            id="role-desc"
-            name="description"
-            type="text"
-            maxLength={200}
-            placeholder="Short description of what this role does"
-            className="input-control"
-          />
-          <p className="text-xs text-slate-400">Optional. Max 200 characters.</p>
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center">
-          <button type="submit" className="btn-primary px-5 py-2.5">
-            Create Role
-          </button>
-          <Link
-            href={`/clubs/${clubId}/settings`}
-            className="btn-secondary px-5 py-2.5 text-center"
-          >
-            Cancel
-          </Link>
-        </div>
-      </form>
-    </div>
-  );
-}

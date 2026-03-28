@@ -6,6 +6,7 @@ import { ClubAttentionNeededSection } from "@/components/ui/club-attention-neede
 import { ClubActivityFeed, formatActivityTime } from "@/components/ui/club-activity-feed";
 import type { ActivityFeedItem } from "@/components/ui/club-activity-feed";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
+import { getMyClubTasks } from "@/lib/tasks/queries";
 
 type ClubOverviewPageProps = {
   params: Promise<{ clubId: string }>;
@@ -18,9 +19,10 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [club, userPermissions] = await Promise.all([
+  const [club, userPermissions, myTasks] = await Promise.all([
     getClubDetailForCurrentUser(clubId),
     getUserPermissions(user.id, clubId),
+    getMyClubTasks(clubId, user.id),
   ]);
 
   if (!club) {
@@ -32,6 +34,7 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
   const canCreateEvents = userPermissions.has("events.create");
   const canPostAnnouncements = userPermissions.has("announcements.create");
   const canMarkAttendance = userPermissions.has("attendance.mark");
+  const canViewAudit = userPermissions.has("audit_logs.view");
   // Show management alerts when the user has at least one management-facing permission.
   const showManagementAlerts = canCreateEvents || canPostAnnouncements || canMarkAttendance;
 
@@ -76,7 +79,88 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
       _sortKey: e.reflection!.updatedAtIso,
     }));
 
-  const activityItems: ActivityFeedItem[] = [...rpcItems, ...reflectionItems]
+  // Governance events from audit log — only fetched when the user has audit_logs.view.
+  let governanceItems: SortableItem[] = [];
+  if (canViewAudit) {
+    const governanceActions = ["role.assigned", "president.added", "president.removed", "presidency.transferred"] as const;
+    type GovernanceAction = typeof governanceActions[number];
+
+    const { data: auditRows } = await supabase
+      .from("club_audit_logs")
+      .select("id, actor_id, action, target_user_id, target_role_id, metadata, created_at")
+      .eq("club_id", clubId)
+      .in("action", [...governanceActions])
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (auditRows && auditRows.length > 0) {
+      // Batch-fetch profile names for all actor + target IDs.
+      const profileIds = [
+        ...new Set([
+          ...auditRows.map((r) => r.actor_id),
+          ...auditRows.filter((r) => r.target_user_id).map((r) => r.target_user_id as string),
+        ]),
+      ];
+      const { data: profileRows } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", profileIds);
+
+      const nameById = new Map(
+        (profileRows ?? []).map((p) => [
+          p.id,
+          p.full_name?.trim() || p.email?.split("@")[0] || "Someone",
+        ]),
+      );
+
+      const actionToType: Record<GovernanceAction, ActivityFeedItem["type"]> = {
+        "role.assigned": "role_assigned",
+        "president.added": "president_added",
+        "president.removed": "president_removed",
+        "presidency.transferred": "presidency_transferred",
+      };
+
+      governanceItems = auditRows
+        .filter((r): r is typeof r & { action: GovernanceAction } =>
+          (governanceActions as readonly string[]).includes(r.action),
+        )
+        .map((r) => {
+          const actor = nameById.get(r.actor_id) ?? "Someone";
+          const target = r.target_user_id ? (nameById.get(r.target_user_id) ?? "a member") : "a member";
+          const meta = (r.metadata ?? {}) as Record<string, unknown>;
+          const roleName = typeof meta.role_name === "string" ? meta.role_name : null;
+
+          let message: string;
+          switch (r.action) {
+            case "role.assigned":
+              message = roleName
+                ? `${actor} assigned the ${roleName} role to ${target}`
+                : `${actor} assigned a role to ${target}`;
+              break;
+            case "president.added":
+              message = `${actor} added ${target} as President`;
+              break;
+            case "president.removed":
+              message = `${actor} removed ${target} from Presidency`;
+              break;
+            case "presidency.transferred":
+              message = `${actor} transferred Presidency to ${target}`;
+              break;
+          }
+
+          return {
+            id: `audit-${r.id}`,
+            type: actionToType[r.action],
+            message,
+            displayTime: formatActivityTime(r.created_at),
+            href: `/clubs/${club.id}/settings/governance`,
+            _sortKey: r.created_at,
+          };
+        });
+    }
+  }
+
+  const activityItems: ActivityFeedItem[] = [...rpcItems, ...reflectionItems, ...governanceItems]
     .sort((a, b) => b._sortKey.localeCompare(a._sortKey))
     .slice(0, 8)
     .map(({ _sortKey: _, ...item }) => item);
@@ -143,6 +227,11 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
                   Create Event
                 </Link>
               )}
+              {myTasks.length > 0 && (
+                <Link href={`/clubs/${club.id}/tasks`} className="btn-secondary px-6 py-3 text-base font-semibold">
+                  View My Tasks ({myTasks.length})
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -158,12 +247,12 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Next event */}
           <div className="surface-subcard border-l-4 border-blue-500 p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100">
-                <svg className="h-4.5 w-4.5 h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
@@ -203,8 +292,39 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
             </div>
           </div>
 
-          {/* Key stats */}
+          {/* My Tasks */}
           <div className="surface-subcard border-l-4 border-emerald-500 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+                <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">My Tasks</p>
+                {myTasks.length > 0 ? (
+                  <>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">
+                      {myTasks.length} open task{myTasks.length !== 1 ? "s" : ""}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 truncate">
+                      {myTasks.filter((t) => t.isOverdue).length > 0
+                        ? `${myTasks.filter((t) => t.isOverdue).length} overdue`
+                        : myTasks[0]?.title}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">All caught up</p>
+                    <p className="mt-1 text-xs text-slate-500">No tasks assigned to you.</p>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Key stats */}
+          <div className="surface-subcard border-l-4 border-purple-500 p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100">
                 <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

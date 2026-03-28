@@ -8,7 +8,12 @@ export type ActivityItemType =
   | "event_created"
   | "rsvp_updated"
   | "attendance_marked"
-  | "reflection_added";
+  | "reflection_added"
+  // Governance / RBAC events (sourced from audit log; only visible to Presidents)
+  | "role_assigned"
+  | "president_added"
+  | "president_removed"
+  | "presidency_transferred";
 
 export type ActivityFeedItem = {
   id: string;
@@ -137,6 +142,66 @@ function getTypeConfig(type: ActivityItemType): TypeConfig {
         icon: (
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        ),
+      };
+
+    case "role_assigned":
+      return {
+        label: "Role",
+        dotBg: "bg-violet-100",
+        dotText: "text-violet-600",
+        pillBg: "bg-violet-50",
+        pillText: "text-violet-700",
+        pillBorder: "border-violet-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+        ),
+      };
+
+    case "president_added":
+      return {
+        label: "Governance",
+        dotBg: "bg-yellow-100",
+        dotText: "text-yellow-700",
+        pillBg: "bg-yellow-50",
+        pillText: "text-yellow-800",
+        pillBorder: "border-yellow-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
+        ),
+      };
+
+    case "president_removed":
+      return {
+        label: "Governance",
+        dotBg: "bg-orange-100",
+        dotText: "text-orange-600",
+        pillBg: "bg-orange-50",
+        pillText: "text-orange-700",
+        pillBorder: "border-orange-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+          </svg>
+        ),
+      };
+
+    case "presidency_transferred":
+      return {
+        label: "Governance",
+        dotBg: "bg-violet-100",
+        dotText: "text-violet-600",
+        pillBg: "bg-violet-50",
+        pillText: "text-violet-700",
+        pillBorder: "border-violet-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
           </svg>
         ),
       };

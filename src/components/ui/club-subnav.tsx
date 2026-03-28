@@ -12,6 +12,7 @@ const CLUB_TABS = [
   { label: "Events", href: "/events" },
   { label: "Members", href: "/members" },
   { label: "Announcements", href: "/announcements" },
+  { label: "Tasks", href: "/tasks" },
   { label: "Insights", href: "/insights" },
   { label: "Settings", href: "/settings" },
 ] as const;
@@ -26,9 +27,9 @@ export function ClubSubnav({ clubId }: ClubSubnavProps) {
         <ul className="club-subnav-list" role="list">
           {CLUB_TABS.map((tab) => {
             const href = `${basePath}${tab.href}`;
-            // Settings stays active for any URL under /settings (includes ?roleId=...)
+            // Settings and Tasks stay active for any URL under their prefix.
             const isActive =
-              tab.href === "/settings"
+              tab.href === "/settings" || tab.href === "/tasks"
                 ? pathname.startsWith(href)
                 : pathname === href;
 

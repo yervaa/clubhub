@@ -13,6 +13,7 @@ import {
   removeMemberRole,
 } from "@/lib/rbac/role-actions";
 import { logAuditEvent } from "@/lib/rbac/audit";
+import { isValidTemplateKey, ROLE_TEMPLATES } from "@/lib/rbac/role-templates";
 import {
   roleCreateSchema,
   roleUpdateSchema,
@@ -39,6 +40,7 @@ export async function createCustomRoleAction(formData: FormData) {
     clubId: formData.get("club_id"),
     name: formData.get("name"),
     description: formData.get("description") ?? "",
+    templateKey: formData.get("template_key") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -47,13 +49,19 @@ export async function createCustomRoleAction(formData: FormData) {
     redirect(settingsUrl(clubId, { mode: "create", error: safeValidationError(parsed) }));
   }
 
-  const { clubId, name, description } = parsed.data;
+  const { clubId, name, description, templateKey } = parsed.data;
+
+  // Resolve initial permissions from the template, if a valid key was supplied.
+  const initialPermissions =
+    templateKey && isValidTemplateKey(templateKey)
+      ? ROLE_TEMPLATES[templateKey].permissions
+      : [];
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const result = await createClubRole(user.id, clubId, name, description, []);
+  const result = await createClubRole(user.id, clubId, name, description, initialPermissions);
 
   if (!result.ok) {
     redirect(settingsUrl(clubId, { mode: "create", error: result.error }));
@@ -64,7 +72,10 @@ export async function createCustomRoleAction(formData: FormData) {
     actorId: user.id,
     action: "role.created",
     targetRoleId: result.data.id,
-    metadata: { role_name: result.data.name },
+    metadata: {
+      role_name: result.data.name,
+      ...(templateKey && isValidTemplateKey(templateKey) ? { template: templateKey } : {}),
+    },
   });
 
   redirect(settingsUrl(clubId, { roleId: result.data.id, success: "Role+created+successfully." }));

@@ -39,7 +39,14 @@ export type PermissionKey =
   | "insights.view"
   | "insights.export"
   // Audit
-  | "audit_logs.view";
+  | "audit_logs.view"
+  // Tasks
+  | "tasks.view"
+  | "tasks.create"
+  | "tasks.edit"
+  | "tasks.delete"
+  | "tasks.assign"
+  | "tasks.complete";
 
 // ─── Supabase RPC row types ───────────────────────────────────────────────────
 

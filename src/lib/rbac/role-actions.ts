@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission, PermissionKey, PermissionDeniedError } from "@/lib/rbac/permissions";
+import { createNotification } from "@/lib/notifications/create-notification";
 
 // ─── Shared result wrapper ────────────────────────────────────────────────────
 
@@ -453,6 +454,16 @@ export async function assignMemberRole(
       return { ok: false, error: insertErr.message };
     }
 
+    // Notify the target member about their new role (non-fatal).
+    await createNotification({
+      userId: targetUserId,
+      clubId,
+      type: "role.assigned",
+      title: `You were assigned the ${roleRow.name} role`,
+      body: "Your role in the club has been updated.",
+      href: `/clubs/${clubId}`,
+    });
+
     return { ok: true, data: undefined };
   } catch (err) {
     return { ok: false, error: permissionError(err) };
@@ -479,6 +490,14 @@ export async function removeMemberRole(
 
     const supabase = await createClient();
 
+    // Fetch role name before deleting so we can include it in the notification.
+    const { data: roleRow } = await supabase
+      .from("club_roles")
+      .select("name")
+      .eq("id", roleId)
+      .eq("club_id", clubId)
+      .maybeSingle();
+
     const { error: deleteErr } = await supabase
       .from("member_roles")
       .delete()
@@ -492,6 +511,18 @@ export async function removeMemberRole(
         return { ok: false, error: "Cannot remove the last President from this club." };
       }
       return { ok: false, error: deleteErr.message };
+    }
+
+    // Notify the target member that the role was removed (non-fatal).
+    if (roleRow) {
+      await createNotification({
+        userId: targetUserId,
+        clubId,
+        type: "role.removed",
+        title: `Your ${roleRow.name} role was removed`,
+        body: "Your role assignment in the club has changed.",
+        href: `/clubs/${clubId}`,
+      });
     }
 
     return { ok: true, data: undefined };

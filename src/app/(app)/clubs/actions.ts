@@ -9,6 +9,7 @@ import { sanitizeInlineText } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { createBulkNotifications } from "@/lib/notifications/create-notification";
 import {
   announcementCreateSchema,
   attendanceToggleSchema,
@@ -406,6 +407,26 @@ export async function createAnnouncementAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Unable+to+create+announcement.+Please+retry.`);
   }
 
+  // Notify all other club members about the new announcement (non-fatal).
+  const { data: otherMembers } = await supabase
+    .from("club_members")
+    .select("user_id")
+    .eq("club_id", parsed.data.clubId)
+    .neq("user_id", user.id);
+
+  if (otherMembers && otherMembers.length > 0) {
+    await createBulkNotifications(
+      otherMembers.map((m) => ({
+        userId: m.user_id,
+        clubId: parsed.data.clubId,
+        type: "announcement.posted" as const,
+        title: parsed.data.title,
+        body: "A new announcement was posted in your club.",
+        href: `/clubs/${parsed.data.clubId}/announcements`,
+      })),
+    );
+  }
+
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=Announcement+posted.`);
 }
@@ -582,6 +603,26 @@ export async function createEventAction(formData: FormData) {
 
   if (insertError) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+create+event.+Please+retry.${duplicateQuery}#create-event`);
+  }
+
+  // Notify all other club members about the new event (non-fatal).
+  const { data: otherMembers } = await supabase
+    .from("club_members")
+    .select("user_id")
+    .eq("club_id", parsed.data.clubId)
+    .neq("user_id", user.id);
+
+  if (otherMembers && otherMembers.length > 0) {
+    await createBulkNotifications(
+      otherMembers.map((m) => ({
+        userId: m.user_id,
+        clubId: parsed.data.clubId,
+        type: "event.created" as const,
+        title: parsed.data.title,
+        body: `New event on ${eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${parsed.data.location}`,
+        href: `/clubs/${parsed.data.clubId}/events`,
+      })),
+    );
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);

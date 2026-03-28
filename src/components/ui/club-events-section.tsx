@@ -50,15 +50,7 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
     : null;
 
   return (
-    <div className="card-surface p-5" id="events">
-      <div className="section-card-header">
-        <div>
-          <p className="section-kicker">Planning</p>
-          <h3 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Events</h3>
-          <p className="mt-1 text-sm text-slate-600">Track what is coming up and collect responses from members.</p>
-        </div>
-        <span className="badge-soft">{club.events.length} scheduled</span>
-      </div>
+    <div id="events">
       {query.eventSuccess ? <p className="alert-success mt-4">{query.eventSuccess}</p> : null}
       {query.eventError ? <p className="alert-error mt-3">{query.eventError}</p> : null}
       {query.rsvpSuccess ? <p className="alert-success mt-3">{query.rsvpSuccess}</p> : null}

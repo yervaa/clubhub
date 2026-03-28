@@ -12,7 +12,8 @@ export type PermissionCategory =
   | "Attendance"
   | "Reflections"
   | "Insights"
-  | "Audit";
+  | "Audit"
+  | "Tasks";
 
 export type PermissionMeta = {
   label: string;
@@ -30,6 +31,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
   "Reflections",
   "Insights",
   "Audit",
+  "Tasks",
 ];
 
 export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
@@ -166,6 +168,37 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
     label: "View Audit Log",
     description: "See a history of club management actions.",
     category: "Audit",
+  },
+  // Tasks
+  "tasks.view": {
+    label: "View All Tasks",
+    description: "See all tasks in the club, not just assigned ones.",
+    category: "Tasks",
+  },
+  "tasks.create": {
+    label: "Create Tasks",
+    description: "Create new tasks and assign them to members.",
+    category: "Tasks",
+  },
+  "tasks.edit": {
+    label: "Edit Tasks",
+    description: "Edit the title, description, and details of any task.",
+    category: "Tasks",
+  },
+  "tasks.delete": {
+    label: "Delete Tasks",
+    description: "Permanently delete club tasks.",
+    category: "Tasks",
+  },
+  "tasks.assign": {
+    label: "Assign Tasks",
+    description: "Assign or unassign members on any task.",
+    category: "Tasks",
+  },
+  "tasks.complete": {
+    label: "Complete Tasks",
+    description: "Mark assigned tasks as complete.",
+    category: "Tasks",
   },
 };
 

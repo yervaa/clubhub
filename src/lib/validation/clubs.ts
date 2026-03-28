@@ -103,6 +103,8 @@ export const roleCreateSchema = z.object({
   clubId: uuidSchema,
   name: roleNameSchema,
   description: roleDescriptionSchema,
+  /** Optional — if a valid template key is submitted, initial permissions are seeded from it. */
+  templateKey: z.string().optional(),
 });
 
 export const roleUpdateSchema = z.object({
@@ -144,4 +146,53 @@ export const governanceRemoveSchema = z.object({
 export const governanceTransferSchema = z.object({
   clubId: uuidSchema,
   targetUserId: uuidSchema,
+});
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+const taskTitleSchema = z
+  .string()
+  .transform(sanitizeInlineText)
+  .pipe(z.string().min(1, "Title is required.").max(200, "Title must be 200 characters or fewer."));
+
+const taskDescriptionSchema = z
+  .string()
+  .transform(sanitizeMultilineText)
+  .pipe(z.string().max(2000, "Description must be 2000 characters or fewer."));
+
+const taskStatusSchema = z.enum(["todo", "in_progress", "blocked", "completed"]);
+const taskPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
+
+export const taskCreateSchema = z.object({
+  clubId: uuidSchema,
+  title: taskTitleSchema,
+  description: taskDescriptionSchema.optional(),
+  status: taskStatusSchema.default("todo"),
+  priority: taskPrioritySchema.default("medium"),
+  /** ISO-8601 date-time string or empty string (no due date). */
+  dueAt: z.string().optional(),
+  /** JSON-encoded array of user UUIDs. */
+  assigneeIds: z.string().optional(),
+});
+
+export const taskUpdateSchema = z.object({
+  clubId: uuidSchema,
+  taskId: uuidSchema,
+  title: taskTitleSchema,
+  description: taskDescriptionSchema.optional(),
+  status: taskStatusSchema,
+  priority: taskPrioritySchema,
+  dueAt: z.string().optional(),
+  assigneeIds: z.string().optional(),
+});
+
+export const taskStatusUpdateSchema = z.object({
+  clubId: uuidSchema,
+  taskId: uuidSchema,
+  status: taskStatusSchema,
+});
+
+export const taskDeleteSchema = z.object({
+  clubId: uuidSchema,
+  taskId: uuidSchema,
 });
