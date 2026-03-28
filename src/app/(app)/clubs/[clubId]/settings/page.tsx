@@ -39,7 +39,7 @@ export default async function ClubSettingsPage({ params, searchParams }: Setting
     getAllPermissions(),
   ]);
 
-  if (rolesResult.error || !rolesResult.ok) {
+  if (!rolesResult.ok) {
     return (
       <section className="space-y-6">
         <div className="empty-state">

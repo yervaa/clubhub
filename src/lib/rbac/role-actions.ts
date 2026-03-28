@@ -115,7 +115,7 @@ export async function getClubRoles(clubId: string): Promise<ActionResult<ClubRol
 
   return {
     ok: true,
-    data: ((data ?? []) as RawClubRole[]).map(normalizeRole),
+    data: ((data ?? []) as unknown as RawClubRole[]).map(normalizeRole),
   };
 }
 
@@ -141,7 +141,7 @@ export async function getClubRole(
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: "Role not found in this club." };
 
-  return { ok: true, data: normalizeRole(data as RawClubRole) };
+  return { ok: true, data: normalizeRole(data as unknown as RawClubRole) };
 }
 
 /**
@@ -186,7 +186,7 @@ export async function getMembersWithRoles(clubId: string): Promise<ActionResult<
 
   // Index RBAC role assignments by userId for O(1) merge.
   const rbacByUser = new Map<string, MemberWithRoles["rbacRoles"]>();
-  for (const mr of (memberRolesRes.data ?? []) as RawMemberRole[]) {
+  for (const mr of (memberRolesRes.data ?? []) as unknown as RawMemberRole[]) {
     if (!mr.club_roles) continue;
     const existing = rbacByUser.get(mr.user_id) ?? [];
     existing.push({
@@ -197,7 +197,7 @@ export async function getMembersWithRoles(clubId: string): Promise<ActionResult<
     rbacByUser.set(mr.user_id, existing);
   }
 
-  const members: MemberWithRoles[] = ((membersRes.data ?? []) as RawClubMember[]).map((cm) => ({
+  const members: MemberWithRoles[] = ((membersRes.data ?? []) as unknown as RawClubMember[]).map((cm) => ({
     userId: cm.user_id,
     fullName: cm.profiles?.full_name ?? null,
     email: cm.profiles?.email ?? null,
