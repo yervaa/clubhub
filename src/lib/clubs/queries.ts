@@ -56,7 +56,7 @@ export type ClubMember = {
 
 export type ClubActivityItem = {
   id: string;
-  kind: "member_joined" | "announcement_posted" | "event_created" | "rsvp_updated";
+  kind: "member_joined" | "announcement_posted" | "event_created" | "rsvp_updated" | "attendance_marked";
   message: string;
   createdAt: string;
   /** Raw ISO-8601 string for sorting and relative-time formatting */
@@ -591,8 +591,10 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
           .in("event_id", eventIds)
       : { data: [] as { event_id: string; user_id: string }[] };
 
+  // RLS on event_reflections handles per-user access (is_club_officer OR has reflections.create).
+  // We always attempt the fetch; non-permitted users receive an empty result set from the DB.
   const { data: reflectionData } =
-    membership.role === "officer" && eventIds.length > 0
+    eventIds.length > 0
       ? await supabase
           .from("event_reflections")
           .select("event_id, what_worked, what_didnt, notes, updated_at")

@@ -1,4 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubEventsSection } from "@/components/ui/club-events-section";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 
@@ -25,11 +27,25 @@ type ClubEventsPageProps = {
 export default async function ClubEventsPage({ params, searchParams }: ClubEventsPageProps) {
   const { clubId } = await params;
   const query = await searchParams;
-  const club = await getClubDetailForCurrentUser(clubId);
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const [club, userPermissions] = await Promise.all([
+    getClubDetailForCurrentUser(clubId),
+    getUserPermissions(user.id, clubId),
+  ]);
 
   if (!club) {
     notFound();
   }
 
-  return <ClubEventsSection club={club} query={query} />;
+  const permissions = {
+    canCreateEvents: userPermissions.has("events.create"),
+    canMarkAttendance: userPermissions.has("attendance.mark"),
+    canManageReflections: userPermissions.has("reflections.create"),
+  };
+
+  return <ClubEventsSection club={club} query={query} permissions={permissions} />;
 }

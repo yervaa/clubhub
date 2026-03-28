@@ -1,6 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubAttentionNeededSection } from "@/components/ui/club-attention-needed-section";
+import { ClubActivityFeed, formatActivityTime } from "@/components/ui/club-activity-feed";
+import type { ActivityFeedItem } from "@/components/ui/club-activity-feed";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubOverviewPageProps = {
@@ -9,11 +13,27 @@ type ClubOverviewPageProps = {
 
 export default async function ClubOverviewPage({ params }: ClubOverviewPageProps) {
   const { clubId } = await params;
-  const club = await getClubDetailForCurrentUser(clubId);
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const [club, userPermissions] = await Promise.all([
+    getClubDetailForCurrentUser(clubId),
+    getUserPermissions(user.id, clubId),
+  ]);
 
   if (!club) {
     notFound();
   }
+
+  // Derive permission booleans for UI control visibility.
+  const canInviteMembers = userPermissions.has("members.invite");
+  const canCreateEvents = userPermissions.has("events.create");
+  const canPostAnnouncements = userPermissions.has("announcements.create");
+  const canMarkAttendance = userPermissions.has("attendance.mark");
+  // Show management alerts when the user has at least one management-facing permission.
+  const showManagementAlerts = canCreateEvents || canPostAnnouncements || canMarkAttendance;
 
   const memberCount = club.memberCount;
   const now = new Date();
@@ -22,8 +42,48 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
     .sort((a, b) => a.eventDateRaw.getTime() - b.eventDateRaw.getTime())[0] ?? null;
   const latestAnnouncement = club.announcements[0] ?? null;
 
+  // ── Build merged activity feed ─────────────────────────────────────────────
+  // Each source builds its own sort key inline — no parallel-index dependency.
+  type SortableItem = ActivityFeedItem & { _sortKey: string };
+
+  const hrefByKind: Record<typeof club.recentActivity[number]["kind"], string> = {
+    member_joined: `/clubs/${club.id}/members`,
+    announcement_posted: `/clubs/${club.id}/announcements`,
+    event_created: `/clubs/${club.id}/events`,
+    rsvp_updated: `/clubs/${club.id}/events`,
+    attendance_marked: `/clubs/${club.id}/events`,
+  };
+
+  const rpcItems: SortableItem[] = club.recentActivity.map((item) => ({
+    id: item.id,
+    type: item.kind,
+    message: item.message,
+    displayTime: formatActivityTime(item.createdAtIso),
+    href: hrefByKind[item.kind],
+    _sortKey: item.createdAtIso,
+  }));
+
+  // Reflections — visible if the user has reflections permission (RLS already
+  // controls whether reflection data was fetched; null reflections are filtered out).
+  const reflectionItems: SortableItem[] = club.events
+    .filter((e) => e.reflection !== null)
+    .map((e) => ({
+      id: `reflection-${e.id}`,
+      type: "reflection_added" as const,
+      message: `Officer reflection added for "${e.title}"`,
+      displayTime: formatActivityTime(e.reflection!.updatedAtIso),
+      href: `/clubs/${club.id}/events`,
+      _sortKey: e.reflection!.updatedAtIso,
+    }));
+
+  const activityItems: ActivityFeedItem[] = [...rpcItems, ...reflectionItems]
+    .sort((a, b) => b._sortKey.localeCompare(a._sortKey))
+    .slice(0, 8)
+    .map(({ _sortKey: _, ...item }) => item);
+
   return (
     <section className="space-y-8">
+      {/* Hero header */}
       <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 p-8">
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Club Command Center</p>
@@ -51,7 +111,7 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-600">Your Role</p>
-                <p className="text-xl font-bold text-slate-900">{club.currentUserRole}</p>
+                <p className="text-xl font-bold text-slate-900 capitalize">{club.currentUserRole}</p>
               </div>
             </div>
 
@@ -70,86 +130,108 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:gap-3">
-            {club.currentUserRole === "officer" ? (
-              <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-primary px-6 py-3 text-base font-semibold">
-                Invite Members
-              </Link>
-            ) : null}
-            {club.currentUserRole === "officer" ? (
-              <Link href={`/clubs/${club.id}/events#create-event`} className="btn-secondary px-6 py-3 text-base font-semibold">
-                Create Event
-              </Link>
-            ) : null}
-          </div>
+          {/* Quick actions — only shown when the user has relevant permissions */}
+          {(canInviteMembers || canCreateEvents) && (
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:gap-3">
+              {canInviteMembers && (
+                <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-primary px-6 py-3 text-base font-semibold">
+                  Invite Members
+                </Link>
+              )}
+              {canCreateEvents && (
+                <Link href={`/clubs/${club.id}/events#create-event`} className="btn-secondary px-6 py-3 text-base font-semibold">
+                  Create Event
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
-      <section className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Important Now</h2>
-          <p className="mt-2 text-slate-600">Key updates and priorities for your club</p>
+      {/* Important Now */}
+      <div className="card-surface p-6">
+        <div className="section-card-header">
+          <div>
+            <p className="section-kicker">Now</p>
+            <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Important Now</h2>
+            <p className="mt-1 text-sm text-slate-600">Key updates and priorities for your club.</p>
+          </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="card-surface border-l-4 border-blue-500 p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          {/* Next event */}
+          <div className="surface-subcard border-l-4 border-blue-500 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100">
+                <svg className="h-4.5 w-4.5 h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-slate-600">Next Event</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{nextEvent ? nextEvent.title : "No upcoming events"}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Next Event</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">
+                  {nextEvent ? nextEvent.title : "No upcoming events"}
+                </p>
                 {nextEvent ? (
-                  <p className="mt-1 text-sm text-slate-500">{nextEvent.eventDate} · {nextEvent.location}</p>
+                  <p className="mt-1 text-xs text-slate-500 truncate">{nextEvent.eventDate} · {nextEvent.location}</p>
                 ) : (
-                  <p className="mt-1 text-sm text-slate-500">Schedule your first meeting on the Events page.</p>
+                  <p className="mt-1 text-xs text-slate-500">Schedule one on the Events page.</p>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="card-surface border-l-4 border-amber-500 p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
+          {/* Latest announcement */}
+          <div className="surface-subcard border-l-4 border-amber-500 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100">
                 <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                 </svg>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-slate-600">Latest Announcement</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{latestAnnouncement ? latestAnnouncement.title : "No announcements yet"}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Latest Announcement</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">
+                  {latestAnnouncement ? latestAnnouncement.title : "No announcements yet"}
+                </p>
                 {latestAnnouncement ? (
-                  <p className="mt-1 text-sm text-slate-500 line-clamp-2">{latestAnnouncement.content}</p>
+                  <p className="mt-1 text-xs text-slate-500 line-clamp-2">{latestAnnouncement.content}</p>
                 ) : (
-                  <p className="mt-1 text-sm text-slate-500">Post your first update on the Announcements page.</p>
+                  <p className="mt-1 text-xs text-slate-500">Post one on the Announcements page.</p>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="card-surface border-l-4 border-green-500 p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-                <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          {/* Key stats */}
+          <div className="surface-subcard border-l-4 border-emerald-500 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+                <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-slate-600">Key Stats</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{club.events.length} events · {club.announcements.length} updates</p>
-                <p className="mt-1 text-sm text-slate-500">{club.totalTrackedEvents} tracked attendance events · {club.clubAverageAttendance}% average attendance</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Key Stats</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">
+                  {club.events.length} events · {club.announcements.length} updates
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {club.totalTrackedEvents} tracked · {club.clubAverageAttendance}% avg attendance
+                </p>
               </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      {club.currentUserRole === "officer" ? (
+      {/* Attention Needed — shown to users with management permissions */}
+      {showManagementAlerts && (
         <ClubAttentionNeededSection clubId={club.id} alerts={club.attentionAlerts} />
-      ) : null}
+      )}
+
+      {/* Recent Activity — visible to all members */}
+      <ClubActivityFeed items={activityItems} />
     </section>
   );
 }

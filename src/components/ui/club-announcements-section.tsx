@@ -3,19 +3,29 @@ import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
 import { createAnnouncementAction } from "@/app/(app)/clubs/actions";
 import type { ClubDetail } from "@/lib/clubs/queries";
 
+type ClubAnnouncementsPermissions = {
+  canPostAnnouncements: boolean;
+  canEditAnnouncements?: boolean;
+  canDeleteAnnouncements?: boolean;
+};
+
 type ClubAnnouncementsSectionProps = {
   club: ClubDetail;
+  permissions?: ClubAnnouncementsPermissions;
   query: {
     annError?: string;
     annSuccess?: string;
   };
 };
 
-export function ClubAnnouncementsSection({ club, query }: ClubAnnouncementsSectionProps) {
+export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnouncementsSectionProps) {
   const count = club.announcements.length;
   const latestAnnouncement = club.announcements[0] ?? null;
   const olderAnnouncements = club.announcements.slice(1);
-  const isOfficer = club.currentUserRole === "officer";
+
+  // RBAC-based check with legacy officer fallback for backward compatibility.
+  const legacyIsOfficer = club.currentUserRole === "officer";
+  const canPostAnnouncements = permissions?.canPostAnnouncements ?? legacyIsOfficer;
 
   return (
     <section className="space-y-6">
@@ -26,7 +36,7 @@ export function ClubAnnouncementsSection({ club, query }: ClubAnnouncementsSecti
           <p className="section-kicker text-slate-600">Communication</p>
           <h1 className="section-title mt-3 text-3xl md:text-4xl">Announcements</h1>
           <p className="section-subtitle mt-4 max-w-2xl text-lg text-slate-700">
-            {isOfficer
+            {canPostAnnouncements
               ? "Post updates, reminders, and important news to keep everyone in the loop."
               : "Stay up to date with the latest news and updates from your club."}
           </p>
@@ -54,7 +64,7 @@ export function ClubAnnouncementsSection({ club, query }: ClubAnnouncementsSecti
             )}
           </div>
 
-          {isOfficer && (
+          {canPostAnnouncements && (
             <div className="mt-8">
               <a href="#post-announcement" className="btn-primary px-6 py-3 text-base font-semibold">
                 Post Announcement
@@ -68,8 +78,8 @@ export function ClubAnnouncementsSection({ club, query }: ClubAnnouncementsSecti
       {query.annSuccess ? <p className="alert-success">{query.annSuccess}</p> : null}
       {query.annError ? <p className="alert-error">{query.annError}</p> : null}
 
-      {/* Post form — officers only */}
-      {isOfficer && (
+      {/* Post form — requires announcements.create permission */}
+      {canPostAnnouncements && (
         <section id="post-announcement" className="card-surface p-6">
           <div className="section-card-header">
             <div>
@@ -131,11 +141,11 @@ export function ClubAnnouncementsSection({ club, query }: ClubAnnouncementsSecti
             </div>
             <h3 className="mt-4 text-base font-semibold text-slate-900">No announcements yet</h3>
             <p className="mt-1 text-sm text-slate-500">
-              {isOfficer
+              {canPostAnnouncements
                 ? "Use the form above to post your first update."
                 : "Your club officers will post updates here."}
             </p>
-            {isOfficer && (
+            {canPostAnnouncements && (
               <ScrollToInputButton
                 inputSelector='input[name="title"]'
                 className="btn-secondary mt-4"

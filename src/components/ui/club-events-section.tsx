@@ -9,8 +9,15 @@ import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events";
 import type { ClubDetail } from "@/lib/clubs/queries";
 
+type ClubEventsPermissions = {
+  canCreateEvents: boolean;
+  canMarkAttendance: boolean;
+  canManageReflections: boolean;
+};
+
 type ClubEventsSectionProps = {
   club: ClubDetail;
+  permissions?: ClubEventsPermissions;
   query: {
     eventError?: string;
     eventSuccess?: string;
@@ -29,9 +36,16 @@ type ClubEventsSectionProps = {
   };
 };
 
-export function ClubEventsSection({ club, query }: ClubEventsSectionProps) {
+export function ClubEventsSection({ club, query, permissions }: ClubEventsSectionProps) {
+  // RBAC-based permission checks. Fall back to legacy role for backward compatibility
+  // if the permissions prop is not yet wired (e.g. embedded in another page).
+  const legacyIsOfficer = club.currentUserRole === "officer";
+  const canCreateEvents = permissions?.canCreateEvents ?? legacyIsOfficer;
+  const canMarkAttendance = permissions?.canMarkAttendance ?? legacyIsOfficer;
+  const canManageReflections = permissions?.canManageReflections ?? legacyIsOfficer;
+
   const memberCount = club.memberCount;
-  const duplicateEvent = club.currentUserRole === "officer" && query.duplicateEventId
+  const duplicateEvent = canCreateEvents && query.duplicateEventId
     ? club.events.find((event) => event.id === query.duplicateEventId) ?? null
     : null;
 
@@ -52,7 +66,7 @@ export function ClubEventsSection({ club, query }: ClubEventsSectionProps) {
       {query.attendanceSuccess ? <p className="alert-success mt-3">{query.attendanceSuccess}</p> : null}
       {query.attendanceError ? <p className="alert-error mt-3">{query.attendanceError}</p> : null}
 
-      {club.currentUserRole === "officer" ? (
+      {canCreateEvents ? (
         <form id="create-event" action={createEventAction} className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
           <input type="hidden" name="club_id" value={club.id} />
           {duplicateEvent ? <input type="hidden" name="duplicate_event_id" value={duplicateEvent.id} /> : null}
@@ -158,7 +172,7 @@ export function ClubEventsSection({ club, query }: ClubEventsSectionProps) {
         <div className="mt-4 rounded-lg border border-slate-200 bg-gradient-to-br from-indigo-50 to-slate-50 p-6">
           <p className="font-semibold text-slate-900">Schedule your first meeting</p>
           <p className="mt-1 text-sm text-slate-600">Create an event so members know when you&#39;re meeting and can RSVP.</p>
-          {club.currentUserRole === "officer" && (
+          {canCreateEvents && (
             <ScrollToInputButton
               inputSelector='input[id="event_title"]'
               className="btn-secondary mt-3"
@@ -227,7 +241,7 @@ export function ClubEventsSection({ club, query }: ClubEventsSectionProps) {
                     <span className={event.userRsvpStatus ? "badge-strong" : "badge-soft"}>
                       {event.userRsvpStatus ? `RSVP ${event.userRsvpStatus}` : "Awaiting RSVP"}
                     </span>
-                    {club.currentUserRole === "officer" ? (
+                    {canCreateEvents ? (
                       <Link href={`/clubs/${club.id}/events?duplicateEventId=${event.id}#create-event`} className="btn-secondary text-xs">
                         Duplicate
                       </Link>
@@ -293,7 +307,7 @@ export function ClubEventsSection({ club, query }: ClubEventsSectionProps) {
                   selectedStatus={event.userRsvpStatus}
                   recentlySaved={Boolean(eventRsvpSaved)}
                 />
-                {isPast && club.currentUserRole === "officer" ? (
+                {isPast && canManageReflections ? (
                   <div className="event-action-panel">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -378,7 +392,7 @@ export function ClubEventsSection({ club, query }: ClubEventsSectionProps) {
                     </form>
                   </div>
                 ) : null}
-                {club.currentUserRole === "officer" ? (
+                {canMarkAttendance ? (
                   <AttendanceChecklist
                     clubId={club.id}
                     eventId={event.id}

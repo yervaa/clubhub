@@ -1,0 +1,226 @@
+import Link from "next/link";
+
+// ─── Public types ─────────────────────────────────────────────────────────────
+
+export type ActivityItemType =
+  | "member_joined"
+  | "announcement_posted"
+  | "event_created"
+  | "rsvp_updated"
+  | "attendance_marked"
+  | "reflection_added";
+
+export type ActivityFeedItem = {
+  id: string;
+  type: ActivityItemType;
+  message: string;
+  displayTime: string;
+  href?: string;
+};
+
+// ─── Time formatter (call at render time — page uses noStore) ─────────────────
+
+export function formatActivityTime(isoString: string): string {
+  const now = new Date();
+  const then = new Date(isoString);
+  const diffMs = now.getTime() - then.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// ─── Per-type visual config ───────────────────────────────────────────────────
+
+type TypeConfig = {
+  label: string;
+  dotBg: string;
+  dotText: string;
+  pillBg: string;
+  pillText: string;
+  pillBorder: string;
+  icon: React.ReactNode;
+};
+
+function getTypeConfig(type: ActivityItemType): TypeConfig {
+  switch (type) {
+    case "member_joined":
+      return {
+        label: "Member",
+        dotBg: "bg-blue-100",
+        dotText: "text-blue-600",
+        pillBg: "bg-blue-50",
+        pillText: "text-blue-700",
+        pillBorder: "border-blue-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        ),
+      };
+
+    case "announcement_posted":
+      return {
+        label: "Announcement",
+        dotBg: "bg-amber-100",
+        dotText: "text-amber-600",
+        pillBg: "bg-amber-50",
+        pillText: "text-amber-700",
+        pillBorder: "border-amber-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+          </svg>
+        ),
+      };
+
+    case "event_created":
+      return {
+        label: "Event",
+        dotBg: "bg-purple-100",
+        dotText: "text-purple-600",
+        pillBg: "bg-purple-50",
+        pillText: "text-purple-700",
+        pillBorder: "border-purple-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        ),
+      };
+
+    case "rsvp_updated":
+      return {
+        label: "RSVP",
+        dotBg: "bg-emerald-100",
+        dotText: "text-emerald-600",
+        pillBg: "bg-emerald-50",
+        pillText: "text-emerald-700",
+        pillBorder: "border-emerald-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+      };
+
+    case "attendance_marked":
+      return {
+        label: "Attendance",
+        dotBg: "bg-teal-100",
+        dotText: "text-teal-600",
+        pillBg: "bg-teal-50",
+        pillText: "text-teal-700",
+        pillBorder: "border-teal-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        ),
+      };
+
+    case "reflection_added":
+      return {
+        label: "Reflection",
+        dotBg: "bg-slate-100",
+        dotText: "text-slate-500",
+        pillBg: "bg-slate-50",
+        pillText: "text-slate-600",
+        pillBorder: "border-slate-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        ),
+      };
+  }
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+type ClubActivityFeedProps = {
+  items: ActivityFeedItem[];
+};
+
+export function ClubActivityFeed({ items }: ClubActivityFeedProps) {
+  return (
+    <div className="card-surface p-6">
+      <div className="section-card-header">
+        <div>
+          <p className="section-kicker">Activity</p>
+          <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Recent Activity</h2>
+          <p className="mt-1 text-sm text-slate-600">Latest actions across the club.</p>
+        </div>
+        {items.length > 0 && (
+          <span className="badge-soft">{items.length} recent</span>
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-8 text-center">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+            <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="mt-3 text-sm font-semibold text-slate-600">No activity yet</p>
+          <p className="mt-1 text-sm text-slate-400">
+            Actions like joining, posting, and RSVPing will appear here.
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-5" role="list">
+          {items.map((item, index) => {
+            const config = getTypeConfig(item.type);
+            const isLast = index === items.length - 1;
+
+            return (
+              <li key={item.id} className="relative flex gap-3.5">
+                {/* Vertical connector line */}
+                {!isLast && (
+                  <div className="absolute left-[15px] top-8 bottom-0 w-px bg-slate-100" aria-hidden="true" />
+                )}
+
+                {/* Type icon */}
+                <div
+                  className={`relative z-10 mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${config.dotBg} ${config.dotText}`}
+                >
+                  {config.icon}
+                </div>
+
+                {/* Content */}
+                <div className={`min-w-0 flex-1 py-1 ${!isLast ? "pb-5" : ""}`}>
+                  {item.href ? (
+                    <Link
+                      href={item.href}
+                      className="text-sm leading-snug text-slate-700 hover:text-slate-900 hover:underline decoration-slate-300 underline-offset-2 transition-colors"
+                    >
+                      {item.message}
+                    </Link>
+                  ) : (
+                    <p className="text-sm leading-snug text-slate-700">{item.message}</p>
+                  )}
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${config.pillBg} ${config.pillText} ${config.pillBorder}`}
+                    >
+                      {config.label}
+                    </span>
+                    <span className="text-xs text-slate-400">{item.displayTime}</span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}

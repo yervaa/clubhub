@@ -8,6 +8,7 @@ import { upsertCurrentUserProfile } from "@/lib/profiles";
 import { sanitizeInlineText } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/rbac/permissions";
 import {
   announcementCreateSchema,
   attendanceToggleSchema,
@@ -380,7 +381,7 @@ export async function createAnnouncementAction(formData: FormData) {
 
   const { data: membership, error: membershipError } = await supabase
     .from("club_members")
-    .select("role")
+    .select("user_id")
     .eq("club_id", parsed.data.clubId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -389,8 +390,9 @@ export async function createAnnouncementAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+access+to+this+club.`);
   }
 
-  if (membership.role !== "officer") {
-    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Only+officers+can+create+announcements.`);
+  const canPost = await hasPermission(user.id, parsed.data.clubId, "announcements.create");
+  if (!canPost) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+permission+to+create+announcements.`);
   }
 
   const { error: insertError } = await supabase.from("announcements").insert({
@@ -447,6 +449,11 @@ export async function updateMemberRoleAction(formData: FormData) {
     redirect("/login");
   }
 
+  const canAssignRoles = await hasPermission(user.id, parsed.data.clubId, "members.assign_roles");
+  if (!canAssignRoles) {
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=You+do+not+have+permission+to+update+member+roles.`);
+  }
+
   const { data: status, error } = await supabase.rpc("update_club_member_role", {
     target_club_id: parsed.data.clubId,
     target_user_id: parsed.data.userId,
@@ -486,6 +493,11 @@ export async function removeMemberAction(formData: FormData) {
     redirect("/login");
   }
 
+  const canRemove = await hasPermission(user.id, parsed.data.clubId, "members.remove");
+  if (!canRemove) {
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=You+do+not+have+permission+to+remove+members.`);
+  }
+
   const { data: status, error } = await supabase.rpc("remove_club_member", {
     target_club_id: parsed.data.clubId,
     target_user_id: parsed.data.userId,
@@ -502,9 +514,8 @@ export async function removeMemberAction(formData: FormData) {
 }
 
 export async function createEventAction(formData: FormData) {
-  const duplicateEventId = typeof formData.get("duplicate_event_id") === "string"
-    ? formData.get("duplicate_event_id")
-    : "";
+  const duplicateEventIdRaw = formData.get("duplicate_event_id");
+  const duplicateEventId = typeof duplicateEventIdRaw === "string" ? duplicateEventIdRaw : "";
   const duplicateQuery = duplicateEventId ? `&duplicateEventId=${encodeURIComponent(duplicateEventId)}` : "";
 
   const parsed = eventCreateSchema.safeParse({
@@ -553,8 +564,10 @@ export async function createEventAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+do+not+have+access+to+this+club.${duplicateQuery}#create-event`);
   }
 
-  if (membership.role !== "officer") {
-    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Only+officers+can+create+events.${duplicateQuery}#create-event`);
+  // RBAC check: requires the events.create permission (granted to President + Officer by default).
+  const canCreate = await hasPermission(user.id, parsed.data.clubId, "events.create");
+  if (!canCreate) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+don't+have+permission+to+create+events.${duplicateQuery}#create-event`);
   }
 
   const { error: insertError } = await supabase.from("events").insert({
@@ -657,8 +670,10 @@ export async function saveEventReflectionAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
-    const fallbackEventId = typeof formData.get("event_id") === "string" ? formData.get("event_id") : "";
+    const fallbackClubIdRaw = formData.get("club_id");
+    const fallbackEventIdRaw = formData.get("event_id");
+    const fallbackClubId = typeof fallbackClubIdRaw === "string" ? fallbackClubIdRaw : "";
+    const fallbackEventId = typeof fallbackEventIdRaw === "string" ? fallbackEventIdRaw : "";
     if (fallbackClubId) {
       const eventQuery = fallbackEventId ? `&reflectionEventId=${encodeURIComponent(fallbackEventId)}` : "";
       redirect(`/clubs/${fallbackClubId}/events?reflectionError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}${eventQuery}#events`);
@@ -685,7 +700,7 @@ export async function saveEventReflectionAction(formData: FormData) {
 
   const { data: membership, error: membershipError } = await supabase
     .from("club_members")
-    .select("role")
+    .select("user_id")
     .eq("club_id", parsed.data.clubId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -694,8 +709,9 @@ export async function saveEventReflectionAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=You+do+not+have+access+to+this+club.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
   }
 
-  if (membership.role !== "officer") {
-    redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=Only+officers+can+save+reflections.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+  const canReflect = await hasPermission(user.id, parsed.data.clubId, "reflections.create");
+  if (!canReflect) {
+    redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=You+do+not+have+permission+to+save+reflections.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
   }
 
   const { data: eventRow, error: eventError } = await supabase
@@ -812,7 +828,7 @@ export async function toggleAttendanceAction(formData: FormData) {
 
   const { data: membership, error: membershipError } = await supabase
     .from("club_members")
-    .select("role")
+    .select("user_id")
     .eq("club_id", parsed.data.clubId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -829,19 +845,18 @@ export async function toggleAttendanceAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=You+do+not+have+access+to+this+club.`);
   }
 
-  if (membership.role !== "officer") {
-    logAttendance("not-officer", {
+  const canMarkAttendance = await hasPermission(user.id, parsed.data.clubId, "attendance.mark");
+  if (!canMarkAttendance) {
+    logAttendance("permission-denied", {
       currentUserId: user.id,
       clubId: parsed.data.clubId,
-      role: membership.role,
     });
-    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=Only+officers+can+track+attendance.`);
+    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=You+do+not+have+permission+to+track+attendance.`);
   }
 
   logAttendance("membership-check-passed", {
     currentUserId: user.id,
     clubId: parsed.data.clubId,
-    role: membership.role,
   });
 
   const { data: eventRow, error: eventError } = await supabase

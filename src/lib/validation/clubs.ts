@@ -88,3 +88,60 @@ export const memberRemovalSchema = z.object({
   clubId: uuidSchema,
   userId: uuidSchema,
 });
+
+const roleNameSchema = z
+  .string()
+  .transform(sanitizeInlineText)
+  .pipe(z.string().min(1, "Role name is required.").max(50, "Name must be 50 characters or fewer."));
+
+const roleDescriptionSchema = z
+  .string()
+  .transform(sanitizeInlineText)
+  .pipe(z.string().max(200, "Description must be 200 characters or fewer."));
+
+export const roleCreateSchema = z.object({
+  clubId: uuidSchema,
+  name: roleNameSchema,
+  description: roleDescriptionSchema,
+});
+
+export const roleUpdateSchema = z.object({
+  clubId: uuidSchema,
+  roleId: uuidSchema,
+  name: roleNameSchema,
+  description: roleDescriptionSchema,
+});
+
+export const roleDeleteSchema = z.object({
+  clubId: uuidSchema,
+  roleId: uuidSchema,
+});
+
+export const assignRoleSchema = z.object({
+  clubId: uuidSchema,
+  roleId: uuidSchema,
+  targetUserId: uuidSchema,
+});
+
+export const removeRoleSchema = z.object({
+  clubId: uuidSchema,
+  roleId: uuidSchema,
+  targetUserId: uuidSchema,
+});
+
+// ─── Governance (Presidency management) ──────────────────────────────────────
+
+export const governanceAddSchema = z.object({
+  clubId: uuidSchema,
+  targetUserId: uuidSchema,
+});
+
+export const governanceRemoveSchema = z.object({
+  clubId: uuidSchema,
+  targetUserId: uuidSchema,
+});
+
+export const governanceTransferSchema = z.object({
+  clubId: uuidSchema,
+  targetUserId: uuidSchema,
+});
