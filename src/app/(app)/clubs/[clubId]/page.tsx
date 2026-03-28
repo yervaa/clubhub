@@ -120,11 +120,26 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
         "presidency.transferred": "presidency_transferred",
       };
 
+      type AuditRow = (typeof auditRows)[number];
       governanceItems = auditRows
-        .filter((r): r is typeof r & { action: GovernanceAction } =>
-          (governanceActions as readonly string[]).includes(r.action),
+        .filter((r): r is Omit<AuditRow, "action"> & { action: GovernanceAction } =>
+          (governanceActions as readonly string[]).includes(r.action as string),
         )
         .map((r) => {
+          // #region agent log
+          fetch("http://127.0.0.1:7752/ingest/8564b646-700d-4bcb-a3b0-4286eed37fa8", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "4152c2" },
+            body: JSON.stringify({
+              sessionId: "4152c2",
+              location: "clubs/[clubId]/page.tsx:governanceItems.map",
+              message: "governance audit row after narrow",
+              data: { action: r.action, hypothesisId: "H2-Omit-narrow" },
+              timestamp: Date.now(),
+              runId: "post-fix",
+            }),
+          }).catch(() => {});
+          // #endregion
           const actor = nameById.get(r.actor_id) ?? "Someone";
           const target = r.target_user_id ? (nameById.get(r.target_user_id) ?? "a member") : "a member";
           const meta = (r.metadata ?? {}) as Record<string, unknown>;

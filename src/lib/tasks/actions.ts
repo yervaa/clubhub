@@ -158,12 +158,7 @@ export async function updateTaskAction(
 
   const currentIds = (currentAssigneeRows ?? []).map((r) => r.user_id);
 
-  const completedAt =
-    status === "completed"
-      ? new Date().toISOString()
-      : status !== "completed"
-      ? null
-      : undefined;
+  const completedAt = status === "completed" ? new Date().toISOString() : null;
 
   const { error: updateErr } = await admin
     .from("club_tasks")
@@ -173,7 +168,7 @@ export async function updateTaskAction(
       status,
       priority,
       due_at: dueAtIso,
-      ...(completedAt !== undefined ? { completed_at: completedAt } : {}),
+      completed_at: completedAt,
     })
     .eq("id", taskId)
     .eq("club_id", clubId);
