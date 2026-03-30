@@ -26,25 +26,6 @@ export type ActivityFeedItem = {
   href?: string;
 };
 
-// ─── Time formatter (call at render time — page uses noStore) ─────────────────
-
-export function formatActivityTime(isoString: string): string {
-  const now = new Date();
-  const then = new Date(isoString);
-  const diffMs = now.getTime() - then.getTime();
-  const diffMins = Math.floor(diffMs / 60_000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return "yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
 // ─── Per-type visual config ───────────────────────────────────────────────────
 
 type TypeConfig = {
@@ -208,6 +189,24 @@ function getTypeConfig(type: ActivityItemType): TypeConfig {
           </svg>
         ),
       };
+
+    default: {
+      const _exhaustive: never = type;
+      void _exhaustive;
+      return {
+        label: "Activity",
+        dotBg: "bg-slate-100",
+        dotText: "text-slate-500",
+        pillBg: "bg-slate-50",
+        pillText: "text-slate-600",
+        pillBorder: "border-slate-200",
+        icon: (
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+      };
+    }
   }
 }
 
