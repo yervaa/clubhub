@@ -344,7 +344,6 @@ function TaskCard({
   const canChangeStatus = permissions.canEdit || (permissions.canComplete && isAssignee);
   const canComplete = permissions.canEdit || (permissions.canComplete && isAssignee);
 
-  const priorityCfg = PRIORITY_CONFIG[task.priority];
   const borderClass = PRIORITY_LEFT_BORDER[task.priority];
 
   if (isEditing) {
@@ -410,7 +409,7 @@ function TaskCard({
                 type="submit"
                 disabled={isStatusPending}
                 title="Mark complete"
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-green-500 hover:bg-green-50 hover:text-green-600"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-green-500 hover:bg-green-50 hover:text-green-600 sm:h-7 sm:w-7"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -424,7 +423,7 @@ function TaskCard({
               type="button"
               onClick={onEdit}
               title="Edit task"
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-slate-400 hover:bg-slate-100 hover:text-slate-700 sm:h-7 sm:w-7"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -449,7 +448,7 @@ function TaskCard({
                     e.preventDefault();
                   }
                 }}
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-red-400 hover:bg-red-50 hover:text-red-600"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-red-400 hover:bg-red-50 hover:text-red-600 sm:h-7 sm:w-7"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -505,7 +504,7 @@ function TaskCard({
               fd.set("task_id", task.id);
               statusAction(fd);
             }}
-            className="flex flex-wrap items-center gap-2"
+            className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
           >
             <span className="text-xs text-slate-500">Move to:</span>
             {(["todo", "in_progress", "blocked"] as TaskStatus[])
@@ -519,7 +518,7 @@ function TaskCard({
                     name="status"
                     value={s}
                     disabled={isStatusPending}
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition hover:opacity-80 ${cfg.bg} ${cfg.text}`}
+                    className={`min-h-9 rounded-full px-3 py-2 text-xs font-semibold transition hover:opacity-80 sm:min-h-0 sm:px-2.5 sm:py-0.5 ${cfg.bg} ${cfg.text}`}
                   >
                     {cfg.label}
                   </button>
@@ -582,25 +581,25 @@ export function ClubTasksSection({
     <section className="space-y-6">
 
       {/* ── Page header ──────────────────────────────────────────────────── */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-emerald-50 p-8">
+      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-emerald-50 p-5 sm:p-8">
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Operations</p>
-          <h1 className="section-title mt-3 text-3xl md:text-4xl">Tasks</h1>
-          <p className="section-subtitle mt-4 max-w-2xl text-lg text-slate-700">
+          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Tasks</h1>
+          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
             {permissions.canCreate
               ? "Assign responsibilities, track progress, and keep club operations organized."
               : "View your assigned tasks and keep track of your responsibilities."}
           </p>
 
           {/* Stats row */}
-          <div className="mt-8 flex flex-wrap items-center gap-8">
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{total}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Total tasks</p>
             </div>
             {openCount > 0 && (
               <>
-                <div className="h-8 w-px bg-slate-200" />
+                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
                 <div>
                   <p className="text-2xl font-bold text-slate-900">{openCount}</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Open</p>
@@ -609,7 +608,7 @@ export function ClubTasksSection({
             )}
             {overdueCount > 0 && (
               <>
-                <div className="h-8 w-px bg-slate-200" />
+                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
                 <div>
                   <p className="text-2xl font-bold text-red-600">{overdueCount}</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-red-500">Overdue</p>
@@ -618,7 +617,7 @@ export function ClubTasksSection({
             )}
             {myTasks.length > 0 && (
               <>
-                <div className="h-8 w-px bg-slate-200" />
+                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
                 <div>
                   <p className="text-2xl font-bold text-emerald-700">{myTasks.length}</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-600">Mine</p>
@@ -628,11 +627,11 @@ export function ClubTasksSection({
           </div>
 
           {permissions.canCreate && (
-            <div className="mt-8">
+            <div className="mt-6 sm:mt-8">
               <button
                 type="button"
                 onClick={() => setShowCreateForm(true)}
-                className="btn-primary px-6 py-3 text-base font-semibold"
+                className="btn-primary w-full px-6 py-3 text-base font-semibold sm:w-auto"
               >
                 + Add Task
               </button>
@@ -710,13 +709,13 @@ export function ClubTasksSection({
         {/* Filters */}
         <div className="mt-4 space-y-3">
           {/* Status filter tabs */}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {filterTabs.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
                 onClick={() => setFilterStatus(tab.value)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                className={`min-h-10 rounded-lg px-3 py-2 text-xs font-semibold transition sm:min-h-0 sm:py-1.5 ${
                   filterStatus === tab.value
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -733,11 +732,11 @@ export function ClubTasksSection({
           </div>
 
           {/* Assignee + search row */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => setFilterAssigneeMe((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition sm:w-auto sm:min-h-0 sm:py-1.5 ${
                 filterAssigneeMe
                   ? "bg-emerald-700 text-white"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -758,7 +757,7 @@ export function ClubTasksSection({
                   setSearch("");
                   // We'll highlight overdue via the card, not a separate filter
                 }}
-                className="flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-200"
+                className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-red-100 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-200 sm:w-auto sm:min-h-0 sm:py-1.5"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -767,8 +766,8 @@ export function ClubTasksSection({
               </button>
             )}
 
-            <div className="relative ml-auto">
-              <svg className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="relative w-full sm:ml-auto sm:w-56 md:w-64">
+              <svg className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -776,7 +775,7 @@ export function ClubTasksSection({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search tasks…"
-                className="h-8 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-700 placeholder-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                className="min-h-10 w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 sm:h-8 sm:min-h-0 sm:py-0 sm:text-xs"
               />
             </div>
           </div>

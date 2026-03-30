@@ -1,18 +1,25 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
-import {
-  createEventAction,
-  saveEventReflectionAction,
-} from "@/app/(app)/clubs/actions";
-import { AttendanceChecklist } from "@/components/ui/attendance-checklist";
-import { EventRsvpControls } from "@/components/ui/event-rsvp-controls";
+import { createEventAction } from "@/app/(app)/clubs/actions";
+import { ClubEventCardFull } from "@/components/ui/club-event-card-full";
+import { ClubEventPastFoldable } from "@/components/ui/club-event-past-foldable";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events";
+import {
+  eventNeedsOfficerReview,
+  getEventReviewFlags,
+  partitionEventsByLifecycle,
+  RECENTLY_HAPPENED_DAYS,
+} from "@/lib/clubs/event-lifecycle";
 import type { ClubDetail } from "@/lib/clubs/queries";
 
-type ClubEventsPermissions = {
+export type ClubEventsPermissions = {
   canCreateEvents: boolean;
   canMarkAttendance: boolean;
   canManageReflections: boolean;
+  /** RSVP/attendance aggregates on past events (operational roles). */
+  canViewAggregatedStats: boolean;
+  canViewInsights?: boolean;
 };
 
 type ClubEventsSectionProps = {
@@ -34,20 +41,102 @@ type ClubEventsSectionProps = {
     attendanceUserId?: string;
     attendancePresent?: string;
   };
+  /** `needs-review` limits lists to items with open follow-ups (officers). */
+  listFilter?: "all" | "needs-review";
 };
 
-export function ClubEventsSection({ club, query, permissions }: ClubEventsSectionProps) {
-  // RBAC-based permission checks. Fall back to legacy role for backward compatibility
-  // if the permissions prop is not yet wired (e.g. embedded in another page).
+export function ClubEventsSection({ club, query, permissions, listFilter = "all" }: ClubEventsSectionProps) {
   const legacyIsOfficer = club.currentUserRole === "officer";
   const canCreateEvents = permissions?.canCreateEvents ?? legacyIsOfficer;
   const canMarkAttendance = permissions?.canMarkAttendance ?? legacyIsOfficer;
   const canManageReflections = permissions?.canManageReflections ?? legacyIsOfficer;
+  const canViewAggregatedStats =
+    permissions?.canViewAggregatedStats ??
+    (canMarkAttendance || canManageReflections || canCreateEvents);
+  const canViewInsights = permissions?.canViewInsights ?? false;
 
   const memberCount = club.memberCount;
   const duplicateEvent = canCreateEvents && query.duplicateEventId
     ? club.events.find((event) => event.id === query.duplicateEventId) ?? null
     : null;
+
+  const now = new Date();
+  const { upcoming, recentlyHappened, past } = partitionEventsByLifecycle(club.events, now);
+
+  const showReviewCues = canViewAggregatedStats && (canMarkAttendance || canManageReflections);
+
+  const cardQuery = {
+    reflectionError: query.reflectionError,
+    reflectionSuccess: query.reflectionSuccess,
+    reflectionEventId: query.reflectionEventId,
+    rsvpSuccess: query.rsvpSuccess,
+    rsvpEventId: query.rsvpEventId,
+    attendanceSuccess: query.attendanceSuccess,
+    attendanceEventId: query.attendanceEventId,
+    attendanceUserId: query.attendanceUserId,
+    attendancePresent: query.attendancePresent,
+  };
+
+  const cardPropsBase = {
+    club,
+    query: cardQuery,
+    memberCount,
+    now,
+    canCreateEvents,
+    canMarkAttendance,
+    canManageReflections,
+    canViewAggregatedStats,
+  };
+
+  const filterNeedsReview = listFilter === "needs-review" && showReviewCues;
+
+  const passesNeedsReview = (event: (typeof club.events)[number]) => {
+    if (!filterNeedsReview) return true;
+    const flags = getEventReviewFlags(event, now, {
+      canMarkAttendance,
+      canManageReflections,
+      memberCount,
+    });
+    return eventNeedsOfficerReview(flags);
+  };
+
+  const upcomingFiltered = upcoming.filter(passesNeedsReview);
+  const recentFiltered = recentlyHappened.filter(passesNeedsReview);
+  const pastFiltered = past.filter(passesNeedsReview);
+
+  const recentReviewStats = recentlyHappened.reduce(
+    (acc, event) => {
+      const flags = getEventReviewFlags(event, now, {
+        canMarkAttendance,
+        canManageReflections,
+        memberCount,
+      });
+      if (flags.needsAttendanceFollowUp) acc.attendance += 1;
+      if (flags.needsReflectionFollowUp) acc.reflection += 1;
+      if (flags.hasLowRsvpTurnout) acc.lowRsvp += 1;
+      return acc;
+    },
+    { attendance: 0, reflection: 0, lowRsvp: 0 },
+  );
+  const recentNeedingReview = recentlyHappened.filter((event) =>
+    eventNeedsOfficerReview(
+      getEventReviewFlags(event, now, {
+        canMarkAttendance,
+        canManageReflections,
+        memberCount,
+      }),
+    ),
+  ).length;
+
+  const sectionShell = (id: string, title: string, subtitle: string, children: ReactNode) => (
+    <section id={id} className="scroll-mt-24 space-y-4">
+      <div className="flex flex-col gap-1 border-b border-slate-200 pb-3">
+        <h2 className="text-lg font-bold tracking-tight text-slate-900 md:text-xl">{title}</h2>
+        <p className="text-sm text-slate-600">{subtitle}</p>
+      </div>
+      {children}
+    </section>
+  );
 
   return (
     <div id="events">
@@ -58,8 +147,18 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
       {query.attendanceSuccess ? <p className="alert-success mt-3">{query.attendanceSuccess}</p> : null}
       {query.attendanceError ? <p className="alert-error mt-3">{query.attendanceError}</p> : null}
 
+      {filterNeedsReview ? (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">Filtered: needs follow-up</p>
+          <p className="mt-1 text-amber-900/90">Showing events that still need attendance, reflection, or had low RSVP uptake.</p>
+          <Link href={`/clubs/${club.id}/events`} className="mt-2 inline-block text-sm font-semibold text-amber-900 underline">
+            Clear filter
+          </Link>
+        </div>
+      ) : null}
+
       {canCreateEvents ? (
-        <form id="create-event" action={createEventAction} className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+        <form id="create-event" action={createEventAction} className="mt-4 space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
           <input type="hidden" name="club_id" value={club.id} />
           {duplicateEvent ? <input type="hidden" name="duplicate_event_id" value={duplicateEvent.id} /> : null}
           <div>
@@ -79,7 +178,10 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
                   <p className="text-sm font-semibold text-slate-900">Duplicating: {duplicateEvent.title}</p>
                   <p className="mt-1 text-sm text-slate-600">This draft starts from the selected event, but the new event date must be chosen again.</p>
                 </div>
-                <Link href={`/clubs/${club.id}/events`} className="btn-secondary whitespace-nowrap text-xs">
+                <Link
+                  href={`/clubs/${club.id}/events`}
+                  className="btn-secondary flex min-h-11 w-full items-center justify-center whitespace-nowrap text-xs sm:min-h-0 sm:w-auto"
+                >
                   Clear draft
                 </Link>
               </div>
@@ -95,7 +197,7 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
               type="text"
               required
               defaultValue={duplicateEvent?.title ?? ""}
-              className="input-control"
+              className="input-control min-h-11 sm:min-h-0"
               placeholder="Event title"
             />
           </div>
@@ -108,7 +210,7 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
               name="event_type"
               required
               defaultValue={duplicateEvent?.eventType ?? "Meeting"}
-              className="input-control"
+              className="input-control min-h-11 sm:min-h-0"
             >
               {EVENT_TYPE_OPTIONS.map((eventType) => (
                 <option key={eventType} value={eventType}>
@@ -127,7 +229,7 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
               rows={3}
               required
               defaultValue={duplicateEvent?.description ?? ""}
-              className="textarea-control"
+              className="textarea-control min-h-[5.5rem] text-base sm:text-sm"
               placeholder="Describe the event..."
             />
           </div>
@@ -142,7 +244,7 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
                 type="text"
                 required
                 defaultValue={duplicateEvent?.location ?? ""}
-                className="input-control"
+                className="input-control min-h-11 sm:min-h-0"
                 placeholder="Room 204"
               />
             </div>
@@ -154,7 +256,7 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
               {duplicateEvent ? <p className="mt-1 text-xs text-slate-500">Choose a fresh date and time for the duplicated event.</p> : null}
             </div>
           </div>
-          <button type="submit" className="btn-primary">
+          <button type="submit" className="btn-primary min-h-11 w-full sm:min-h-0 sm:w-auto">
             {duplicateEvent ? "Create duplicated event" : "Create event"}
           </button>
         </form>
@@ -165,239 +267,143 @@ export function ClubEventsSection({ club, query, permissions }: ClubEventsSectio
           <p className="font-semibold text-slate-900">Schedule your first meeting</p>
           <p className="mt-1 text-sm text-slate-600">Create an event so members know when you&#39;re meeting and can RSVP.</p>
           {canCreateEvents && (
-            <ScrollToInputButton
-              inputSelector='input[id="event_title"]'
-              className="btn-secondary mt-3"
-            >
+            <ScrollToInputButton inputSelector='input[id="event_title"]' className="btn-secondary mt-3">
               Create First Event
             </ScrollToInputButton>
           )}
         </div>
       ) : (
-        <div className="list-stack mt-4">
-          {club.events.map((event) => {
-            const now = new Date();
-            const timeDiff = event.eventDateRaw.getTime() - now.getTime();
-            const hoursDiff = timeDiff / (1000 * 60 * 60);
-            const isComingSoon = hoursDiff > 0 && hoursDiff <= 48;
-            const isToday = event.eventDateRaw.toDateString() === now.toDateString();
-            const isPast = event.eventDateRaw.getTime() < now.getTime();
-            const totalResponses = event.rsvpCounts.yes + event.rsvpCounts.no + event.rsvpCounts.maybe;
-            const responsePercent = memberCount > 0 ? Math.min(100, Math.round((totalResponses / memberCount) * 100)) : 0;
-            const goingPercent = memberCount > 0 ? Math.min(100, Math.round((event.rsvpCounts.yes / memberCount) * 100)) : 0;
-            const goingLabel = event.rsvpCounts.yes === 1 ? "person going" : "people going";
-            const responseLabel = totalResponses === 1 ? "response" : "responses";
-            const eventRsvpSaved = query.rsvpSuccess && query.rsvpEventId === event.id;
-            const eventAttendanceSaved = query.attendanceSuccess && query.attendanceEventId === event.id;
-            const eventReflectionSaved = query.reflectionSuccess && query.reflectionEventId === event.id;
-            const eventReflectionError = query.reflectionError && query.reflectionEventId === event.id;
-            const responseYesWidth = totalResponses > 0 ? `${(event.rsvpCounts.yes / totalResponses) * 100}%` : "0%";
-            const responseMaybeWidth = totalResponses > 0 ? `${(event.rsvpCounts.maybe / totalResponses) * 100}%` : "0%";
-            const responseNoWidth = totalResponses > 0 ? `${(event.rsvpCounts.no / totalResponses) * 100}%` : "0%";
+        <div className="list-stack mt-8 space-y-12">
+          {showReviewCues && recentNeedingReview > 0 && !filterNeedsReview ? (
+            <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50/60 p-5 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wider text-amber-900">Recently happened — follow-up</p>
+                  <p className="mt-1 text-sm text-amber-950/90">
+                    {recentNeedingReview} event{recentNeedingReview === 1 ? "" : "s"} in the last {RECENTLY_HAPPENED_DAYS} days may need your attention.
+                  </p>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-amber-900/85">
+                    {recentReviewStats.attendance > 0 ? <li>{recentReviewStats.attendance} without attendance recorded</li> : null}
+                    {recentReviewStats.reflection > 0 ? <li>{recentReviewStats.reflection} without a reflection</li> : null}
+                    {recentReviewStats.lowRsvp > 0 ? <li>{recentReviewStats.lowRsvp} with low RSVP turnout</li> : null}
+                  </ul>
+                </div>
+                <Link
+                  href={`/clubs/${club.id}/events?filter=needs-review#recent`}
+                  className="btn-secondary flex min-h-11 w-full shrink-0 items-center justify-center border-amber-300 bg-white text-amber-950 hover:bg-amber-50 sm:min-h-0 sm:w-auto"
+                >
+                  View needs review
+                </Link>
+              </div>
+            </div>
+          ) : null}
 
-            return (
-              <article key={event.id} className="event-card">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="max-w-2xl space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="event-type-pill">{event.eventType}</span>
-                      <span className="badge-soft">{isPast ? "Completed" : isToday ? "Today" : "Upcoming"}</span>
-                      {isComingSoon && (
-                        <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800">
-                          Coming Soon
-                        </span>
-                      )}
-                      {eventRsvpSaved ? <span className="feedback-pill feedback-pill-success">RSVP saved</span> : null}
-                      {eventAttendanceSaved ? <span className="feedback-pill feedback-pill-success">Attendance updated</span> : null}
-                      {eventReflectionSaved ? <span className="feedback-pill feedback-pill-success">Reflection saved</span> : null}
+          {sectionShell(
+            "upcoming",
+            "Upcoming",
+            "Events scheduled in the future — RSVP and prepare ahead of time.",
+            upcomingFiltered.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600">
+                No upcoming events. {canCreateEvents ? "Schedule the next club touchpoint above." : "Check back when officers add the next date."}
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {upcomingFiltered.map((event) => (
+                  <ClubEventCardFull key={event.id} {...cardPropsBase} event={event} />
+                ))}
+              </div>
+            ),
+          )}
+
+          {sectionShell(
+            "recent",
+            "Recently happened",
+            `Ended in the last ${RECENTLY_HAPPENED_DAYS} days — finish attendance, reflections, and quick review while it is fresh.`,
+            recentFiltered.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600">
+                {filterNeedsReview
+                  ? "No recent events match this filter."
+                  : "No events in the recent window. Past events move here right after they end."}
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {recentFiltered.map((event) => {
+                  const flags = getEventReviewFlags(event, now, {
+                    canMarkAttendance,
+                    canManageReflections,
+                    memberCount,
+                  });
+                  return (
+                    <div key={event.id} className="space-y-2">
+                      {showReviewCues && eventNeedsOfficerReview(flags) ? (
+                        <div className="flex flex-wrap gap-2 rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2 text-xs font-medium text-amber-950">
+                          {flags.needsAttendanceFollowUp ? (
+                            <span className="rounded-full bg-white px-2 py-0.5 ring-1 ring-amber-200">Attendance not recorded</span>
+                          ) : null}
+                          {flags.needsReflectionFollowUp ? (
+                            <span className="rounded-full bg-white px-2 py-0.5 ring-1 ring-amber-200">No reflection yet</span>
+                          ) : null}
+                          {flags.hasLowRsvpTurnout ? (
+                            <span className="rounded-full bg-white px-2 py-0.5 ring-1 ring-amber-200">Low RSVP turnout</span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <ClubEventCardFull {...cardPropsBase} event={event} />
                     </div>
-                    <div>
-                      <h4 className="text-xl font-semibold tracking-tight text-slate-950">{event.title}</h4>
-                      <p className="mt-1 text-base font-medium text-slate-700">{event.eventDate}</p>
-                    </div>
-                    <p className="text-sm leading-6 text-slate-600">{event.description}</p>
-                    <div className="event-meta-grid">
-                      <div className="event-meta-item">
-                        <span className="event-meta-label">Location</span>
-                        <span className="event-meta-value">{event.location}</span>
-                      </div>
-                      <div className="event-meta-item">
-                        <span className="event-meta-label">Response rate</span>
-                        <span className="event-meta-value">
-                          {memberCount > 0 ? `${responsePercent}% of members` : "No members yet"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="event-status-panel">
-                    <span className={event.userRsvpStatus ? "badge-strong" : "badge-soft"}>
-                      {event.userRsvpStatus ? `RSVP ${event.userRsvpStatus}` : "Awaiting RSVP"}
-                    </span>
-                    {canCreateEvents ? (
-                      <Link href={`/clubs/${club.id}/events?duplicateEventId=${event.id}#create-event`} className="btn-secondary text-xs">
-                        Duplicate
-                      </Link>
+                  );
+                })}
+              </div>
+            ),
+          )}
+
+          {sectionShell(
+            "history",
+            "Past events",
+            "Older completed events — expand a row for full detail, RSVP context, and officer tools.",
+            pastFiltered.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600">
+                {filterNeedsReview ? "No older past events match this filter." : "No older events in this club yet."}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pastFiltered.slice(0, 25).map((event) => (
+                  <ClubEventPastFoldable key={event.id} {...cardPropsBase} event={event} />
+                ))}
+                {pastFiltered.length > 25 ? (
+                  <p className="text-center text-sm text-slate-600">
+                    Showing 25 of {pastFiltered.length} past events.{" "}
+                    <Link href={`/clubs/${club.id}/events/history`} className="font-semibold text-blue-700 underline">
+                      Open full event history
+                    </Link>
+                    {canViewInsights ? (
+                      <>
+                        {" "}
+                        ·{" "}
+                        <Link href={`/clubs/${club.id}/insights`} className="font-semibold text-blue-700 underline">
+                          Club insights
+                        </Link>
+                      </>
                     ) : null}
-                    <p className="text-right text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-                      {totalResponses} {responseLabel}
-                    </p>
-                  </div>
-                </div>
-                <div className="event-metrics-grid">
-                  <div className="event-metric-card">
-                    <p className="event-metric-label">Going</p>
-                    <p className="event-metric-value">{event.rsvpCounts.yes} {goingLabel}</p>
-                    <p className="event-metric-copy">
-                      {memberCount > 0 ? `${goingPercent}% of the club so far` : "Waiting for members"}
-                    </p>
-                  </div>
-                  <div className="event-metric-card">
-                    <p className="event-metric-label">Engagement</p>
-                    <p className="event-metric-value">
-                      {event.rsvpCounts.yes + event.rsvpCounts.maybe >= 5
-                        ? "Strong"
-                        : event.rsvpCounts.yes + event.rsvpCounts.maybe >= 2
-                          ? "Building"
-                          : "Early"}
-                    </p>
-                    <p className="event-metric-copy">Based on yes + maybe responses</p>
-                  </div>
-                  <div className="event-metric-card">
-                    <p className="event-metric-label">Attendance</p>
-                    <p className="event-metric-value">{event.attendanceCount} present</p>
-                    <p className="event-metric-copy">Checked in during the event</p>
-                  </div>
-                </div>
-                <div className="event-progress-panel">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Participation</p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {memberCount > 0
-                          ? `${totalResponses} of ${memberCount} ${memberCount === 1 ? "member" : "members"} responded`
-                          : "Waiting for members to join this club."}
-                      </p>
-                    </div>
-                    <span className="badge-soft">
-                      {event.rsvpCounts.yes} yes · {event.rsvpCounts.maybe} maybe · {event.rsvpCounts.no} no
-                    </span>
-                  </div>
-                  <div className="event-progress-bar mt-4" aria-hidden="true">
-                    <div className="event-progress-segment event-progress-yes" style={{ width: responseYesWidth }} />
-                    <div className="event-progress-segment event-progress-maybe" style={{ width: responseMaybeWidth }} />
-                    <div className="event-progress-segment event-progress-no" style={{ width: responseNoWidth }} />
-                  </div>
-                  <div className="mt-3 grid gap-2 text-xs font-medium text-slate-600 sm:grid-cols-3">
-                    <span>Yes responses are highlighted in green.</span>
-                    <span>Maybe responses are highlighted in amber.</span>
-                    <span>No responses are highlighted in rose.</span>
-                  </div>
-                </div>
-                <EventRsvpControls
-                  clubId={club.id}
-                  eventId={event.id}
-                  selectedStatus={event.userRsvpStatus}
-                  recentlySaved={Boolean(eventRsvpSaved)}
-                />
-                {isPast && canManageReflections ? (
-                  <div className="event-action-panel">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">Officer Reflection</p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          Capture what happened so future events are easier to improve.
-                        </p>
-                      </div>
-                      {event.reflection ? <span className="badge-soft">Updated {event.reflection.updatedAt}</span> : null}
-                    </div>
-                    {eventReflectionError ? <p className="alert-error mt-4">{query.reflectionError}</p> : null}
-                    {!event.reflection ? (
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-                        <p className="text-sm font-semibold text-slate-900">Add a quick post-event note</p>
-                        <p className="mt-1 text-sm text-slate-600">No reflection has been saved for this event yet.</p>
-                      </div>
-                    ) : (
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
-                          <p className="stat-label text-emerald-700">What worked</p>
-                          <p className="mt-2 text-sm leading-6 text-slate-700">{event.reflection.whatWorked}</p>
-                        </div>
-                        <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4">
-                          <p className="stat-label text-rose-700">What didn&#39;t</p>
-                          <p className="mt-2 text-sm leading-6 text-slate-700">{event.reflection.whatDidnt}</p>
-                        </div>
-                        {event.reflection.notes ? (
-                          <div className="rounded-xl border border-slate-200 bg-white p-4 md:col-span-2">
-                            <p className="stat-label">Notes</p>
-                            <p className="mt-2 text-sm leading-6 text-slate-700">{event.reflection.notes}</p>
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-                    <form action={saveEventReflectionAction} className="mt-4 space-y-3">
-                      <input type="hidden" name="club_id" value={club.id} />
-                      <input type="hidden" name="event_id" value={event.id} />
-                      <div>
-                        <label htmlFor={`reflection_worked_${event.id}`} className="mb-1.5 block text-sm font-medium text-slate-700">
-                          What worked
-                        </label>
-                        <textarea
-                          id={`reflection_worked_${event.id}`}
-                          name="what_worked"
-                          rows={3}
-                          required
-                          defaultValue={event.reflection?.whatWorked ?? ""}
-                          className="textarea-control"
-                          placeholder="What went well at this event?"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor={`reflection_didnt_${event.id}`} className="mb-1.5 block text-sm font-medium text-slate-700">
-                          What didn&#39;t
-                        </label>
-                        <textarea
-                          id={`reflection_didnt_${event.id}`}
-                          name="what_didnt"
-                          rows={3}
-                          required
-                          defaultValue={event.reflection?.whatDidnt ?? ""}
-                          className="textarea-control"
-                          placeholder="What should be improved next time?"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor={`reflection_notes_${event.id}`} className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Notes
-                        </label>
-                        <textarea
-                          id={`reflection_notes_${event.id}`}
-                          name="notes"
-                          rows={3}
-                          defaultValue={event.reflection?.notes ?? ""}
-                          className="textarea-control"
-                          placeholder="Optional details, ideas, or follow-ups."
-                        />
-                      </div>
-                      <button type="submit" className="btn-primary">
-                        {event.reflection ? "Update reflection" : "Save reflection"}
-                      </button>
-                    </form>
-                  </div>
-                ) : null}
-                {canMarkAttendance ? (
-                  <AttendanceChecklist
-                    clubId={club.id}
-                    eventId={event.id}
-                    members={club.members}
-                    presentMemberIds={event.presentMemberIds}
-                    currentUserId={club.currentUserId}
-                    recentlySavedUserId={query.attendanceEventId === event.id ? query.attendanceUserId : undefined}
-                    recentlySavedPresent={query.attendanceEventId === event.id ? query.attendancePresent === "true" : undefined}
-                  />
-                ) : null}
-              </article>
-            );
-          })}
+                  </p>
+                ) : (
+                  <p className="text-center text-sm text-slate-500">
+                    <Link href={`/clubs/${club.id}/events/history`} className="font-semibold text-blue-700 underline">
+                      Full event history
+                    </Link>
+                    {canViewInsights ? (
+                      <>
+                        {" "}
+                        ·{" "}
+                        <Link href={`/clubs/${club.id}/insights`} className="font-semibold text-blue-700 underline">
+                          Club insights
+                        </Link>
+                      </>
+                    ) : null}
+                  </p>
+                )}
+              </div>
+            ),
+          )}
         </div>
       )}
     </div>

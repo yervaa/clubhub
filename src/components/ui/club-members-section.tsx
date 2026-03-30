@@ -43,17 +43,17 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
     <section className="space-y-6">
 
       {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-indigo-50 p-8">
+      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-indigo-50 p-5 sm:p-8">
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">People</p>
-          <h1 className="section-title mt-3 text-3xl md:text-4xl">Members</h1>
-          <p className="section-subtitle mt-4 max-w-2xl text-lg text-slate-700">
+          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Members</h1>
+          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
             {hasAnyManagementPermission
               ? "Manage who is in this club, review attendance history, and invite new members."
               : "See who is part of this club and how everyone is doing."}
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-8">
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{memberCount}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
@@ -61,7 +61,7 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
               </p>
             </div>
 
-            <div className="h-8 w-px bg-slate-200" />
+            <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
 
             <div>
               <p className="text-2xl font-bold text-slate-900">{officerCount}</p>
@@ -72,8 +72,8 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
 
             {club.totalTrackedEvents > 0 && (
               <>
-                <div className="h-8 w-px bg-slate-200" />
-                <div>
+                <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
+                <div className="col-span-2 sm:col-span-1">
                   <p className="text-2xl font-bold text-slate-900">{club.clubAverageAttendance}%</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Avg. Attendance</p>
                 </div>
@@ -82,8 +82,11 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
           </div>
 
           {canInviteMembers && (
-            <div className="mt-8">
-              <a href="#invite-members" className="btn-primary px-6 py-3 text-base font-semibold">
+            <div className="mt-6 sm:mt-8">
+              <a
+                href="#invite-members"
+                className="btn-primary block w-full px-6 py-3 text-center text-base font-semibold sm:inline-block sm:w-auto"
+              >
                 Invite Members
               </a>
             </div>

@@ -1,4 +1,5 @@
 import type { ClubDetail } from "@/lib/clubs/queries";
+import { DisclosurePanel } from "@/components/ui/disclosure-panel";
 import { getMemberDisplayName, getMemberInitials } from "@/lib/member-display";
 import { computeClubInsights } from "@/lib/clubs/insights";
 import type { TrendDirection, EngagementTier } from "@/lib/clubs/insights";
@@ -63,15 +64,15 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
     <section className="space-y-6">
 
       {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-emerald-50 p-8">
+      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-emerald-50 p-5 sm:p-8">
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Analysis</p>
-          <h1 className="section-title mt-3 text-3xl md:text-4xl">Insights</h1>
-          <p className="section-subtitle mt-4 max-w-2xl text-lg text-slate-700">
+          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Insights</h1>
+          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
             Understand attendance patterns, member engagement, and which events work best for your club.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-8">
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{club.totalTrackedEvents}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
@@ -81,14 +82,14 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
 
             {hasData && (
               <>
-                <div className="h-8 w-px bg-slate-200" />
+                <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
                 <div>
                   <p className="text-2xl font-bold text-slate-900">{club.clubAverageAttendance}%</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Avg. attendance</p>
                 </div>
 
-                <div className="h-8 w-px bg-slate-200" />
-                <div>
+                <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
+                <div className="col-span-2 sm:col-span-1">
                   <p className="text-2xl font-bold text-slate-900">{highlyEngaged}</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
                     {highlyEngaged === 1 ? "High-engagement member" : "High-engagement members"}
@@ -146,50 +147,57 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
             </div>
           )}
 
-          {/* Attendance trend */}
           <div className="card-surface p-6">
-            <div className="section-card-header">
+            <DisclosurePanel
+              title="Detailed charts & breakdowns"
+              subtitle="Per-event attendance bars, effectiveness by event type, engagement tiers, and most active members."
+              badge={
+                <span className={trendBadgeClass(insights.trendDirection)}>
+                  {trendLabel(insights.trendDirection, insights.trendDelta)}
+                </span>
+              }
+            >
+              {/* Attendance trend */}
               <div>
-                <p className="section-kicker">Trend</p>
-                <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Attendance Over Time</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Each bar represents one tracked event. Based on current membership count.
-                </p>
-              </div>
-              <span className={trendBadgeClass(insights.trendDirection)}>
-                {trendLabel(insights.trendDirection, insights.trendDelta)}
-              </span>
-            </div>
-
-            {insights.trendPoints.length === 0 ? (
-              <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
-                <p className="text-sm text-slate-500">No tracked past events yet.</p>
-              </div>
-            ) : insights.trendPoints.length < 3 ? (
-              <>
-                <div className="mt-5 space-y-3">
-                  {insights.trendPoints.map((point) => (
-                    <TrendBar key={point.eventId} point={point} />
-                  ))}
+                <div className="mb-4 flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div>
+                    <p className="section-kicker">Trend</p>
+                    <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Attendance over time</h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Each bar is one tracked event (vs current membership).
+                    </p>
+                  </div>
                 </div>
-                <p className="mt-4 text-xs text-slate-400">
-                  Track at least 3 events to see a trend direction.
-                </p>
-              </>
-            ) : (
-              <div className="mt-5 space-y-3">
-                {insights.trendPoints.map((point) => (
-                  <TrendBar key={point.eventId} point={point} />
-                ))}
-              </div>
-            )}
-          </div>
 
-          {/* Event type + Engagement — side by side on large screens */}
-          <div className="grid gap-6 lg:grid-cols-2">
+                {insights.trendPoints.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
+                    <p className="text-sm text-slate-500">No tracked past events yet.</p>
+                  </div>
+                ) : insights.trendPoints.length < 3 ? (
+                  <>
+                    <div className="space-y-3">
+                      {insights.trendPoints.map((point) => (
+                        <TrendBar key={point.eventId} point={point} />
+                      ))}
+                    </div>
+                    <p className="mt-4 text-xs text-slate-400">
+                      Track at least 3 events to see a trend direction.
+                    </p>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    {insights.trendPoints.map((point) => (
+                      <TrendBar key={point.eventId} point={point} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Event type + Engagement — side by side on large screens */}
+              <div className="mt-8 grid gap-6 lg:grid-cols-2">
 
             {/* Event type effectiveness */}
-            <div className="card-surface p-6">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-5">
               <div className="section-card-header">
                 <div>
                   <p className="section-kicker">By Type</p>
@@ -241,7 +249,7 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
             </div>
 
             {/* Engagement segmentation */}
-            <div className="card-surface p-6">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-5">
               <div className="section-card-header">
                 <div>
                   <p className="section-kicker">Engagement</p>
@@ -288,66 +296,68 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
 
           </div>
 
-          {/* Top members */}
-          <div className="card-surface p-6">
-            <div className="section-card-header">
-              <div>
-                <p className="section-kicker">People</p>
-                <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Most Active Members</h2>
-                <p className="mt-1 text-sm text-slate-600">Top 3 members by attendance rate.</p>
-              </div>
-              <span className="badge-soft">{club.topMembers.length} shown</span>
-            </div>
+              {/* Top members */}
+              <div className="mt-8 border-t border-slate-100 pt-6">
+                <div className="section-card-header">
+                  <div>
+                    <p className="section-kicker">People</p>
+                    <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Most active members</h2>
+                    <p className="mt-1 text-sm text-slate-600">Top 3 members by attendance rate.</p>
+                  </div>
+                  <span className="badge-soft">{club.topMembers.length} shown</span>
+                </div>
 
-            {club.topMembers.length === 0 ? (
-              <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-5 text-center">
-                <p className="text-sm text-slate-500">No attendance data to rank members yet.</p>
-              </div>
-            ) : (
-              <ul className="mt-5 space-y-3">
-                {club.topMembers.map((member, index) => {
-                  const isCurrentUser = member.userId === club.currentUserId;
-                  const isOfficer = member.role === "officer";
-                  return (
-                    <li key={member.userId} className="surface-subcard p-4">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                          {index + 1}
-                        </span>
-                        <div className={`member-avatar ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""}`}>
-                          {getMemberInitials(member)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-slate-900">
-                              {getMemberDisplayName(member)}
-                            </p>
-                            <span className={`member-role-pill ${isOfficer ? "is-officer" : "is-member"}`}>
-                              {member.role}
+                {club.topMembers.length === 0 ? (
+                  <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-5 text-center">
+                    <p className="text-sm text-slate-500">No attendance data to rank members yet.</p>
+                  </div>
+                ) : (
+                  <ul className="mt-5 space-y-3">
+                    {club.topMembers.map((member, index) => {
+                      const isCurrentUser = member.userId === club.currentUserId;
+                      const isOfficer = member.role === "officer";
+                      return (
+                        <li key={member.userId} className="surface-subcard p-4">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                              {index + 1}
                             </span>
-                            {isCurrentUser ? <span className="member-you-pill">You</span> : null}
-                          </div>
-                          <div className="mt-2">
-                            <div className="mb-1 flex items-center justify-between gap-2">
-                              <span className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-400">Attendance</span>
-                              <span className="text-xs font-semibold text-slate-600">
-                                {member.attendanceCount}/{member.totalTrackedEvents} · {member.attendanceRate}%
-                              </span>
+                            <div className={`member-avatar ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""}`}>
+                              {getMemberInitials(member)}
                             </div>
-                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                              <div
-                                className={`h-full rounded-full transition-[width] duration-500 ${rateBarColor(member.attendanceRate)}`}
-                                style={{ width: `${member.attendanceRate}%` }}
-                              />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate text-sm font-semibold text-slate-900">
+                                  {getMemberDisplayName(member)}
+                                </p>
+                                <span className={`member-role-pill ${isOfficer ? "is-officer" : "is-member"}`}>
+                                  {member.role}
+                                </span>
+                                {isCurrentUser ? <span className="member-you-pill">You</span> : null}
+                              </div>
+                              <div className="mt-2">
+                                <div className="mb-1 flex items-center justify-between gap-2">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-400">Attendance</span>
+                                  <span className="text-xs font-semibold text-slate-600">
+                                    {member.attendanceCount}/{member.totalTrackedEvents} · {member.attendanceRate}%
+                                  </span>
+                                </div>
+                                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                                  <div
+                                    className={`h-full rounded-full transition-[width] duration-500 ${rateBarColor(member.attendanceRate)}`}
+                                    style={{ width: `${member.attendanceRate}%` }}
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </DisclosurePanel>
           </div>
 
         </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import type { ClubRole } from "@/lib/rbac/role-actions";
 import type { PermissionKey } from "@/lib/rbac/permissions";
 import {
@@ -55,46 +55,32 @@ export function RolePermissionEditor({
   const [assignSearch, setAssignSearch] = useState("");
   const [, startAssignTransition] = useTransition();
 
-  // Track initial values to detect changes.
-  const initialName = useRef(role.name);
-  const initialDesc = useRef(role.description);
-  const initialPerms = useRef(new Set(role.permissions));
-
-  // Re-sync local state when the role prop changes (key-based remount handles this,
-  // but explicit reset gives us an extra safety net).
-  useEffect(() => {
-    setLocalName(role.name);
-    setLocalDesc(role.description);
-    setLocalPerms(new Set(role.permissions));
-    initialName.current = role.name;
-    initialDesc.current = role.description;
-    initialPerms.current = new Set(role.permissions);
-  }, [role]);
-
   const permSetsEqual = (a: Set<PermissionKey>, b: Set<PermissionKey>) => {
     if (a.size !== b.size) return false;
     for (const k of a) if (!b.has(k)) return false;
     return true;
   };
 
+  const serverPerms = new Set(role.permissions);
   const hasChanges =
     canEdit &&
-    (localName.trim() !== initialName.current ||
-      localDesc.trim() !== initialDesc.current ||
-      !permSetsEqual(localPerms, initialPerms.current));
+    (localName.trim() !== role.name.trim() ||
+      localDesc.trim() !== role.description.trim() ||
+      !permSetsEqual(localPerms, serverPerms));
 
   function togglePermission(key: PermissionKey) {
     setLocalPerms((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
   function handleDiscard() {
-    setLocalName(initialName.current);
-    setLocalDesc(initialDesc.current);
-    setLocalPerms(new Set(initialPerms.current));
+    setLocalName(role.name);
+    setLocalDesc(role.description);
+    setLocalPerms(new Set(role.permissions));
   }
 
   function handleDelete(e: React.FormEvent<HTMLFormElement>) {
@@ -115,9 +101,9 @@ export function RolePermissionEditor({
     <div className="card-surface flex flex-col">
 
       {/* ── Role header ─────────────────────────────────────────────────────── */}
-      <div className="border-b border-slate-100 p-6 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <div className="border-b border-slate-100 p-4 sm:p-6 md:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
             <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${roleBadgeColor} border`}>
               {role.name.slice(0, 1).toUpperCase()}
             </span>
@@ -170,12 +156,12 @@ export function RolePermissionEditor({
 
           {/* Delete custom role */}
           {isPresident && !isSystemRole && (
-            <form action={deleteRoleAction} onSubmit={handleDelete}>
+            <form action={deleteRoleAction} onSubmit={handleDelete} className="w-full sm:w-auto">
               <input type="hidden" name="club_id" value={clubId} />
               <input type="hidden" name="role_id" value={role.id} />
               <button
                 type="submit"
-                className="btn-danger flex items-center gap-1.5 px-3 py-2 text-sm"
+                className="btn-danger flex w-full min-h-11 items-center justify-center gap-1.5 px-3 py-2 text-sm sm:min-h-0 sm:w-auto"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -189,7 +175,7 @@ export function RolePermissionEditor({
 
       {/* ── President notice ─────────────────────────────────────────────────── */}
       {isSystemPresident && (
-        <div className="mx-6 mt-6 flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800 md:mx-8">
+        <div className="mx-4 mt-4 flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800 sm:mx-6 md:mx-8 md:mt-6">
           <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -204,7 +190,7 @@ export function RolePermissionEditor({
 
       {/* ── System role notice (non-President) ──────────────────────────────── */}
       {isSystemRole && !isSystemPresident && isPresident && (
-        <div className="mx-6 mt-6 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 md:mx-8">
+        <div className="mx-4 mt-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 sm:mx-6 md:mx-8 md:mt-6">
           <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -229,7 +215,7 @@ export function RolePermissionEditor({
         <input type="hidden" name="name" value={localName} />
         <input type="hidden" name="description" value={localDesc} />
 
-        <div className="flex-1 divide-y divide-slate-100 overflow-hidden px-6 pt-4 md:px-8">
+        <div className="flex-1 divide-y divide-slate-100 overflow-hidden px-4 pt-3 sm:px-6 sm:pt-4 md:px-8">
           {PERMISSION_CATEGORIES.map((category) => {
             const keys = getPermissionsByCategory(category).filter((k) =>
               allPermissionKeys.includes(k),
@@ -242,12 +228,12 @@ export function RolePermissionEditor({
             return (
               <div key={category} className="py-4 first:pt-0 last:pb-0">
                 {/* Category header with select-all */}
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="section-kicker text-slate-500">{category}</p>
                   {canEdit && (
                     <button
                       type="button"
-                      className="text-xs font-semibold text-slate-400 transition-colors hover:text-slate-700"
+                      className="min-h-10 rounded-lg px-2 text-left text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 sm:min-h-0 sm:px-0 sm:text-right"
                       onClick={() => {
                         setLocalPerms((prev) => {
                           const next = new Set(prev);
@@ -275,17 +261,17 @@ export function RolePermissionEditor({
                     return (
                       <li key={key}>
                         <label
-                          className={`flex cursor-pointer select-none items-start gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+                          className={`flex min-h-[2.75rem] cursor-pointer select-none items-start gap-3 rounded-xl px-3 py-2.5 transition-colors sm:min-h-0 sm:rounded-lg sm:py-2.5 ${
                             disabled
                               ? "cursor-not-allowed opacity-60"
-                              : "hover:bg-slate-50"
+                              : "hover:bg-slate-50 active:bg-slate-100"
                           }`}
                         >
-                          <span className="mt-0.5 flex-shrink-0">
+                          <span className="mt-1 flex-shrink-0 sm:mt-0.5">
                             <span
                               role="checkbox"
                               aria-checked={checked}
-                              className={`flex h-4.5 h-[18px] w-[18px] items-center justify-center rounded border-2 transition-all ${
+                              className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-all sm:h-[18px] sm:w-[18px] ${
                                 checked
                                   ? "border-slate-800 bg-slate-800"
                                   : "border-slate-300 bg-white"
@@ -330,7 +316,7 @@ export function RolePermissionEditor({
         {/* ── Sticky save bar ──────────────────────────────────────────────── */}
         {canEdit && (
           <div
-            className={`sticky bottom-0 border-t border-slate-100 bg-white/95 px-6 py-4 backdrop-blur md:px-8 ${
+            className={`sticky bottom-0 z-10 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:px-6 sm:py-4 md:px-8 ${
               hasChanges ? "" : "opacity-60"
             }`}
           >
@@ -338,19 +324,19 @@ export function RolePermissionEditor({
               <p className={`text-sm font-medium ${hasChanges ? "text-amber-700" : "text-slate-400"}`}>
                 {hasChanges ? "You have unsaved changes." : "No changes to save."}
               </p>
-              <div className="flex items-center gap-3">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
                 <button
                   type="button"
                   onClick={handleDiscard}
                   disabled={!hasChanges || isPending}
-                  className="btn-secondary px-4 py-2 text-sm disabled:pointer-events-none disabled:opacity-40"
+                  className="btn-secondary order-2 min-h-11 w-full px-4 py-2.5 text-sm disabled:pointer-events-none disabled:opacity-40 sm:order-1 sm:min-h-0 sm:w-auto"
                 >
                   Discard
                 </button>
                 <button
                   type="submit"
                   disabled={!hasChanges || isPending}
-                  className="btn-primary px-5 py-2 text-sm disabled:pointer-events-none disabled:opacity-40"
+                  className="btn-primary order-1 min-h-11 w-full px-5 py-2.5 text-sm disabled:pointer-events-none disabled:opacity-40 sm:order-2 sm:min-h-0 sm:w-auto"
                 >
                   {isPending ? (
                     <span className="flex items-center gap-2">
@@ -420,8 +406,8 @@ function AssignedMembersPanel({
     .slice(0, 8);
 
   return (
-    <div className="border-t border-slate-100 px-6 py-6 md:px-8">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="border-t border-slate-100 px-4 py-5 sm:px-6 sm:py-6 md:px-8">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="section-kicker text-slate-500">Assigned Members</p>
           <p className="mt-0.5 text-sm text-slate-500">
@@ -444,7 +430,7 @@ function AssignedMembersPanel({
             const isLastPresident = isPresident && assignedMembers.length <= 1;
 
             return (
-              <li key={member.userId} className="flex items-center gap-3 px-4 py-3">
+              <li key={member.userId} className="flex items-center gap-3 px-3 py-3 sm:px-4">
                 {/* Avatar */}
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
                   {initial}
@@ -466,7 +452,7 @@ function AssignedMembersPanel({
                       type="submit"
                       disabled={isLastPresident}
                       title={isLastPresident ? "Cannot remove the last President" : `Remove ${label} from ${role.name}`}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 transition-colors hover:bg-red-100 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 transition-colors hover:bg-red-100 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40 sm:h-7 sm:w-7"
                       aria-label={`Remove ${label}`}
                     >
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -501,7 +487,7 @@ function AssignedMembersPanel({
               value={assignSearch}
               onChange={(e) => onAssignSearchChange(e.target.value)}
               placeholder="Search members…"
-              className="input-control pl-9 text-sm"
+              className="input-control min-h-11 pl-9 text-sm sm:min-h-0"
               aria-label="Search unassigned members"
             />
           </div>
@@ -517,8 +503,8 @@ function AssignedMembersPanel({
                 const label = getMemberLabel(member);
                 const initial = getMemberInitial(member);
                 return (
-                  <li key={member.userId} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                  <li key={member.userId} className="flex items-center gap-3 px-3 py-3 sm:px-4 sm:py-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500 sm:h-7 sm:w-7">
                       {initial}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -531,7 +517,7 @@ function AssignedMembersPanel({
                       <input type="hidden" name="target_user_id" value={member.userId} />
                       <button
                         type="submit"
-                        className="flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-800 hover:bg-slate-900 hover:text-white"
+                        className="flex min-h-10 shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-800 hover:bg-slate-900 hover:text-white sm:min-h-7 sm:px-2.5"
                         aria-label={`Assign ${label} to ${role.name}`}
                       >
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

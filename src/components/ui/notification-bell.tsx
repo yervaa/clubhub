@@ -5,6 +5,10 @@ import Link from "next/link";
 import { markNotificationReadAction, markAllNotificationsReadAction } from "@/lib/notifications/actions";
 import type { NotificationItem } from "@/lib/notifications/queries";
 
+function notificationsSignature(items: NotificationItem[], unread: number): string {
+  return `${unread}:${items.map((n) => `${n.id}:${n.isRead ? 1 : 0}`).join(",")}`;
+}
+
 // ─── Relative time formatter ──────────────────────────────────────────────────
 
 function formatTime(isoString: string): string {
@@ -120,16 +124,19 @@ type NotificationBellProps = {
 
 export function NotificationBell({ unreadCount, notifications }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const serverSig = notificationsSignature(notifications, unreadCount);
   const [localItems, setLocalItems] = useState(notifications);
   const [localUnread, setLocalUnread] = useState(unreadCount);
+  const [syncedSig, setSyncedSig] = useState(serverSig);
   const [, startTransition] = useTransition();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sync when server re-renders with fresh data (e.g. after mark-as-read revalidation).
-  useEffect(() => {
+  // When the server payload changes (e.g. after revalidation), reset local optimistic state.
+  if (serverSig !== syncedSig) {
+    setSyncedSig(serverSig);
     setLocalItems(notifications);
     setLocalUnread(unreadCount);
-  }, [notifications, unreadCount]);
+  }
 
   // Close on click outside.
   useEffect(() => {
@@ -163,7 +170,7 @@ export function NotificationBell({ unreadCount, notifications }: NotificationBel
       <button
         onClick={() => setIsOpen((v) => !v)}
         aria-label={`Notifications${localUnread > 0 ? `, ${localUnread} unread` : ""}`}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 sm:h-9 sm:w-9 sm:rounded-lg"
       >
         <BellIcon className="h-5 w-5" />
         {localUnread > 0 && (
@@ -175,7 +182,7 @@ export function NotificationBell({ unreadCount, notifications }: NotificationBel
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl sm:w-96">
+        <div className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl sm:w-96">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <span className="text-sm font-semibold text-slate-900">Notifications</span>

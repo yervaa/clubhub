@@ -39,27 +39,27 @@ export function ClubSettingsSection({
     <section className="space-y-6">
 
       {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-violet-50 p-8">
+      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-violet-50 p-5 sm:p-8">
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Club Settings</p>
-          <h1 className="section-title mt-3 text-3xl md:text-4xl">Roles &amp; Permissions</h1>
-          <p className="section-subtitle mt-4 max-w-2xl text-lg text-slate-700">
+          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Roles &amp; Permissions</h1>
+          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
             {isPresident
               ? "Control who can do what in your club. Create custom roles and fine-tune permissions for each one."
               : "See how roles and permissions are configured for this club."}
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-6">
+          <div className="mt-5 flex flex-wrap items-center gap-6 sm:mt-6">
             <div>
               <p className="text-2xl font-bold text-slate-900">{roles.length}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Roles</p>
             </div>
-            <div className="h-8 w-px bg-slate-200" />
+            <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
             <div>
               <p className="text-2xl font-bold text-slate-900">{customRoles.length}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Custom</p>
             </div>
-            <div className="h-8 w-px bg-slate-200" />
+            <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
             <div>
               <p className="text-2xl font-bold text-slate-900">{allPermissionKeys.length}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Permissions</p>
@@ -67,7 +67,7 @@ export function ClubSettingsSection({
           </div>
 
           {!isPresident && (
-            <div className="mt-6 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:mt-6 sm:items-center sm:py-2.5">
               <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z" />
               </svg>
@@ -96,7 +96,7 @@ export function ClubSettingsSection({
       )}
 
       {/* Main editor area: role list (left) + editor (right) */}
-      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,280px)_1fr]">
 
         {/* ── Left: Role list ─────────────────────────────────────────────────── */}
         <aside className="flex flex-col gap-3">

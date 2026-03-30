@@ -27,6 +27,8 @@ export type ClubEvent = {
   eventDate: string;
   eventDateRaw: Date;
   userRsvpStatus: "yes" | "no" | "maybe" | null;
+  /** Whether the current user appears in attendance for this event (self only; safe for all members). */
+  userMarkedPresent: boolean;
   attendanceCount: number;
   presentMemberIds: string[];
   rsvpCounts: {
@@ -552,28 +554,48 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
   const { data: activityData } = await supabase
     .rpc("get_club_recent_activity", { target_club_id: clubId });
 
-  const { data: eventsData } = await supabase
-    .from("events")
-    .select("id, title, description, location, event_type, event_date")
-    .eq("club_id", clubId)
-    .order("event_date", { ascending: true })
-    .limit(10);
+  const [{ data: upcomingEventsRows }, { data: pastEventsRows }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, title, description, location, event_type, event_date")
+      .eq("club_id", clubId)
+      .gte("event_date", nowIso)
+      .order("event_date", { ascending: true })
+      .limit(100),
+    supabase
+      .from("events")
+      .select("id, title, description, location, event_type, event_date")
+      .eq("club_id", clubId)
+      .lt("event_date", nowIso)
+      .order("event_date", { ascending: false })
+      .limit(150),
+  ]);
 
-  const { data: nextUpcomingEventData } = await supabase
-    .from("events")
-    .select("id, title, description, location, event_type, event_date")
-    .eq("club_id", clubId)
-    .gt("event_date", nowIso)
-    .order("event_date", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const eventRowById = new Map<
+    string,
+    {
+      id: string;
+      title: string;
+      description: string;
+      location: string;
+      event_type: string;
+      event_date: string;
+    }
+  >();
+  for (const row of upcomingEventsRows ?? []) {
+    eventRowById.set(row.id, row);
+  }
+  for (const row of pastEventsRows ?? []) {
+    eventRowById.set(row.id, row);
+  }
+  const eventsData = [...eventRowById.values()];
 
-  const eventIds = Array.from(
-    new Set([
-      ...(eventsData ?? []).map((event) => event.id),
-      ...(nextUpcomingEventData ? [nextUpcomingEventData.id] : []),
-    ]),
-  );
+  const firstUpcoming = (upcomingEventsRows ?? [])[0] ?? null;
+  const nextUpcomingEventData = firstUpcoming
+    ? { id: firstUpcoming.id, title: firstUpcoming.title, event_date: firstUpcoming.event_date }
+    : null;
+
+  const eventIds = eventsData.map((event) => event.id);
 
   const { data: rsvpData } =
     eventIds.length > 0
@@ -753,7 +775,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       content: announcement.content,
       createdAt: new Date(announcement.created_at).toLocaleString(),
     })),
-    events: (eventsData ?? []).map((event) => ({
+    events: eventsData.map((event) => ({
       id: event.id,
       title: event.title,
       description: event.description,
@@ -763,6 +785,9 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       eventDateRaw: new Date(event.event_date),
       userRsvpStatus:
         (rsvpData ?? []).find((rsvp) => rsvp.event_id === event.id && rsvp.user_id === user.id)?.status ?? null,
+      userMarkedPresent: (attendanceData ?? []).some(
+        (attendance) => attendance.event_id === event.id && attendance.user_id === user.id,
+      ),
       attendanceCount: (attendanceData ?? []).filter((attendance) => attendance.event_id === event.id).length,
       presentMemberIds: (attendanceData ?? [])
         .filter((attendance) => attendance.event_id === event.id)

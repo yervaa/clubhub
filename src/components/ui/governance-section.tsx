@@ -6,6 +6,7 @@ import {
   removePresidentAction,
   transferPresidencyAction,
 } from "@/app/(app)/clubs/governance-actions";
+import { DisclosurePanel } from "@/components/ui/disclosure-panel";
 
 type GovernanceMember = {
   userId: string;
@@ -158,7 +159,6 @@ export function GovernanceSection({
   const [selectedTransferUserId, setSelectedTransferUserId] = useState<string>("");
   const [isPending, startTransition] = useTransition();
 
-  const isLastPresident = presidents.length <= 1;
   const isMigrationMissing = !presidentRoleId;
   const successMessage = query.success ? decodeURIComponent(query.success.replace(/\+/g, " ")) : null;
   const errorMessage = query.error ? decodeURIComponent(query.error.replace(/\+/g, " ")) : null;
@@ -192,22 +192,22 @@ export function GovernanceSection({
     <section className="space-y-6">
 
       {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-violet-50 p-8">
+      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-violet-50 p-5 sm:p-8">
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Club Settings</p>
-          <h1 className="section-title mt-3 text-3xl md:text-4xl">Governance</h1>
-          <p className="section-subtitle mt-4 max-w-2xl text-lg text-slate-700">
+          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Governance</h1>
+          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
             The President holds full authority over <strong>{clubName}</strong>. This page manages who holds that authority and how it can be transferred.
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-6">
+          <div className="mt-5 flex flex-wrap items-center gap-6 sm:mt-6">
             <div>
               <p className="text-2xl font-bold text-slate-900">{presidents.length}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
                 {presidents.length === 1 ? "President" : "Presidents"}
               </p>
             </div>
-            <div className="h-8 w-px bg-slate-200" />
+            <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
             <div>
               <p className="text-2xl font-bold text-slate-900">{nonPresidents.length}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Other Members</p>
@@ -215,7 +215,7 @@ export function GovernanceSection({
           </div>
 
           {!isPresident && (
-            <div className="mt-6 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:mt-6 sm:items-center sm:py-2.5">
               <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z" />
               </svg>
@@ -261,7 +261,7 @@ export function GovernanceSection({
       )}
 
       {/* ── Protection model explanation ──────────────────────────────────────── */}
-      <div className="card-surface p-6">
+      <div className="card-surface p-4 sm:p-6">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">How It Works</p>
@@ -294,7 +294,7 @@ export function GovernanceSection({
       </div>
 
       {/* ── Current Presidents ────────────────────────────────────────────────── */}
-      <div className="card-surface p-6">
+      <div className="card-surface p-4 sm:p-6">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">Authority</p>
@@ -321,8 +321,8 @@ export function GovernanceSection({
                 confirm?.kind === "remove" && confirm.targetUserId === president.userId;
 
               return (
-                <li key={president.userId} className="surface-subcard p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                <li key={president.userId} className="surface-subcard p-3 sm:p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                     {/* Identity */}
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-700">
@@ -351,16 +351,16 @@ export function GovernanceSection({
 
                     {/* Remove button — Presidents only, disabled for last */}
                     {isPresident && !isMigrationMissing && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex w-full items-stretch gap-2 sm:w-auto sm:items-center">
                         {isLastOne ? (
-                          <span className="text-xs text-slate-400" title="Cannot remove the last President">
+                          <span className="text-xs leading-snug text-slate-400 sm:py-2" title="Cannot remove the last President">
                             Protected — last President
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => isConfirmingRemove ? handleCancel() : handleRemoveClick(president)}
-                            className={`btn-secondary text-xs ${isConfirmingRemove ? "ring-2 ring-red-400" : ""}`}
+                            className={`btn-secondary min-h-11 w-full text-xs sm:min-h-0 sm:w-auto ${isConfirmingRemove ? "ring-2 ring-red-400" : ""}`}
                           >
                             {isConfirmingRemove ? "Cancel" : "Remove"}
                           </button>
@@ -379,7 +379,14 @@ export function GovernanceSection({
                         This will revoke all President-level authority from{" "}
                         {isCurrentUser ? "you" : confirm.targetLabel}. They will keep any other roles they hold.
                       </p>
-                      <div className="mt-4 flex gap-3">
+                      <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+                        <button
+                          type="button"
+                          onClick={handleCancel}
+                          className="btn-secondary min-h-11 w-full text-sm sm:min-h-0 sm:w-auto"
+                        >
+                          Cancel
+                        </button>
                         <button
                           type="button"
                           disabled={isPending}
@@ -389,16 +396,9 @@ export function GovernanceSection({
                               target_user_id: confirm.targetUserId,
                             })
                           }
-                          className="btn-danger text-sm"
+                          className="btn-danger min-h-11 w-full text-sm sm:min-h-0 sm:w-auto"
                         >
                           {isPending ? "Removing…" : "Yes, remove President"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancel}
-                          className="btn-secondary text-sm"
-                        >
-                          Cancel
                         </button>
                       </div>
                     </div>
@@ -412,7 +412,7 @@ export function GovernanceSection({
 
       {/* ── Add Co-President ─────────────────────────────────────────────────── */}
       {isPresident && !isMigrationMissing && (
-        <div className="card-surface p-6">
+        <div className="card-surface p-4 sm:p-6">
           <div className="section-card-header">
             <div>
               <p className="section-kicker">Expand Authority</p>
@@ -438,7 +438,7 @@ export function GovernanceSection({
                     id="add-president-select"
                     value={selectedAddUserId}
                     onChange={(e) => setSelectedAddUserId(e.target.value)}
-                    className="input-control"
+                    className="input-control min-h-11 sm:min-h-0"
                   >
                     <option value="">— choose a member —</option>
                     {nonPresidents.map((m) => (
@@ -457,7 +457,7 @@ export function GovernanceSection({
                       target_user_id: selectedAddUserId,
                     })
                   }
-                  className="btn-primary whitespace-nowrap disabled:opacity-50"
+                  className="btn-primary min-h-11 w-full whitespace-nowrap disabled:opacity-50 sm:min-h-0 sm:w-auto"
                 >
                   {isPending ? "Adding…" : "Add as Co-President"}
                 </button>
@@ -472,7 +472,7 @@ export function GovernanceSection({
 
       {/* ── Transfer Presidency ───────────────────────────────────────────────── */}
       {isPresident && !isMigrationMissing && (
-        <div className="card-surface p-6">
+        <div className="card-surface p-4 sm:p-6">
           <div className="section-card-header">
             <div>
               <p className="section-kicker">Step Down</p>
@@ -511,7 +511,14 @@ export function GovernanceSection({
                   </p>
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="btn-secondary min-h-11 w-full text-sm sm:min-h-0 sm:w-auto"
+                >
+                  Cancel — keep Presidency
+                </button>
                 <button
                   type="button"
                   disabled={isPending}
@@ -521,16 +528,9 @@ export function GovernanceSection({
                       target_user_id: confirm.targetUserId,
                     })
                   }
-                  className="btn-danger text-sm"
+                  className="btn-danger min-h-11 w-full text-sm sm:min-h-0 sm:w-auto"
                 >
                   {isPending ? "Transferring…" : `Yes, transfer to ${confirm.targetLabel}`}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="btn-secondary text-sm"
-                >
-                  Cancel — keep Presidency
                 </button>
               </div>
             </div>
@@ -545,7 +545,7 @@ export function GovernanceSection({
                     id="transfer-select"
                     value={selectedTransferUserId}
                     onChange={(e) => setSelectedTransferUserId(e.target.value)}
-                    className="input-control"
+                    className="input-control min-h-11 sm:min-h-0"
                   >
                     <option value="">— choose your successor —</option>
                     {nonPresidents.map((m) => (
@@ -559,7 +559,7 @@ export function GovernanceSection({
                   type="button"
                   disabled={!selectedTransferUserId}
                   onClick={handleTransferClick}
-                  className="btn-danger whitespace-nowrap disabled:opacity-50"
+                  className="btn-danger min-h-11 w-full whitespace-nowrap disabled:opacity-50 sm:min-h-0 sm:w-auto"
                 >
                   Review Transfer…
                 </button>
@@ -574,15 +574,15 @@ export function GovernanceSection({
 
       {/* ── Audit Timeline ────────────────────────────────────────────────────── */}
       {canViewAudit && (
-        <div className="card-surface p-6">
+        <div className="card-surface p-4 sm:p-6">
           <div className="section-card-header">
             <div>
               <p className="section-kicker">Transparency</p>
               <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">
-                Recent Governance &amp; Role Changes
+                Governance &amp; role audit
               </h2>
               <p className="mt-1 text-sm text-slate-600">
-                A log of high-impact authority changes for this club. Only visible to Presidents.
+                High-impact authority changes for this club. Expand the timeline when you need the full history.
               </p>
             </div>
             <span className="badge-soft">{auditLogs.length} entries</span>
@@ -603,46 +603,51 @@ export function GovernanceSection({
               </p>
             </div>
           ) : (
-            <ol className="mt-5 space-y-0" aria-label="Governance change history">
-              {auditLogs.map((entry, idx) => {
-                const isLast = idx === auditLogs.length - 1;
-                return (
-                  <li key={entry.id} className="relative flex gap-4">
-                    {/* Vertical connector line */}
-                    {!isLast && (
-                      <div
-                        className="absolute left-4 top-8 h-full w-px -translate-x-1/2 bg-slate-200"
-                        aria-hidden
-                      />
-                    )}
+            <DisclosurePanel
+              className="mt-4"
+              title="Full audit timeline"
+              subtitle="Newest entries appear first in the list below."
+              defaultOpen={auditLogs.length <= 6}
+              badge={<span className="badge-soft text-[10px]">{auditLogs.length} events</span>}
+            >
+              <ol className="space-y-0" aria-label="Governance change history">
+                {auditLogs.map((entry, idx) => {
+                  const isLast = idx === auditLogs.length - 1;
+                  return (
+                    <li key={entry.id} className="relative flex gap-4">
+                      {!isLast && (
+                        <div
+                          className="absolute left-4 top-8 h-full w-px -translate-x-1/2 bg-slate-200"
+                          aria-hidden
+                        />
+                      )}
 
-                    {/* Icon dot */}
-                    <div className="relative z-10 mt-1 flex-shrink-0">
-                      <AuditDot action={entry.action} />
-                    </div>
-
-                    {/* Content */}
-                    <div className={`min-w-0 flex-1 ${isLast ? "pb-0" : "pb-5"}`}>
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-                        <p className="text-sm font-medium text-slate-900">
-                          {formatAuditAction(entry)}
-                        </p>
-                        <time
-                          dateTime={entry.createdAt}
-                          className="flex-shrink-0 text-xs text-slate-400"
-                          title={new Date(entry.createdAt).toLocaleString()}
-                        >
-                          {formatRelativeTime(entry.createdAt)}
-                        </time>
+                      <div className="relative z-10 mt-1 flex-shrink-0">
+                        <AuditDot action={entry.action} />
                       </div>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        by <span className="font-medium text-slate-600">{entry.actorName}</span>
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
+
+                      <div className={`min-w-0 flex-1 ${isLast ? "pb-0" : "pb-5"}`}>
+                        <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-4 sm:gap-y-0.5">
+                          <p className="break-words text-sm font-medium text-slate-900">
+                            {formatAuditAction(entry)}
+                          </p>
+                          <time
+                            dateTime={entry.createdAt}
+                            className="flex-shrink-0 text-xs text-slate-400"
+                            title={new Date(entry.createdAt).toLocaleString()}
+                          >
+                            {formatRelativeTime(entry.createdAt)}
+                          </time>
+                        </div>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          by <span className="font-medium text-slate-600">{entry.actorName}</span>
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </DisclosurePanel>
           )}
         </div>
       )}

@@ -123,11 +123,11 @@ export default async function NotificationsPage() {
   const earlierItems = notifications.filter((n) => !isToday(n.createdAt));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-5 sm:space-y-6">
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Notifications</h1>
           {unreadCount > 0 && (
             <p className="mt-0.5 text-sm text-slate-500">
               {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
@@ -135,10 +135,10 @@ export default async function NotificationsPage() {
           )}
         </div>
         {unreadCount > 0 && (
-          <form action={markAllNotificationsReadAction}>
+          <form action={markAllNotificationsReadAction} className="w-full sm:w-auto">
             <button
               type="submit"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+              className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 sm:min-h-0 sm:w-auto"
             >
               Mark all as read
             </button>
@@ -194,7 +194,7 @@ function NotificationList({ items }: { items: NotificationItem[] }) {
       {items.map((item, idx) => {
         const config = getTypeConfig(item.type);
         const content = (
-          <div className={`flex items-start gap-4 px-5 py-4 ${!item.isRead ? "bg-blue-50/40" : ""}`}>
+          <div className={`flex items-start gap-3 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4 ${!item.isRead ? "bg-blue-50/40" : ""}`}>
             <div
               className={`mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${config.bg} ${config.text}`}
             >

@@ -98,27 +98,39 @@ export function EventCalendarView({ events, clubId }: EventCalendarViewProps) {
   return (
     <div className="card-surface overflow-hidden">
       {/* Calendar header */}
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
         <h2 className="text-base font-bold text-slate-900">
           {MONTHS[viewMonth]} {viewYear}
         </h2>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={goToday}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+            className="min-h-10 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 sm:min-h-0 sm:flex-none sm:px-2.5 sm:py-1"
           >
             Today
           </button>
-          <button type="button" onClick={prev} className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50">
+          <button
+            type="button"
+            onClick={prev}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 sm:h-7 sm:w-7"
+            aria-label="Previous month"
+          >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <button type="button" onClick={next} className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50">
+          <button
+            type="button"
+            onClick={next}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 sm:h-7 sm:w-7"
+            aria-label="Next month"
+          >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
       </div>
 
+      <div className="overflow-x-auto overscroll-x-contain">
+        <div className="min-w-[20rem] sm:min-w-0">
       {/* Weekday headers */}
       <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
         {WEEKDAYS.map((day) => (
@@ -175,6 +187,8 @@ export function EventCalendarView({ events, clubId }: EventCalendarViewProps) {
             </div>
           );
         })}
+      </div>
+        </div>
       </div>
     </div>
   );

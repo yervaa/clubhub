@@ -31,17 +31,17 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
     <section className="space-y-6">
 
       {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-amber-50 p-8">
+      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-amber-50 p-5 sm:p-8">
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Communication</p>
-          <h1 className="section-title mt-3 text-3xl md:text-4xl">Announcements</h1>
-          <p className="section-subtitle mt-4 max-w-2xl text-lg text-slate-700">
+          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Announcements</h1>
+          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
             {canPostAnnouncements
               ? "Post updates, reminders, and important news to keep everyone in the loop."
               : "Stay up to date with the latest news and updates from your club."}
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-8">
+          <div className="mt-6 flex flex-col gap-4 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center sm:gap-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{count}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
@@ -51,11 +51,9 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
 
             {latestAnnouncement && (
               <>
-                <div className="h-8 w-px bg-slate-200" />
-                <div className="min-w-0">
-                  <p className="max-w-[18rem] truncate text-base font-bold text-slate-900">
-                    {latestAnnouncement.title}
-                  </p>
+                <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
+                <div className="min-w-0 max-w-full sm:max-w-[18rem]">
+                  <p className="truncate text-base font-bold text-slate-900">{latestAnnouncement.title}</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
                     Latest · {latestAnnouncement.createdAt}
                   </p>
@@ -65,8 +63,11 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
           </div>
 
           {canPostAnnouncements && (
-            <div className="mt-8">
-              <a href="#post-announcement" className="btn-primary px-6 py-3 text-base font-semibold">
+            <div className="mt-6 sm:mt-8">
+              <a
+                href="#post-announcement"
+                className="btn-primary block w-full px-6 py-3 text-center text-base font-semibold sm:inline-block sm:w-auto"
+              >
                 Post Announcement
               </a>
             </div>

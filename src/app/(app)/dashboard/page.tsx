@@ -40,8 +40,8 @@ export default async function DashboardPage() {
     <section className="space-y-8">
       {/* Hero */}
       <section className="dashboard-hero">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="max-w-3xl">
+        <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div className="max-w-3xl min-w-0">
             <p className="section-kicker text-slate-600">Home Base</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
               Your club control center
@@ -50,9 +50,13 @@ export default async function DashboardPage() {
               See what needs attention, check upcoming events, and jump into a club workspace.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/clubs/create" className="btn-primary">Create Club</Link>
-            <Link href="/clubs/join" className="btn-secondary">Join Club</Link>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+            <Link href="/clubs/create" className="btn-primary w-full text-center sm:w-auto">
+              Create Club
+            </Link>
+            <Link href="/clubs/join" className="btn-secondary w-full text-center sm:w-auto">
+              Join Club
+            </Link>
           </div>
         </div>
 

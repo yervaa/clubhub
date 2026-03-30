@@ -164,18 +164,22 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
   const activityItems: ActivityFeedItem[] = [...rpcItems, ...reflectionItems, ...governanceItems]
     .sort((a, b) => b._sortKey.localeCompare(a._sortKey))
     .slice(0, 8)
-    .map(({ _sortKey: _, ...item }) => item);
+    .map((entry) => {
+      const { _sortKey, ...item } = entry;
+      void _sortKey;
+      return item;
+    });
 
   return (
     <section className="space-y-8">
       {/* Hero header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 p-8">
+      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 p-5 sm:p-8">
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Club Command Center</p>
-          <h1 className="section-title mt-3 text-3xl md:text-4xl">{club.name}</h1>
-          <p className="section-subtitle mt-4 max-w-2xl text-lg text-slate-700">{club.description}</p>
+          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">{club.name}</h1>
+          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">{club.description}</p>
 
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:mt-8 sm:gap-6 md:grid-cols-3">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
                 <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -217,19 +221,28 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
 
           {/* Quick actions — only shown when the user has relevant permissions */}
           {(canInviteMembers || canCreateEvents) && (
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:gap-3">
+            <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:gap-3">
               {canInviteMembers && (
-                <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-primary px-6 py-3 text-base font-semibold">
+                <Link
+                  href={`/clubs/${club.id}/members#invite-members`}
+                  className="btn-primary w-full px-6 py-3 text-center text-base font-semibold sm:w-auto"
+                >
                   Invite Members
                 </Link>
               )}
               {canCreateEvents && (
-                <Link href={`/clubs/${club.id}/events#create-event`} className="btn-secondary px-6 py-3 text-base font-semibold">
+                <Link
+                  href={`/clubs/${club.id}/events#create-event`}
+                  className="btn-secondary w-full px-6 py-3 text-center text-base font-semibold sm:w-auto"
+                >
                   Create Event
                 </Link>
               )}
               {myTasks.length > 0 && (
-                <Link href={`/clubs/${club.id}/tasks`} className="btn-secondary px-6 py-3 text-base font-semibold">
+                <Link
+                  href={`/clubs/${club.id}/tasks`}
+                  className="btn-secondary w-full px-6 py-3 text-center text-base font-semibold sm:w-auto"
+                >
                   View My Tasks ({myTasks.length})
                 </Link>
               )}
@@ -239,7 +252,7 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
       </header>
 
       {/* Important Now */}
-      <div className="card-surface p-6">
+      <div className="card-surface p-4 sm:p-6">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">Now</p>
@@ -248,7 +261,7 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:mt-5 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Next event */}
           <div className="surface-subcard border-l-4 border-blue-500 p-4">
             <div className="flex items-start gap-3">

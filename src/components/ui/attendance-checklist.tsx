@@ -11,6 +11,8 @@ type AttendanceChecklistProps = {
   currentUserId: string;
   recentlySavedUserId?: string;
   recentlySavedPresent?: boolean;
+  /** Tighter spacing when nested inside a disclosure panel */
+  embedded?: boolean;
 };
 
 export function AttendanceChecklist({
@@ -21,12 +23,17 @@ export function AttendanceChecklist({
   currentUserId,
   recentlySavedUserId,
   recentlySavedPresent,
+  embedded = false,
 }: AttendanceChecklistProps) {
   const respondedCount = presentMemberIds.length;
   const pendingCount = Math.max(members.length - respondedCount, 0);
 
   return (
-    <div className="mt-5 rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50 p-4 sm:p-5">
+    <div
+      className={`rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50 p-4 sm:p-5 ${
+        embedded ? "mt-0" : "mt-5"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-900">Attendance</p>
