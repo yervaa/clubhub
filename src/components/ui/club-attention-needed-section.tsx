@@ -23,14 +23,14 @@ function getAttentionAlertLabel(type: ClubAttentionAlert["type"]) {
 
 export function ClubAttentionNeededSection({ clubId, alerts }: ClubAttentionNeededSectionProps) {
   return (
-    <section className="card-surface p-6" id="attention-needed">
+    <section className="card-surface p-4 sm:p-6" id="attention-needed">
       <div className="section-card-header">
         <div>
-          <p className="section-kicker">Attention Needed</p>
-          <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">Next actions for officers</h2>
-          <p className="mt-1 text-sm text-slate-600">A short list of the most relevant follow-ups for this club right now.</p>
+          <p className="section-kicker">Officers</p>
+          <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900 sm:mt-2 sm:text-lg">Follow-ups</h2>
+          <p className="mt-0.5 text-xs text-slate-600 sm:mt-1 sm:text-sm">What to handle next in this club.</p>
         </div>
-        <span className="badge-soft">{alerts.length} alerts</span>
+        <span className="badge-soft">{alerts.length}</span>
       </div>
 
       {alerts.length === 0 ? (

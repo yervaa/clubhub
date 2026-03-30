@@ -10,7 +10,7 @@ export default async function ClubLayout({ children, params }: ClubLayoutProps) 
   const { clubId } = await params;
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 lg:space-y-6">
       <ClubSubnav clubId={clubId} />
       {children}
     </section>

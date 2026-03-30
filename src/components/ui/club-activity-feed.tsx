@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useMediaLg } from "@/lib/hooks/use-media-lg";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -215,77 +218,99 @@ type ClubActivityFeedProps = {
 };
 
 export function ClubActivityFeed({ items }: ClubActivityFeedProps) {
+  const isLg = useMediaLg();
+
+  const header = (
+    <div className="section-card-header">
+      <div>
+        <p className="section-kicker">Activity</p>
+        <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Recent Activity</h2>
+        <p className="mt-1 text-sm text-slate-600">Latest actions across the club.</p>
+      </div>
+      {items.length > 0 && <span className="badge-soft">{items.length} recent</span>}
+    </div>
+  );
+
+  const body =
+    items.length === 0 ? (
+      <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center lg:mt-5 lg:p-8">
+        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+          <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p className="mt-3 text-sm font-semibold text-slate-600">No activity yet</p>
+        <p className="mt-1 text-sm text-slate-400">
+          Actions like joining, posting, and RSVPing will appear here.
+        </p>
+      </div>
+    ) : (
+      <ul className="mt-4 lg:mt-5" role="list">
+        {items.map((item, index) => {
+          const config = getTypeConfig(item.type);
+          const isLast = index === items.length - 1;
+
+          return (
+            <li key={item.id} className="relative flex gap-3.5">
+              {!isLast && (
+                <div className="absolute bottom-0 left-[15px] top-8 w-px bg-slate-100" aria-hidden="true" />
+              )}
+
+              <div
+                className={`relative z-10 mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${config.dotBg} ${config.dotText}`}
+              >
+                {config.icon}
+              </div>
+
+              <div className={`min-w-0 flex-1 py-1 ${!isLast ? "pb-5" : ""}`}>
+                {item.href ? (
+                  <Link
+                    href={item.href}
+                    className="text-sm leading-snug text-slate-700 decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-900 hover:underline"
+                  >
+                    {item.message}
+                  </Link>
+                ) : (
+                  <p className="text-sm leading-snug text-slate-700">{item.message}</p>
+                )}
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${config.pillBg} ${config.pillText} ${config.pillBorder}`}
+                  >
+                    {config.label}
+                  </span>
+                  <span className="text-xs text-slate-400">{item.displayTime}</span>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    );
+
+  if (!isLg) {
+    return (
+      <details className="group card-surface overflow-hidden p-4 open:shadow-md">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 pr-2 [&::-webkit-details-marker]:hidden">
+          <div>
+            <p className="section-kicker">Activity</p>
+            <h2 className="mt-0.5 text-base font-semibold tracking-tight text-slate-900">Recent activity</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {items.length === 0 ? "Nothing yet" : `${items.length} updates · tap to expand`}
+            </p>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 group-open:hidden">Open</span>
+          <span className="hidden text-[10px] font-bold uppercase tracking-wider text-slate-500 group-open:inline">Close</span>
+        </summary>
+        <div className="mt-3 border-t border-slate-100 pt-4">{body}</div>
+      </details>
+    );
+  }
+
   return (
     <div className="card-surface p-6">
-      <div className="section-card-header">
-        <div>
-          <p className="section-kicker">Activity</p>
-          <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Recent Activity</h2>
-          <p className="mt-1 text-sm text-slate-600">Latest actions across the club.</p>
-        </div>
-        {items.length > 0 && (
-          <span className="badge-soft">{items.length} recent</span>
-        )}
-      </div>
-
-      {items.length === 0 ? (
-        <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-8 text-center">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
-            <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <p className="mt-3 text-sm font-semibold text-slate-600">No activity yet</p>
-          <p className="mt-1 text-sm text-slate-400">
-            Actions like joining, posting, and RSVPing will appear here.
-          </p>
-        </div>
-      ) : (
-        <ul className="mt-5" role="list">
-          {items.map((item, index) => {
-            const config = getTypeConfig(item.type);
-            const isLast = index === items.length - 1;
-
-            return (
-              <li key={item.id} className="relative flex gap-3.5">
-                {/* Vertical connector line */}
-                {!isLast && (
-                  <div className="absolute left-[15px] top-8 bottom-0 w-px bg-slate-100" aria-hidden="true" />
-                )}
-
-                {/* Type icon */}
-                <div
-                  className={`relative z-10 mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${config.dotBg} ${config.dotText}`}
-                >
-                  {config.icon}
-                </div>
-
-                {/* Content */}
-                <div className={`min-w-0 flex-1 py-1 ${!isLast ? "pb-5" : ""}`}>
-                  {item.href ? (
-                    <Link
-                      href={item.href}
-                      className="text-sm leading-snug text-slate-700 hover:text-slate-900 hover:underline decoration-slate-300 underline-offset-2 transition-colors"
-                    >
-                      {item.message}
-                    </Link>
-                  ) : (
-                    <p className="text-sm leading-snug text-slate-700">{item.message}</p>
-                  )}
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${config.pillBg} ${config.pillText} ${config.pillBorder}`}
-                    >
-                      {config.label}
-                    </span>
-                    <span className="text-xs text-slate-400">{item.displayTime}</span>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {header}
+      {body}
     </div>
   );
 }

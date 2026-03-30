@@ -15,6 +15,7 @@ import {
   removeRoleFromMemberAction,
 } from "@/app/(app)/clubs/rbac-actions";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
+import { PermissionCategoryBlock } from "@/components/ui/permission-category-block";
 
 type RolePermissionEditorProps = {
   role: ClubRole;
@@ -215,7 +216,7 @@ export function RolePermissionEditor({
         <input type="hidden" name="name" value={localName} />
         <input type="hidden" name="description" value={localDesc} />
 
-        <div className="flex-1 divide-y divide-slate-100 overflow-hidden px-4 pt-3 sm:px-6 sm:pt-4 md:px-8">
+        <div className="flex-1 space-y-2 overflow-hidden px-4 pt-3 sm:px-6 sm:pt-4 md:px-8 lg:space-y-0 lg:divide-y lg:divide-slate-100">
           {PERMISSION_CATEGORIES.map((category) => {
             const keys = getPermissionsByCategory(category).filter((k) =>
               allPermissionKeys.includes(k),
@@ -225,33 +226,30 @@ export function RolePermissionEditor({
             const allChecked = keys.every((k) => localPerms.has(k));
             const someChecked = !allChecked && keys.some((k) => localPerms.has(k));
 
-            return (
-              <div key={category} className="py-4 first:pt-0 last:pb-0">
-                {/* Category header with select-all */}
-                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="section-kicker text-slate-500">{category}</p>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      className="min-h-10 rounded-lg px-2 text-left text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 sm:min-h-0 sm:px-0 sm:text-right"
-                      onClick={() => {
-                        setLocalPerms((prev) => {
-                          const next = new Set(prev);
-                          if (allChecked) {
-                            keys.forEach((k) => next.delete(k));
-                          } else {
-                            keys.forEach((k) => next.add(k));
-                          }
-                          return next;
-                        });
-                      }}
-                      aria-label={allChecked ? `Deselect all ${category} permissions` : `Select all ${category} permissions`}
-                    >
-                      {allChecked ? "Deselect all" : someChecked ? "Select all" : "Select all"}
-                    </button>
-                  )}
-                </div>
+            const selectAllBtn =
+              canEdit ? (
+                <button
+                  type="button"
+                  className="min-h-10 rounded-lg px-2 text-left text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 sm:min-h-0 sm:px-0 sm:text-right"
+                  onClick={() => {
+                    setLocalPerms((prev) => {
+                      const next = new Set(prev);
+                      if (allChecked) {
+                        keys.forEach((k) => next.delete(k));
+                      } else {
+                        keys.forEach((k) => next.add(k));
+                      }
+                      return next;
+                    });
+                  }}
+                  aria-label={allChecked ? `Deselect all ${category} permissions` : `Select all ${category} permissions`}
+                >
+                  {allChecked ? "Deselect all" : someChecked ? "Select all" : "Select all"}
+                </button>
+              ) : null;
 
+            return (
+              <PermissionCategoryBlock key={category} category={category} headerRight={selectAllBtn}>
                 <ul className="space-y-1" role="list">
                   {keys.map((key) => {
                     const meta = PERMISSION_CATALOG[key];
@@ -308,7 +306,7 @@ export function RolePermissionEditor({
                     );
                   })}
                 </ul>
-              </div>
+              </PermissionCategoryBlock>
             );
           })}
         </div>

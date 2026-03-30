@@ -36,20 +36,19 @@ export function ClubSettingsSection({
   const isCreating = mode === "create";
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 lg:space-y-6">
 
-      {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-violet-50 p-5 sm:p-8">
+      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-violet-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Club Settings</p>
-          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Roles &amp; Permissions</h1>
-          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
+          <p className="section-kicker text-slate-600">Settings</p>
+          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Roles &amp; permissions</h1>
+          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
             {isPresident
               ? "Control who can do what in your club. Create custom roles and fine-tune permissions for each one."
               : "See how roles and permissions are configured for this club."}
           </p>
 
-          <div className="mt-5 flex flex-wrap items-center gap-6 sm:mt-6">
+          <div className="mt-4 flex flex-wrap items-center gap-4 sm:mt-5 sm:gap-6 lg:mt-6">
             <div>
               <p className="text-2xl font-bold text-slate-900">{roles.length}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Roles</p>

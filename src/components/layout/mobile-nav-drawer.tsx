@@ -29,6 +29,21 @@ export function MobileNavDrawer({ clubs }: MobileNavDrawerProps) {
     };
   }, [open]);
 
+  useEffect(() => {
+    // Close after in-app navigations (e.g. client-side transitions) so the sheet never stays open on a new page.
+    const id = requestAnimationFrame(() => setOpen(false));
+    return () => cancelAnimationFrame(id);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
     <>
       <button
@@ -51,16 +66,21 @@ export function MobileNavDrawer({ clubs }: MobileNavDrawerProps) {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="App navigation">
+        <div
+          className="fixed inset-x-0 bottom-0 top-16 z-[55] lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="App navigation"
+        >
           <button
             type="button"
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]"
             aria-label="Close menu"
             onClick={() => setOpen(false)}
           />
           <nav
             id="mobile-app-nav-drawer"
-            className="absolute left-0 top-0 flex h-full w-[min(100vw,20rem)] flex-col border-r border-slate-200 bg-white shadow-2xl"
+            className="absolute left-0 top-0 flex h-full w-[min(20rem,92vw)] flex-col border-r border-slate-200 bg-white shadow-2xl"
           >
             <div className="flex h-16 flex-shrink-0 items-center justify-between border-b border-slate-100 px-4">
               <span className="text-sm font-bold text-slate-900">Menu</span>

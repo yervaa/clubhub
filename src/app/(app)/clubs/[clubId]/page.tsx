@@ -171,57 +171,56 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
     });
 
   return (
-    <section className="space-y-8">
-      {/* Hero header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 p-5 sm:p-8">
+    <section className="space-y-5 lg:space-y-8">
+      {/* Hero — calmer on mobile, full treatment on lg+ */}
+      <header className="rounded-xl border border-slate-200/90 bg-gradient-to-br from-slate-50 to-blue-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8 lg:shadow-none">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Club Command Center</p>
-          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">{club.name}</h1>
-          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">{club.description}</p>
+          <p className="section-kicker text-slate-600">Overview</p>
+          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">{club.name}</h1>
+          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">{club.description}</p>
 
-          <div className="mt-6 grid gap-4 sm:mt-8 sm:gap-6 md:grid-cols-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:grid-cols-3 sm:gap-4 md:gap-6">
+            <div className="flex items-center gap-2 rounded-lg border border-white/60 bg-white/50 px-2 py-2 sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
                 <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                 </svg>
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-600">Members</p>
-                <p className="text-xl font-bold text-slate-900">{memberCount}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Members</p>
+                <p className="text-lg font-bold tabular-nums text-slate-900 sm:text-xl">{memberCount}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+            <div className="flex items-center gap-2 rounded-lg border border-white/60 bg-white/50 px-2 py-2 sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12">
                 <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-600">Your Role</p>
-                <p className="text-xl font-bold text-slate-900 capitalize">{club.currentUserRole}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Role</p>
+                <p className="truncate text-lg font-bold capitalize text-slate-900 sm:text-xl">{club.currentUserRole}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
+            <div className="flex items-center gap-2 rounded-lg border border-white/60 bg-white/50 px-2 py-2 sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
                 <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-600">Status</p>
-                <p className="text-xl font-bold text-slate-900">
-                  {club.events.length > 0 ? "Active" : "Getting Started"}
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Status</p>
+                <p className="text-lg font-bold text-slate-900 sm:text-xl">
+                  {club.events.length > 0 ? "Active" : "Starting"}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Quick actions — only shown when the user has relevant permissions */}
           {(canInviteMembers || canCreateEvents) && (
-            <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:gap-3">
+            <div className="mt-4 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3 lg:mt-8">
               {canInviteMembers && (
                 <Link
                   href={`/clubs/${club.id}/members#invite-members`}
@@ -251,21 +250,20 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
         </div>
       </header>
 
-      {/* Important Now */}
-      <div className="card-surface p-4 sm:p-6">
+      {/* Important now — lighter tiles on mobile */}
+      <div className="card-surface p-4 shadow-sm sm:p-5 lg:p-6 lg:shadow-[var(--shadow-soft)]">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">Now</p>
-            <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Important Now</h2>
-            <p className="mt-1 text-sm text-slate-600">Key updates and priorities for your club.</p>
+            <h2 className="mt-0.5 text-base font-semibold tracking-tight text-slate-900">What matters</h2>
+            <p className="mt-0.5 text-xs text-slate-600 sm:text-sm">Next event, news, your tasks, and a quick pulse.</p>
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:mt-5 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Next event */}
-          <div className="surface-subcard border-l-4 border-blue-500 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:mt-4 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 lg:gap-4">
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-blue-500 sm:bg-white sm:p-4">
+            <div className="flex items-start gap-2.5 sm:gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 sm:h-9 sm:w-9">
                 <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -285,9 +283,9 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
           </div>
 
           {/* Latest announcement */}
-          <div className="surface-subcard border-l-4 border-amber-500 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100">
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-amber-500 sm:bg-white sm:p-4">
+            <div className="flex items-start gap-2.5 sm:gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 sm:h-9 sm:w-9">
                 <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                 </svg>
@@ -307,9 +305,9 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
           </div>
 
           {/* My Tasks */}
-          <div className="surface-subcard border-l-4 border-emerald-500 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-emerald-500 sm:bg-white sm:p-4">
+            <div className="flex items-start gap-2.5 sm:gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 sm:h-9 sm:w-9">
                 <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
@@ -338,9 +336,9 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
           </div>
 
           {/* Key stats */}
-          <div className="surface-subcard border-l-4 border-purple-500 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-purple-500 sm:bg-white sm:p-4">
+            <div className="flex items-start gap-2.5 sm:gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 sm:h-9 sm:w-9">
                 <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>

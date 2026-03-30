@@ -28,20 +28,19 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
   const canPostAnnouncements = permissions?.canPostAnnouncements ?? legacyIsOfficer;
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 lg:space-y-6">
 
-      {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-amber-50 p-5 sm:p-8">
+      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-amber-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Communication</p>
-          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Announcements</h1>
-          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
+          <p className="section-kicker text-slate-600">Announcements</p>
+          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Announcements</h1>
+          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
             {canPostAnnouncements
               ? "Post updates, reminders, and important news to keep everyone in the loop."
               : "Stay up to date with the latest news and updates from your club."}
           </p>
 
-          <div className="mt-6 flex flex-col gap-4 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center sm:gap-8">
+          <div className="mt-4 flex flex-col gap-3 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-8 lg:mt-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{count}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
@@ -63,7 +62,7 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
           </div>
 
           {canPostAnnouncements && (
-            <div className="mt-6 sm:mt-8">
+            <div className="mt-4 sm:mt-6 lg:mt-8">
               <a
                 href="#post-announcement"
                 className="btn-primary block w-full px-6 py-3 text-center text-base font-semibold sm:inline-block sm:w-auto"
@@ -81,7 +80,7 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
 
       {/* Post form — requires announcements.create permission */}
       {canPostAnnouncements && (
-        <section id="post-announcement" className="card-surface p-6">
+        <section id="post-announcement" className="card-surface p-4 sm:p-6">
           <div className="section-card-header">
             <div>
               <p className="section-kicker">Post</p>
@@ -168,35 +167,35 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
                     <span className="feedback-pill feedback-pill-fresh">Latest</span>
                     <span className="text-xs text-slate-400">{latestAnnouncement.createdAt}</span>
                   </div>
-                  <h3 className="mt-3 text-xl font-bold tracking-tight text-slate-900">
+                  <h3 className="mt-2 text-lg font-bold tracking-tight text-slate-900 sm:mt-3 sm:text-xl">
                     {latestAnnouncement.title}
                   </h3>
                 </div>
               </div>
-              <p className="mt-4 text-sm leading-7 text-slate-600">{latestAnnouncement.content}</p>
+              <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:mt-4 sm:leading-7">{latestAnnouncement.content}</p>
             </article>
           )}
 
           {/* Announcement history */}
           {olderAnnouncements.length > 0 && (
-            <div className="card-surface p-5">
+            <div className="card-surface p-4 sm:p-5">
               <div className="section-card-header">
                 <div>
                   <p className="section-kicker">History</p>
-                  <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Older Announcements</h2>
+                  <h2 className="mt-0.5 text-sm font-semibold tracking-tight text-slate-900 sm:mt-1 sm:text-base">Older posts</h2>
                 </div>
-                <span className="badge-soft">
-                  {olderAnnouncements.length} {olderAnnouncements.length === 1 ? "post" : "posts"}
-                </span>
+                <span className="badge-soft">{olderAnnouncements.length}</span>
               </div>
-              <div className="list-stack mt-4">
+              <div className="mt-3 divide-y divide-slate-100 sm:mt-4 sm:flex sm:flex-col sm:gap-3 sm:divide-y-0">
                 {olderAnnouncements.map((announcement) => (
-                  <article key={announcement.id} className="surface-subcard p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
+                  <article key={announcement.id} className="py-3 first:pt-0 last:pb-0 sm:surface-subcard sm:p-4 sm:py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-1 sm:gap-2">
                       <h4 className="text-sm font-semibold text-slate-900">{announcement.title}</h4>
-                      <span className="whitespace-nowrap text-xs text-slate-400">{announcement.createdAt}</span>
+                      <span className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{announcement.createdAt}</span>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{announcement.content}</p>
+                    <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-slate-600 sm:mt-2 sm:line-clamp-none sm:text-sm sm:leading-6">
+                      {announcement.content}
+                    </p>
                   </article>
                 ))}
               </div>

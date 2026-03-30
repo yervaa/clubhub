@@ -129,10 +129,10 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
   ).length;
 
   const sectionShell = (id: string, title: string, subtitle: string, children: ReactNode) => (
-    <section id={id} className="scroll-mt-24 space-y-4">
-      <div className="flex flex-col gap-1 border-b border-slate-200 pb-3">
-        <h2 className="text-lg font-bold tracking-tight text-slate-900 md:text-xl">{title}</h2>
-        <p className="text-sm text-slate-600">{subtitle}</p>
+    <section id={id} className="scroll-mt-24 space-y-3 lg:space-y-4">
+      <div className="flex flex-col gap-0.5 border-b border-slate-200 pb-2 lg:gap-1 lg:pb-3">
+        <h2 className="text-base font-bold tracking-tight text-slate-900 lg:text-lg xl:text-xl">{title}</h2>
+        <p className="text-xs text-slate-600 lg:text-sm">{subtitle}</p>
       </div>
       {children}
     </section>

@@ -13,7 +13,7 @@ export function AppShell({ clubs, children }: AppShellProps) {
       <Navbar clubs={clubs} />
       <div className="mx-auto flex w-full max-w-7xl">
         <AppSidebar clubs={clubs} />
-        <main className="w-full min-w-0 px-3 py-6 sm:px-4 md:py-8 lg:px-6">{children}</main>
+        <main className="w-full min-w-0 px-3 py-4 sm:px-4 sm:py-6 md:py-8 lg:px-6">{children}</main>
       </div>
     </div>
   );

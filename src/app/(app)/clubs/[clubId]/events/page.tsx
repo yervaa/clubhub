@@ -76,19 +76,18 @@ export default async function ClubEventsPage({ params, searchParams }: ClubEvent
   }));
 
   return (
-    <section className="space-y-6">
-      {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 p-5 sm:p-8">
+    <section className="space-y-4 lg:space-y-6">
+      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-blue-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Planning</p>
-          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Events</h1>
-          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
+          <p className="section-kicker text-slate-600">Events</p>
+          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Events</h1>
+          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
             {permissions.canCreateEvents
               ? "Create events, track RSVPs, mark attendance, and review reflections — with a clear path from upcoming to history."
               : "See upcoming events, your RSVP history, and the club timeline after each event ends."}
           </p>
 
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:gap-8 lg:mt-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{club.events.length}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
@@ -125,35 +124,38 @@ export default async function ClubEventsPage({ params, searchParams }: ClubEvent
           </div>
 
           {viewMode === "list" ? (
-            <nav className="mt-5 flex flex-wrap gap-2 text-sm font-semibold sm:mt-6" aria-label="Event sections">
+            <nav
+              className="mt-4 flex gap-2 overflow-x-auto pb-1 text-sm font-semibold [-ms-overflow-style:none] [scrollbar-width:none] sm:mt-5 sm:flex-wrap sm:overflow-visible lg:mt-6 [&::-webkit-scrollbar]:hidden"
+              aria-label="Event sections"
+            >
               <a
                 href="#upcoming"
-                className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
+                className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
               >
                 Upcoming
               </a>
               <a
                 href="#recent"
-                className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
+                className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
               >
                 Recently happened
               </a>
               <a
                 href="#history"
-                className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
+                className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
               >
                 Past events
               </a>
               <Link
                 href={`/clubs/${clubId}/events/history`}
-                className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
+                className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
               >
                 Full history
               </Link>
               {permissions.canViewAggregatedStats ? (
                 <Link
                   href={`/clubs/${clubId}/events?filter=needs-review#recent`}
-                  className="inline-flex min-h-10 items-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-2 text-amber-950 hover:bg-amber-100"
+                  className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-2 text-amber-950 hover:bg-amber-100"
                 >
                   Needs review
                 </Link>
@@ -162,7 +164,7 @@ export default async function ClubEventsPage({ params, searchParams }: ClubEvent
           ) : null}
 
           {/* View toggle + CTA */}
-          <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="mt-4 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 lg:mt-8">
             {permissions.canCreateEvents && (
               <a
                 href="#create-event"

@@ -364,18 +364,17 @@ function TaskCard({
 
   return (
     <div
-      className={`card-surface border-l-4 p-4 transition hover:shadow-md ${borderClass} ${
+      className={`card-surface border-l-4 p-3 transition hover:shadow-md sm:p-4 ${borderClass} ${
         task.status === "completed" ? "opacity-70" : ""
-      }`}
+      } max-sm:border max-sm:border-slate-200/90 max-sm:bg-white max-sm:shadow-sm`}
     >
-      {/* Card header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <StatusBadge status={task.status} />
             <PriorityBadge priority={task.priority} />
             {task.isOverdue && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 sm:text-xs">
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -383,18 +382,17 @@ function TaskCard({
               </span>
             )}
           </div>
-          <h3 className={`mt-2 text-sm font-semibold tracking-tight text-slate-900 ${task.status === "completed" ? "line-through" : ""}`}>
+          <h3
+            className={`mt-2 text-[15px] font-semibold leading-snug tracking-tight text-slate-900 sm:text-sm ${task.status === "completed" ? "line-through" : ""}`}
+          >
             {task.title}
           </h3>
           {task.description && (
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
-              {task.description}
-            </p>
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{task.description}</p>
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-shrink-0 items-center gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 border-t border-slate-100 pt-3 sm:border-0 sm:pt-0">
           {/* Quick-complete button */}
           {canComplete && task.status !== "completed" && (
             <form
@@ -459,9 +457,8 @@ function TaskCard({
         </div>
       </div>
 
-      {/* Card footer */}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Assignees */}
           {task.assignees.length > 0 ? (
             <div className="flex -space-x-1">
@@ -504,26 +501,30 @@ function TaskCard({
               fd.set("task_id", task.id);
               statusAction(fd);
             }}
-            className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
+            className="flex flex-col gap-2"
           >
-            <span className="text-xs text-slate-500">Move to:</span>
-            {(["todo", "in_progress", "blocked"] as TaskStatus[])
-              .filter((s) => s !== task.status)
-              .map((s) => {
-                const cfg = STATUS_CONFIG[s];
-                return (
-                  <button
-                    key={s}
-                    type="submit"
-                    name="status"
-                    value={s}
-                    disabled={isStatusPending}
-                    className={`min-h-9 rounded-full px-3 py-2 text-xs font-semibold transition hover:opacity-80 sm:min-h-0 sm:px-2.5 sm:py-0.5 ${cfg.bg} ${cfg.text}`}
-                  >
-                    {cfg.label}
-                  </button>
-                );
-              })}
+            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500 sm:text-xs sm:normal-case sm:tracking-normal">
+              Move to
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {(["todo", "in_progress", "blocked"] as TaskStatus[])
+                .filter((s) => s !== task.status)
+                .map((s) => {
+                  const cfg = STATUS_CONFIG[s];
+                  return (
+                    <button
+                      key={s}
+                      type="submit"
+                      name="status"
+                      value={s}
+                      disabled={isStatusPending}
+                      className={`min-h-10 rounded-full px-3 py-2 text-xs font-semibold transition hover:opacity-80 sm:min-h-9 ${cfg.bg} ${cfg.text}`}
+                    >
+                      {cfg.label}
+                    </button>
+                  );
+                })}
+            </div>
           </form>
         </div>
       )}
@@ -578,21 +579,20 @@ export function ClubTasksSection({
   ];
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 lg:space-y-6">
 
-      {/* ── Page header ──────────────────────────────────────────────────── */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-emerald-50 p-5 sm:p-8">
+      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-emerald-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8 lg:shadow-[var(--shadow-soft)]">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Operations</p>
-          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Tasks</h1>
-          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
+          <p className="section-kicker text-slate-600">Tasks</p>
+          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Tasks</h1>
+          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
             {permissions.canCreate
               ? "Assign responsibilities, track progress, and keep club operations organized."
               : "View your assigned tasks and keep track of your responsibilities."}
           </p>
 
           {/* Stats row */}
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:gap-8 lg:mt-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{total}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Total tasks</p>
@@ -627,7 +627,7 @@ export function ClubTasksSection({
           </div>
 
           {permissions.canCreate && (
-            <div className="mt-6 sm:mt-8">
+            <div className="mt-4 sm:mt-6 lg:mt-8">
               <button
                 type="button"
                 onClick={() => setShowCreateForm(true)}
@@ -642,7 +642,7 @@ export function ClubTasksSection({
 
       {/* ── Create task form ─────────────────────────────────────────────── */}
       {showCreateForm && (
-        <div className="card-surface p-6">
+        <div className="card-surface p-4 sm:p-6">
           <div className="section-card-header">
             <div>
               <p className="section-kicker">New</p>
@@ -666,7 +666,7 @@ export function ClubTasksSection({
 
       {/* ── My Tasks ─────────────────────────────────────────────────────── */}
       {myTasks.length > 0 && !filterAssigneeMe && (
-        <div className="card-surface p-5">
+        <div className="card-surface p-4 sm:p-5">
           <div className="section-card-header">
             <div>
               <p className="section-kicker">Personal</p>
@@ -695,7 +695,7 @@ export function ClubTasksSection({
       )}
 
       {/* ── All tasks section ─────────────────────────────────────────────── */}
-      <div className="card-surface p-5">
+      <div className="card-surface p-4 sm:p-5">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">All Tasks</p>
@@ -709,13 +709,13 @@ export function ClubTasksSection({
         {/* Filters */}
         <div className="mt-4 space-y-3">
           {/* Status filter tabs */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
             {filterTabs.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
                 onClick={() => setFilterStatus(tab.value)}
-                className={`min-h-10 rounded-lg px-3 py-2 text-xs font-semibold transition sm:min-h-0 sm:py-1.5 ${
+                className={`shrink-0 min-h-10 rounded-lg px-3 py-2 text-xs font-semibold transition sm:min-h-0 sm:py-1.5 ${
                   filterStatus === tab.value
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"

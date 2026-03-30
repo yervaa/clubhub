@@ -61,18 +61,17 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
   const highlyEngaged = club.members.filter((m) => m.attendanceRate >= 70).length;
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 lg:space-y-6">
 
-      {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-emerald-50 p-5 sm:p-8">
+      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-emerald-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Analysis</p>
-          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Insights</h1>
-          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
+          <p className="section-kicker text-slate-600">Insights</p>
+          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Insights</h1>
+          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
             Understand attendance patterns, member engagement, and which events work best for your club.
           </p>
 
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:gap-8 lg:mt-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{club.totalTrackedEvents}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
