@@ -1,5 +1,6 @@
 "use client";
 
+import { EventMetaRow } from "@/components/ui/event-summary";
 import { ClubDetail } from "@/lib/clubs/queries";
 
 type ClubSummaryProps = {
@@ -74,11 +75,12 @@ export function ClubSummary({ club }: ClubSummaryProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-orange-900">Coming Soon</p>
-              <p className="text-sm text-orange-800">
-                {nextComingSoonEvent.title} - {nextComingSoonEvent.eventDate}
-              </p>
+              <p className="text-sm font-semibold leading-snug text-orange-950">{nextComingSoonEvent.title}</p>
+              <div className="mt-1.5 text-orange-900/90">
+                <EventMetaRow at={nextComingSoonEvent.eventDateRaw} location={nextComingSoonEvent.location} compact />
+              </div>
             </div>
           </div>
         </div>
@@ -92,14 +94,19 @@ export function ClubSummary({ club }: ClubSummaryProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-slate-600">Next Event</p>
-              <p className="text-lg font-semibold text-slate-900">
+              <p className="text-lg font-semibold leading-snug text-slate-900">
                 {nextEvent ? nextEvent.title : "No upcoming events"}
               </p>
-              {nextEvent && (
-                <p className="text-sm text-slate-500">{nextEvent.eventDate}</p>
-              )}
+              {nextEvent ? (
+                <>
+                  <p className="mt-0.5 text-xs text-slate-500">{nextEvent.eventType}</p>
+                  <div className="mt-2">
+                    <EventMetaRow at={nextEvent.eventDateRaw} location={nextEvent.location} compact />
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
         </div>

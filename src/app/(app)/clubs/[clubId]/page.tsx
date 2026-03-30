@@ -5,6 +5,7 @@ import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubAttentionNeededSection } from "@/components/ui/club-attention-needed-section";
 import { ClubActivityFeed, formatActivityTime } from "@/components/ui/club-activity-feed";
 import type { ActivityFeedItem } from "@/components/ui/club-activity-feed";
+import { EventMetaRow } from "@/components/ui/event-summary";
 import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 import { getMyClubTasks } from "@/lib/tasks/queries";
 
@@ -270,11 +271,16 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Next Event</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">
+                <p className="mt-1 text-base font-semibold leading-snug text-slate-900">
                   {nextEvent ? nextEvent.title : "No upcoming events"}
                 </p>
                 {nextEvent ? (
-                  <p className="mt-1 text-xs text-slate-500 truncate">{nextEvent.eventDate} · {nextEvent.location}</p>
+                  <>
+                    <p className="mt-0.5 text-xs text-slate-500">{nextEvent.eventType}</p>
+                    <div className="mt-2">
+                      <EventMetaRow at={nextEvent.eventDateRaw} location={nextEvent.location} compact />
+                    </div>
+                  </>
                 ) : (
                   <p className="mt-1 text-xs text-slate-500">Schedule one on the Events page.</p>
                 )}

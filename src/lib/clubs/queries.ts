@@ -124,11 +124,25 @@ export type DashboardEvent = {
   eventDateRaw: string;
 };
 
+export type DashboardTaskPreview = {
+  id: string;
+  clubId: string;
+  clubName: string;
+  title: string;
+  dueAt: string | null;
+  dueAtIso: string | null;
+  priority: "low" | "medium" | "high" | "urgent";
+  isOverdue: boolean;
+};
+
 export type DashboardData = {
   clubs: UserClub[];
   recentAnnouncements: DashboardAnnouncement[];
   upcomingEvents: DashboardEvent[];
   needsAttentionAlerts: DashboardAttentionAlert[];
+  /** Open tasks assigned to the current user, across their clubs. */
+  myOpenTasks: DashboardTaskPreview[];
+  unreadNotificationCount: number;
 };
 
 type ClubMemberRow = {
@@ -344,16 +358,32 @@ export async function getDashboardData(): Promise<DashboardData> {
   const clubs = await getCurrentUserClubs();
   const clubIds = clubs.map((club) => club.id);
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  async function fetchUnreadCount(): Promise<number> {
+    if (!user) return 0;
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+    return count ?? 0;
+  }
+
   if (clubIds.length === 0) {
     return {
       clubs: [],
       recentAnnouncements: [],
       upcomingEvents: [],
       needsAttentionAlerts: [],
+      myOpenTasks: [],
+      unreadNotificationCount: await fetchUnreadCount(),
     };
   }
 
-  const supabase = await createClient();
   const now = new Date();
   const nowIso = now.toISOString();
   const sevenDaysAgo = new Date(now);
@@ -475,6 +505,47 @@ export async function getDashboardData(): Promise<DashboardData> {
     .sort((a, b) => b.priority - a.priority)
     .slice(0, 4);
 
+  let myOpenTasks: DashboardTaskPreview[] = [];
+  if (user) {
+    const { data: assigneeRows } = await supabase
+      .from("club_task_assignees")
+      .select("task_id")
+      .eq("user_id", user.id);
+
+    const taskIdSet = new Set((assigneeRows ?? []).map((r) => r.task_id));
+    const taskIds = Array.from(taskIdSet);
+    if (taskIds.length > 0) {
+      const { data: tasksData } = await supabase
+        .from("club_tasks")
+        .select("id, club_id, title, priority, due_at, status")
+        .in("id", taskIds)
+        .in("club_id", clubIds)
+        .neq("status", "completed")
+        .order("due_at", { ascending: true, nullsFirst: false })
+        .limit(8);
+
+      myOpenTasks = (tasksData ?? []).map((t) => {
+        const dueAtIso = t.due_at;
+        const due = dueAtIso ? new Date(dueAtIso) : null;
+        const isOverdue = due !== null && due < now;
+        return {
+          id: t.id,
+          clubId: t.club_id,
+          clubName: clubNameById.get(t.club_id) ?? "Club",
+          title: t.title,
+          dueAtIso,
+          dueAt: dueAtIso
+            ? new Date(dueAtIso).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+            : null,
+          priority: t.priority as DashboardTaskPreview["priority"],
+          isOverdue,
+        };
+      });
+    }
+  }
+
+  const unreadNotificationCount = await fetchUnreadCount();
+
   return {
     clubs,
     recentAnnouncements: (announcementsData ?? []).slice(0, 8).map((announcement) => ({
@@ -496,6 +567,8 @@ export async function getDashboardData(): Promise<DashboardData> {
       eventDateRaw: event.event_date,
     })),
     needsAttentionAlerts,
+    myOpenTasks,
+    unreadNotificationCount,
   };
 }
 

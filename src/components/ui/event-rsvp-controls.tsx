@@ -10,6 +10,8 @@ type EventRsvpControlsProps = {
   eventId: string;
   selectedStatus: RsvpStatus | null;
   recentlySaved: boolean;
+  /** Omit duplicate heading when the parent card already introduces RSVP (cleaner hierarchy). */
+  embedded?: boolean;
 };
 
 const RSVP_OPTIONS: Array<{
@@ -56,21 +58,37 @@ export function EventRsvpControls({
   eventId,
   selectedStatus,
   recentlySaved,
+  embedded = false,
 }: EventRsvpControlsProps) {
   const savedLabel = selectedStatus ? `${selectedStatus.toUpperCase()} saved` : "Response saved";
 
   return (
-    <form action={upsertRsvpAction} className="event-action-panel">
+    <form
+      action={upsertRsvpAction}
+      className={
+        embedded
+          ? "event-action-panel event-action-panel-embedded"
+          : "event-action-panel"
+      }
+    >
       <input type="hidden" name="club_id" value={clubId} />
       <input type="hidden" name="event_id" value={eventId} />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">Your RSVP</p>
-          <p className="mt-1 text-sm text-slate-600">Pick the response that best matches your plan.</p>
+      {embedded ? (
+        recentlySaved ? (
+          <p className="mb-3">
+            <span className="feedback-pill feedback-pill-success">{savedLabel}</span>
+          </p>
+        ) : null
+      ) : (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Your RSVP</p>
+            <p className="mt-1 text-sm text-slate-600">Pick the response that best matches your plan.</p>
+          </div>
+          {recentlySaved ? <span className="feedback-pill feedback-pill-success">{savedLabel}</span> : null}
         </div>
-        {recentlySaved ? <span className="feedback-pill feedback-pill-success">{savedLabel}</span> : null}
-      </div>
-      <div className="rsvp-segmented-control mt-4">
+      )}
+      <div className={`rsvp-segmented-control ${embedded ? "mt-0" : "mt-4"}`}>
         {RSVP_OPTIONS.map((option) => (
           <SubmitButton
             key={option.status}

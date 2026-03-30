@@ -6,12 +6,13 @@ import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import type { UserClub } from "@/lib/clubs/queries";
 
-const TOP_LINKS = [
+const PRIMARY_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/clubs/create", label: "Create Club" },
-  { href: "/clubs/join", label: "Join Club" },
   { href: "/notifications", label: "Notifications" },
+  { href: "/clubs/join", label: "Join Club" },
 ] as const;
+
+const SECONDARY_LINKS = [{ href: "/clubs/create", label: "Start a club" }] as const;
 
 type MobileNavDrawerProps = {
   clubs: UserClub[];
@@ -89,7 +90,7 @@ export function MobileNavDrawer({ clubs }: MobileNavDrawerProps) {
         <div className="flex-1 overflow-y-auto overscroll-y-contain px-3 py-4 [-webkit-overflow-scrolling:touch]">
           <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Navigate</p>
           <ul className="space-y-1" role="list">
-            {TOP_LINKS.map((link) => {
+            {PRIMARY_LINKS.map((link) => {
               const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
               return (
                 <li key={link.href}>
@@ -99,6 +100,29 @@ export function MobileNavDrawer({ clubs }: MobileNavDrawerProps) {
                     aria-current={active ? "page" : undefined}
                     className={`block min-h-12 touch-manipulation rounded-xl px-3 py-3 text-sm font-semibold leading-snug transition ${
                       active ? "bg-slate-900 text-white" : "text-slate-800 hover:bg-slate-100 active:bg-slate-200"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="mt-5 px-3 pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">More</p>
+          <ul className="space-y-1" role="list">
+            {SECONDARY_LINKS.map((link) => {
+              const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    onClick={() => setOpen(false)}
+                    aria-current={active ? "page" : undefined}
+                    className={`block min-h-11 touch-manipulation rounded-xl px-3 py-2.5 text-sm leading-snug transition ${
+                      active
+                        ? "bg-slate-100 font-medium text-slate-900"
+                        : "text-slate-500 hover:bg-slate-50 active:bg-slate-100"
                     }`}
                   >
                     {link.label}

@@ -4,11 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { UserClub } from "@/lib/clubs/queries";
 
-const topLinks = [
+const primaryLinks = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/clubs/create", label: "Create Club" },
   { href: "/clubs/join", label: "Join Club" },
 ];
+
+const secondaryLinks = [{ href: "/clubs/create", label: "Start a club" }];
 
 type AppSidebarProps = {
   clubs: UserClub[];
@@ -32,7 +33,7 @@ export function AppSidebar({ clubs }: AppSidebarProps) {
       <div className="sticky top-16 flex min-h-[calc(100vh-4rem)] flex-col p-4">
         {/* Top navigation */}
         <nav className="space-y-0.5">
-          {topLinks.map((link) => (
+          {primaryLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -40,6 +41,19 @@ export function AppSidebar({ clubs }: AppSidebarProps) {
                 isActive(link.href)
                   ? "bg-slate-100 text-slate-900"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
+          {secondaryLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`block rounded-lg px-3 py-2 text-sm transition ${
+                isActive(link.href)
+                  ? "bg-slate-100 font-medium text-slate-800"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               }`}
             >
               {link.label}

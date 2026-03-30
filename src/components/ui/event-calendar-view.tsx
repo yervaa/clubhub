@@ -171,7 +171,7 @@ export function EventCalendarView({ events, clubId }: EventCalendarViewProps) {
                     <Link
                       key={ev.id}
                       href={`/clubs/${clubId}/events`}
-                      className={`block truncate rounded px-1 py-0.5 text-[10px] font-semibold leading-tight text-white transition hover:opacity-80 sm:text-[11px] ${TYPE_COLORS[ev.eventType] ?? "bg-slate-500"}`}
+                      className={`block max-w-full truncate rounded-md px-1.5 py-1 text-left text-[10px] font-semibold leading-snug text-white shadow-sm ring-1 ring-black/5 transition hover:opacity-90 sm:text-[11px] ${TYPE_COLORS[ev.eventType] ?? "bg-slate-500"}`}
                       title={ev.title}
                     >
                       {ev.title}

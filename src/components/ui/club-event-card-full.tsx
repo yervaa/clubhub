@@ -3,6 +3,7 @@ import { saveEventReflectionAction } from "@/app/(app)/clubs/actions";
 import { AttendanceChecklist } from "@/components/ui/attendance-checklist";
 import { DisclosurePanel } from "@/components/ui/disclosure-panel";
 import { EventRsvpControls } from "@/components/ui/event-rsvp-controls";
+import { EventSummaryBlock, eventLifecycleBadges } from "@/components/ui/event-summary";
 import type { ClubDetail } from "@/lib/clubs/queries";
 
 export type ClubEventCardQuery = {
@@ -59,7 +60,6 @@ export function ClubEventCardFull({
   const responsePercent = memberCount > 0 ? Math.min(100, Math.round((totalResponses / memberCount) * 100)) : 0;
   const goingPercent = memberCount > 0 ? Math.min(100, Math.round((event.rsvpCounts.yes / memberCount) * 100)) : 0;
   const goingLabel = event.rsvpCounts.yes === 1 ? "person going" : "people going";
-  const responseLabel = totalResponses === 1 ? "response" : "responses";
   const eventRsvpSaved = query.rsvpSuccess && query.rsvpEventId === event.id;
   const eventAttendanceSaved = query.attendanceSuccess && query.attendanceEventId === event.id;
   const eventReflectionSaved = query.reflectionSuccess && query.reflectionEventId === event.id;
@@ -79,91 +79,121 @@ export function ClubEventCardFull({
 
   const reflectionOpenDefault = Boolean(eventReflectionError || eventReflectionSaved);
 
+  /* RSVP confirmation stays next to controls; strip avoids duplicating it. */
+  const hasFeedbackStrip = Boolean(eventAttendanceSaved || eventReflectionSaved);
+
+  const rsvpChipClass = event.userRsvpStatus
+    ? "border-slate-200 bg-slate-50 text-slate-800"
+    : "border-amber-200/80 bg-amber-50/90 text-amber-950";
+
   return (
     <Root id={omitPrimaryHeader ? undefined : `event-${event.id}`} className="event-card">
       {!omitPrimaryHeader ? (
         <>
-          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-            <div className="min-w-0 max-w-2xl flex-1 space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="event-type-pill">{event.eventType}</span>
-                <span className="badge-soft">{isPast ? "Completed" : isToday ? "Today" : "Upcoming"}</span>
-                {isComingSoon && (
-                  <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800">
-                    Coming Soon
-                  </span>
-                )}
-                {eventRsvpSaved ? <span className="feedback-pill feedback-pill-success">RSVP saved</span> : null}
-                {eventAttendanceSaved ? <span className="feedback-pill feedback-pill-success">Attendance updated</span> : null}
-                {eventReflectionSaved ? <span className="feedback-pill feedback-pill-success">Reflection saved</span> : null}
-                {isPast && event.reflection ? (
-                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                    Reflection recorded
-                  </span>
-                ) : null}
-              </div>
-              <div>
-                <h4 className="text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">{event.title}</h4>
-                <p className="mt-1 text-base font-medium text-slate-700">{event.eventDate}</p>
-                <p className="mt-1 text-sm text-slate-600">{event.location}</p>
-                {event.description ? (
-                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">{event.description}</p>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-3 text-sm text-slate-600">
-                {showClubMetrics ? (
-                  <span>
-                    <span className="font-medium text-slate-800">{responsePercent}%</span> response rate
-                    {memberCount > 0 ? ` (${totalResponses} ${responseLabel})` : null}
-                  </span>
-                ) : (
-                  <span>
-                    Your RSVP:{" "}
-                    <span className="font-medium text-slate-800">
-                      {event.userRsvpStatus ?? "none"}
-                    </span>
-                    {isPast ? (
-                      <>
-                        {" "}
-                        · Attendance:{" "}
-                        <span className="font-medium text-slate-800">
-                          {event.userMarkedPresent ? "present" : "not marked"}
-                        </span>
-                      </>
-                    ) : null}
-                  </span>
-                )}
-                {showClubMetrics && !isPast ? (
-                  <span>
-                    <span className="font-medium text-slate-800">{event.attendanceCount}</span> checked in so far
-                  </span>
-                ) : null}
-              </div>
+          {hasFeedbackStrip ? (
+            <div
+              className="mb-4 flex flex-wrap gap-x-3 gap-y-1 rounded-lg border border-emerald-200/80 bg-emerald-50/70 px-3 py-2 text-xs font-medium text-emerald-900"
+              role="status"
+            >
+              {eventAttendanceSaved ? <span>Attendance updated</span> : null}
+              {eventReflectionSaved ? <span>Reflection saved</span> : null}
             </div>
-            <div className="event-status-panel">
-              <span className={event.userRsvpStatus ? "badge-strong" : "badge-soft"}>
-                {event.userRsvpStatus ? `RSVP ${event.userRsvpStatus}` : "Awaiting RSVP"}
+          ) : null}
+
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+            <div className="min-w-0 flex-1">
+              <EventSummaryBlock
+                title={event.title}
+                titleAs="h3"
+                titleSize="hero"
+                titleAside={eventLifecycleBadges({
+                  isPast,
+                  isToday,
+                  isComingSoon,
+                  hasReflection: Boolean(event.reflection),
+                })}
+                secondaryLine={event.eventType}
+                at={event.eventDateRaw}
+                location={event.location}
+                description={event.description}
+                descriptionClamp={3}
+                supporting={
+                  showClubMetrics ? (
+                    <>
+                      <span className="font-medium text-slate-600">Participation</span>
+                      <span className="text-slate-300"> · </span>
+                      {memberCount > 0 ? (
+                        <>
+                          <span className="font-semibold text-slate-700">{responsePercent}%</span> responded (
+                          {totalResponses}/{memberCount})
+                        </>
+                      ) : (
+                        <span>No members yet</span>
+                      )}
+                      <span className="text-slate-300"> · </span>
+                      <span className="font-semibold text-slate-700">{event.rsvpCounts.yes}</span> going
+                      {!isPast ? (
+                        <>
+                          <span className="text-slate-300"> · </span>
+                          <span className="font-semibold text-slate-700">{event.attendanceCount}</span> checked in
+                        </>
+                      ) : null}
+                      {isPast && memberCount > 0 ? (
+                        <>
+                          <span className="text-slate-300"> · </span>
+                          <span className="font-semibold text-slate-700">{goingPercent}%</span> of club RSVP&apos;d yes
+                        </>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      Your RSVP:{" "}
+                      <span className="font-semibold text-slate-700">{event.userRsvpStatus ?? "—"}</span>
+                      {isPast ? (
+                        <>
+                          <span className="text-slate-300"> · </span>
+                          Attendance:{" "}
+                          <span className="font-semibold text-slate-700">
+                            {event.userMarkedPresent ? "Present" : "Not marked"}
+                          </span>
+                        </>
+                      ) : null}
+                    </>
+                  )
+                }
+              />
+            </div>
+
+            <div className="event-status-panel lg:max-w-[11rem]">
+              <span
+                className={`inline-flex w-full items-center justify-center rounded-lg border px-3 py-2 text-center text-xs font-semibold sm:w-auto lg:w-full ${rsvpChipClass}`}
+              >
+                {event.userRsvpStatus ? `You: ${event.userRsvpStatus}` : "RSVP needed"}
               </span>
               {canCreateEvents ? (
                 <Link
                   href={`/clubs/${club.id}/events?duplicateEventId=${event.id}#create-event`}
-                  className="btn-secondary inline-flex min-h-10 items-center justify-center text-xs sm:min-h-0"
+                  className="btn-secondary inline-flex min-h-10 w-full items-center justify-center text-xs sm:w-auto lg:w-full"
                 >
-                  Duplicate
+                  Duplicate event
                 </Link>
               ) : null}
             </div>
           </div>
 
           {!isPast ? (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Your RSVP</p>
-              <EventRsvpControls
-                clubId={club.id}
-                eventId={event.id}
-                selectedStatus={event.userRsvpStatus}
-                recentlySaved={Boolean(eventRsvpSaved)}
-              />
+            <div className="event-rsvp-anchor mt-6 border-t border-slate-100 pt-5">
+              <h4 className="text-sm font-semibold text-slate-900">RSVP</h4>
+              <p className="mt-0.5 text-xs text-slate-500">Choose once — you can change your response anytime before the event.</p>
+              <div className="mt-3">
+                <EventRsvpControls
+                  clubId={club.id}
+                  eventId={event.id}
+                  selectedStatus={event.userRsvpStatus}
+                  recentlySaved={Boolean(eventRsvpSaved)}
+                  embedded
+                />
+              </div>
             </div>
           ) : null}
         </>
@@ -173,13 +203,15 @@ export function ClubEventCardFull({
         </p>
       )}
 
-      <div className={omitPrimaryHeader ? "mt-2 space-y-3" : "mt-4 space-y-3"}>
+      <div className={omitPrimaryHeader ? "mt-2 space-y-3" : "mt-5 space-y-3"}>
         <DisclosurePanel
-          title="Description & participation"
+          title="Details & participation"
           subtitle={participationSubtitle}
           badge={
             showClubMetrics ? (
-              <span className="badge-soft text-[10px]">{isPast ? "Post-event view" : "RSVP & turnout"}</span>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                {isPast ? "Post-event" : "Club stats"}
+              </span>
             ) : null
           }
         >
@@ -252,7 +284,7 @@ export function ClubEventCardFull({
                         : "Waiting for members to join this club."}
                     </p>
                   </div>
-                  <span className="badge-soft">
+                  <span className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200/80">
                     {event.rsvpCounts.yes} yes · {event.rsvpCounts.maybe} maybe · {event.rsvpCounts.no} no
                   </span>
                 </div>
@@ -261,11 +293,20 @@ export function ClubEventCardFull({
                   <div className="event-progress-segment event-progress-maybe" style={{ width: responseMaybeWidth }} />
                   <div className="event-progress-segment event-progress-no" style={{ width: responseNoWidth }} />
                 </div>
-                <div className="mt-3 grid gap-2 text-xs font-medium text-slate-600 sm:grid-cols-3">
-                  <span>Yes responses are highlighted in green.</span>
-                  <span>Maybe responses are highlighted in amber.</span>
-                  <span>No responses are highlighted in rose.</span>
-                </div>
+                <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                    Yes
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-hidden />
+                    Maybe
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-rose-400" aria-hidden />
+                    No
+                  </span>
+                </p>
               </div>
             </>
           ) : null}
@@ -275,7 +316,7 @@ export function ClubEventCardFull({
           <DisclosurePanel
             title="Mark attendance"
             subtitle={`${event.attendanceCount} marked present · ${Math.max(0, club.members.length - event.presentMemberIds.length)} unmarked in checklist`}
-            badge={<span className="badge-soft text-[10px]">Officers</span>}
+            badge={<span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Officers</span>}
           >
             <AttendanceChecklist
               clubId={club.id}
@@ -300,11 +341,11 @@ export function ClubEventCardFull({
             }
             badge={
               event.reflection ? (
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
                   Saved
                 </span>
               ) : (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+                <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
                   Draft
                 </span>
               )

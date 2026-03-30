@@ -336,16 +336,17 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
                   return (
                     <div key={event.id} className="space-y-2">
                       {showReviewCues && eventNeedsOfficerReview(flags) ? (
-                        <div className="flex flex-wrap gap-2 rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2 text-xs font-medium text-amber-950">
-                          {flags.needsAttendanceFollowUp ? (
-                            <span className="rounded-full bg-white px-2 py-0.5 ring-1 ring-amber-200">Attendance not recorded</span>
-                          ) : null}
-                          {flags.needsReflectionFollowUp ? (
-                            <span className="rounded-full bg-white px-2 py-0.5 ring-1 ring-amber-200">No reflection yet</span>
-                          ) : null}
-                          {flags.hasLowRsvpTurnout ? (
-                            <span className="rounded-full bg-white px-2 py-0.5 ring-1 ring-amber-200">Low RSVP turnout</span>
-                          ) : null}
+                        <div className="rounded-lg border border-amber-200/70 bg-amber-50/40 px-3 py-2 text-xs text-amber-950/95">
+                          <span className="font-medium text-amber-900">Follow-up: </span>
+                          <span className="text-amber-900/90">
+                            {[
+                              flags.needsAttendanceFollowUp ? "attendance not recorded" : null,
+                              flags.needsReflectionFollowUp ? "no reflection yet" : null,
+                              flags.hasLowRsvpTurnout ? "low RSVP turnout" : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
                         </div>
                       ) : null}
                       <ClubEventCardFull {...cardPropsBase} event={event} />
