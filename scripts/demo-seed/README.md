@@ -4,8 +4,9 @@ Realistic **local / staging** data for UI and product testing. All accounts use 
 
 ## Safety
 
-- The script **refuses to run** if `NODE_ENV=production` (or a non-local Supabase URL) unless you set **`ALLOW_DEMO_SEED=true`**.
-- **Never** set `ALLOW_DEMO_SEED=true` against a shared production project unless you fully understand the impact.
+- The script **refuses to run** if `NODE_ENV=production` or `VERCEL_ENV=production` unless you set **`ALLOW_DEMO_SEED=true`**.
+- If **`NEXT_PUBLIC_SUPABASE_URL`** points at a **non-loopback** host (e.g. `*.supabase.co`), the script also requires **`DEMO_SEED_TARGET_OK=true`**. This blocks accidental wipes when your local `NODE_ENV=development` but `.env` targets a shared hosted project.
+- **Never** set these flags on a production database that holds real users unless you fully intend to delete demo join-code clubs and `*.demo@clubhub.test` users on that project.
 
 ## Requirements
 

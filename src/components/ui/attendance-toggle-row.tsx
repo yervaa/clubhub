@@ -3,7 +3,7 @@
 import { useFormStatus } from "react-dom";
 import { toggleAttendanceAction } from "@/app/(app)/clubs/actions";
 import type { ClubMember } from "@/lib/clubs/queries";
-import { getMemberDisplayName, getMemberInitials, getMemberSecondaryText } from "@/lib/member-display";
+import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 
 type AttendanceToggleRowProps = {
   clubId: string;
@@ -49,8 +49,7 @@ export function AttendanceToggleRow({
   isCurrentUser,
   recentlySaved,
 }: AttendanceToggleRowProps) {
-  const displayName = getMemberDisplayName(member);
-  const secondaryText = getMemberSecondaryText(member);
+  const displayName = getMemberRosterDisplayName(member);
 
   return (
     <li>
@@ -62,7 +61,7 @@ export function AttendanceToggleRow({
           <div
             className={`member-avatar ${member.role === "officer" ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""} ${isPresent ? "is-present" : ""}`}
           >
-            {getMemberInitials(member)}
+            {getMemberRosterInitials(member)}
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -80,7 +79,6 @@ export function AttendanceToggleRow({
                 </span>
               ) : null}
             </div>
-            <p className="truncate text-sm text-slate-600">{secondaryText}</p>
           </div>
         </div>
         <div className="attendance-choice-group">

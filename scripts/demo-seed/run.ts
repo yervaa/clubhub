@@ -12,7 +12,7 @@
 import path from "path";
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { DEMO_SEED_ENV_FLAG } from "./constants";
+import { DEMO_SEED_ENV_FLAG, DEMO_SEED_REMOTE_OK_FLAG } from "./constants";
 import { resetDemoData } from "./reset";
 import { createDemoAuthUsers, seedDemoDataset } from "./seed";
 
@@ -31,11 +31,40 @@ function assertSafeToRun(): void {
   }
 }
 
+/**
+ * Hosted Supabase (or any non-loopback URL) while developing can still point at a shared DB.
+ * Require an extra explicit flag so `npm run seed:demo` cannot wipe staging/production by accident.
+ */
+function assertRemoteTargetOptIn(): void {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!raw) return;
+
+  let host: string;
+  try {
+    host = new URL(raw).hostname.toLowerCase();
+  } catch {
+    return;
+  }
+
+  const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+  if (isLoopback) return;
+
+  const ok = process.env[DEMO_SEED_REMOTE_OK_FLAG] === "true";
+  if (!ok) {
+    throw new Error(
+      `Refused: demo seed targets a non-loopback Supabase host (${host}). ` +
+        `This can delete demo clubs and *.demo@clubhub.test users on THAT project. ` +
+        `Set ${DEMO_SEED_REMOTE_OK_FLAG}=true to confirm, or use local Supabase (127.0.0.1).`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const noReset = args.includes("--no-reset");
 
   assertSafeToRun();
+  assertRemoteTargetOptIn();
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();

@@ -64,7 +64,9 @@ type FilterStatus = TaskStatus | "all";
 
 function displayName(m: { fullName: string | null; email: string | null } | null): string {
   if (!m) return "Unknown";
-  return m.fullName ?? m.email ?? "Unknown";
+  const n = m.fullName?.trim();
+  if (n) return n;
+  return "Member";
 }
 
 function initials(name: string): string {

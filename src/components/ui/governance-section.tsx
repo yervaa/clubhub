@@ -43,14 +43,9 @@ type GovernanceSectionProps = {
 };
 
 function getMemberLabel(member: GovernanceMember): string {
-  if (member.name) return member.name;
-  if (member.email) return member.email;
-  return "Unknown member";
-}
-
-function getMemberSubtext(member: GovernanceMember): string | null {
-  if (member.name && member.email) return member.email;
-  return null;
+  const n = member.name?.trim();
+  if (n) return n;
+  return "Member";
 }
 
 // ─── Inline confirmation panel ────────────────────────────────────────────────
@@ -342,9 +337,6 @@ export function GovernanceSection({
                             </span>
                           )}
                         </div>
-                        {getMemberSubtext(president) && (
-                          <p className="mt-0.5 text-xs text-slate-500">{getMemberSubtext(president)}</p>
-                        )}
                       </div>
                     </div>
 
@@ -442,7 +434,7 @@ export function GovernanceSection({
                     <option value="">— choose a member —</option>
                     {nonPresidents.map((m) => (
                       <option key={m.userId} value={m.userId}>
-                        {getMemberLabel(m)}{getMemberSubtext(m) ? ` (${getMemberSubtext(m)})` : ""}
+                        {getMemberLabel(m)}
                       </option>
                     ))}
                   </select>
@@ -549,7 +541,7 @@ export function GovernanceSection({
                     <option value="">— choose your successor —</option>
                     {nonPresidents.map((m) => (
                       <option key={m.userId} value={m.userId}>
-                        {getMemberLabel(m)}{getMemberSubtext(m) ? ` (${getMemberSubtext(m)})` : ""}
+                        {getMemberLabel(m)}
                       </option>
                     ))}
                   </select>

@@ -1,7 +1,4 @@
-function cleanEnvValue(value: string | undefined) {
-  if (!value) return "";
-  return value.trim().replace(/^['"]|['"]$/g, "");
-}
+import { cleanEnvValue } from "@/lib/supabase/env.shared";
 
 function ensureValidUrl(value: string, envName: string) {
   try {
@@ -14,6 +11,7 @@ function ensureValidUrl(value: string, envName: string) {
   }
 }
 
+/** URL + anon key — safe to use from browser client (`createBrowserClient`). */
 export function getSupabaseEnv() {
   const url = cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const anonKey = cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -27,14 +25,4 @@ export function getSupabaseEnv() {
   ensureValidUrl(url, "NEXT_PUBLIC_SUPABASE_URL");
 
   return { url, anonKey };
-}
-
-export function getSupabaseServiceRoleKey() {
-  const serviceRoleKey = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-  if (!serviceRoleKey) {
-    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in server environment.");
-  }
-
-  return serviceRoleKey;
 }

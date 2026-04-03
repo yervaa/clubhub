@@ -3,7 +3,7 @@ import { removeMemberAction, updateMemberRoleAction } from "@/app/(app)/clubs/ac
 import { GettingStartedChecklist } from "@/components/ui/getting-started-checklist";
 import { MemberInvite } from "@/components/ui/member-invite";
 import type { ClubDetail } from "@/lib/clubs/queries";
-import { getMemberDisplayName, getMemberInitials, getMemberSecondaryText } from "@/lib/member-display";
+import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
 
 type ClubMembersPermissions = {
@@ -161,12 +161,12 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                   {/* Identity row */}
                   <div className="flex items-start gap-3">
                     <div className={`member-avatar ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""}`}>
-                      {getMemberInitials(member)}
+                      {getMemberRosterInitials(member)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-base font-semibold tracking-tight text-slate-950">
-                          {getMemberDisplayName(member)}
+                          {getMemberRosterDisplayName(member)}
                         </p>
                         <span className={`member-role-pill ${isOfficer ? "is-officer" : "is-member"}`}>
                           {member.role}
@@ -187,7 +187,6 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                           </span>
                         ))}
                       </div>
-                      <p className="mt-1 truncate text-sm text-slate-500">{getMemberSecondaryText(member)}</p>
                     </div>
 
                     {/* Manage roles link — Presidents only */}

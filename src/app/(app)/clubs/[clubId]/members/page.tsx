@@ -3,8 +3,25 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserPermissions, isClubPresident } from "@/lib/rbac/permissions";
 import { getMembersWithRoles } from "@/lib/rbac/role-actions";
 import { ClubMembersSection } from "@/components/ui/club-members-section";
-import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
+import { getClubDetailForCurrentUser, type ClubDetail, type ClubMember } from "@/lib/clubs/queries";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
+
+/** Prefer names/emails from getMembersWithRoles when RPC row is missing them (RLS / stale RPC). */
+function mergeClubRosterIdentities(club: ClubDetail, withRoles: MemberWithRoles[]): ClubDetail {
+  if (withRoles.length === 0) return club;
+  const map = new Map(withRoles.map((m) => [m.userId, m]));
+  const enrich = (member: ClubMember): ClubMember => {
+    const r = map.get(member.userId);
+    const name = member.fullName?.trim() || r?.fullName?.trim() || null;
+    const email = member.email ?? r?.email ?? null;
+    return { ...member, fullName: name, email };
+  };
+  return {
+    ...club,
+    members: club.members.map(enrich),
+    topMembers: club.topMembers.map(enrich),
+  };
+}
 
 type ClubMembersPageProps = {
   params: Promise<{ clubId: string }>;
@@ -39,6 +56,9 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
     }
   }
 
+  const clubForUi =
+    membersResult.ok ? mergeClubRosterIdentities(club, membersResult.data) : club;
+
   const permissions = {
     canInviteMembers: userPermissions.has("members.invite"),
     canRemoveMembers: userPermissions.has("members.remove"),
@@ -48,7 +68,7 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
 
   return (
     <ClubMembersSection
-      club={club}
+      club={clubForUi}
       query={query}
       rbacByUser={rbacByUser}
       isPresident={presidencyCheck}

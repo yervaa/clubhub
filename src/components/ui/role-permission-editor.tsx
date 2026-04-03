@@ -27,7 +27,7 @@ type RolePermissionEditorProps = {
 };
 
 function getMemberLabel(m: MemberWithRoles): string {
-  return m.fullName?.trim() || m.email?.split("@")[0] || "Unknown";
+  return m.fullName?.trim() || "Member";
 }
 
 function getMemberInitial(m: MemberWithRoles): string {

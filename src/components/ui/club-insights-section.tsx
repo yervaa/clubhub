@@ -1,6 +1,6 @@
 import type { ClubDetail } from "@/lib/clubs/queries";
 import { DisclosurePanel } from "@/components/ui/disclosure-panel";
-import { getMemberDisplayName, getMemberInitials } from "@/lib/member-display";
+import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 import { computeClubInsights } from "@/lib/clubs/insights";
 import type { TrendDirection, EngagementTier } from "@/lib/clubs/insights";
 
@@ -322,12 +322,12 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
                               {index + 1}
                             </span>
                             <div className={`member-avatar ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""}`}>
-                              {getMemberInitials(member)}
+                              {getMemberRosterInitials(member)}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="truncate text-sm font-semibold text-slate-900">
-                                  {getMemberDisplayName(member)}
+                                  {getMemberRosterDisplayName(member)}
                                 </p>
                                 <span className={`member-role-pill ${isOfficer ? "is-officer" : "is-member"}`}>
                                   {member.role}

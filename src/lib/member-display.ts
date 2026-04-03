@@ -34,3 +34,19 @@ export function getMemberInitials(member: MemberIdentity) {
 
   return "M";
 }
+
+/** Roster / shared member list: do not use email as name or initials (privacy). */
+export function getMemberRosterDisplayName(member: MemberIdentity): string {
+  const name = member.fullName?.trim();
+  if (name) return name;
+  return "Member";
+}
+
+export function getMemberRosterInitials(member: MemberIdentity): string {
+  const name = member.fullName?.trim();
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean).slice(0, 2);
+    return parts.map((part) => part[0]?.toUpperCase() ?? "").join("") || "M";
+  }
+  return "M";
+}

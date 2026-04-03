@@ -1,5 +1,5 @@
 import type { ClubDetail } from "@/lib/clubs/queries";
-import { getMemberDisplayName, getMemberInitials } from "@/lib/member-display";
+import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 
 type ClubAttendanceInsightsSectionProps = {
   club: ClubDetail;
@@ -52,12 +52,12 @@ export function ClubAttendanceInsightsSection({ club }: ClubAttendanceInsightsSe
                       <div
                         className={`member-avatar ${member.role === "officer" ? "is-officer" : ""} ${member.userId === club.currentUserId ? "is-current-user" : ""}`}
                       >
-                        {getMemberInitials(member)}
+                        {getMemberRosterInitials(member)}
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-sm font-semibold text-slate-900">
-                            {index + 1}. {getMemberDisplayName(member)}
+                            {index + 1}. {getMemberRosterDisplayName(member)}
                           </p>
                           <span className={`member-role-pill ${member.role === "officer" ? "is-officer" : "is-member"}`}>
                             {member.role}

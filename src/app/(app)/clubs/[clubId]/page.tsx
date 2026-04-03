@@ -105,13 +105,13 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
       ];
       const { data: profileRows } = await supabase
         .from("profiles")
-        .select("id, full_name, email")
+        .select("id, full_name")
         .in("id", profileIds);
 
       const nameById = new Map(
         (profileRows ?? []).map((p) => [
           p.id,
-          p.full_name?.trim() || p.email?.split("@")[0] || "Someone",
+          p.full_name?.trim() || "Someone",
         ]),
       );
 

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed:demo": "tsx scripts/demo-seed/run.ts",
-    "seed:demo:no-reset": "tsx scripts/demo-seed/run.ts --no-reset"
+    "seed:demo:no-reset": "tsx scripts/demo-seed/run.ts --no-reset",
+    "seed:pilot-showcase": "tsx scripts/pilot-showcase/run.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
