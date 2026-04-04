@@ -175,7 +175,8 @@ export async function getMembersWithRoles(clubId: string): Promise<ActionResult<
     supabase
       .from("club_members")
       .select("user_id, role, profiles ( full_name, email )")
-      .eq("club_id", clubId),
+      .eq("club_id", clubId)
+      .eq("membership_status", "active"),
     supabase
       .from("member_roles")
       .select("user_id, club_id, role_id, club_roles ( name, is_system )")
@@ -431,16 +432,17 @@ export async function assignMemberRole(
       }
     }
 
-    // Verify the target is a member of the club.
+    // Verify the target is an active member of the club.
     const { data: membership } = await supabase
       .from("club_members")
       .select("user_id")
       .eq("club_id", clubId)
       .eq("user_id", targetUserId)
+      .eq("membership_status", "active")
       .maybeSingle();
 
     if (!membership) {
-      return { ok: false, error: "Target user is not a member of this club." };
+      return { ok: false, error: "Target user is not an active member of this club." };
     }
 
     const { error: insertErr } = await supabase

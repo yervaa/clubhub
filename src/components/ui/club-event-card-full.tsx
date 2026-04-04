@@ -57,6 +57,11 @@ export function ClubEventCardFull({
   const isToday = event.eventDateRaw.toDateString() === now.toDateString();
   const isPast = event.eventDateRaw.getTime() < now.getTime();
   const totalResponses = event.rsvpCounts.yes + event.rsvpCounts.no + event.rsvpCounts.maybe;
+  const activeMembersForAttendance = club.members.filter((m) => m.membershipStatus === "active");
+  const unmarkedActiveCount = activeMembersForAttendance.filter(
+    (m) => !event.presentMemberIds.includes(m.userId),
+  ).length;
+
   const responsePercent = memberCount > 0 ? Math.min(100, Math.round((totalResponses / memberCount) * 100)) : 0;
   const goingPercent = memberCount > 0 ? Math.min(100, Math.round((event.rsvpCounts.yes / memberCount) * 100)) : 0;
   const goingLabel = event.rsvpCounts.yes === 1 ? "person going" : "people going";
@@ -315,13 +320,13 @@ export function ClubEventCardFull({
         {canMarkAttendance ? (
           <DisclosurePanel
             title="Mark attendance"
-            subtitle={`${event.attendanceCount} marked present · ${Math.max(0, club.members.length - event.presentMemberIds.length)} unmarked in checklist`}
+            subtitle={`${event.attendanceCount} marked present · ${unmarkedActiveCount} unmarked in checklist`}
             badge={<span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Officers</span>}
           >
             <AttendanceChecklist
               clubId={club.id}
               eventId={event.id}
-              members={club.members}
+              members={activeMembersForAttendance}
               presentMemberIds={event.presentMemberIds}
               currentUserId={club.currentUserId}
               recentlySavedUserId={query.attendanceEventId === event.id ? query.attendanceUserId : undefined}

@@ -19,6 +19,7 @@ import {
   eventReflectionSchema,
   joinCodeSchema,
   memberRemovalSchema,
+  memberMarkAlumniSchema,
   memberRoleUpdateSchema,
   rsvpSchema,
 } from "@/lib/validation/clubs";
@@ -418,6 +419,7 @@ export async function createAnnouncementAction(formData: FormData) {
     .from("club_members")
     .select("user_id")
     .eq("club_id", parsed.data.clubId)
+    .eq("membership_status", "active")
     .neq("user_id", user.id);
 
   if (otherMembers && otherMembers.length > 0) {
@@ -443,6 +445,10 @@ function getMemberManagementErrorMessage(status: string) {
       return "You cannot change your own membership from this screen.";
     case "last_officer":
       return "This club must keep at least one officer.";
+    case "last_president":
+      return "This club must keep at least one President — assign another President before marking this member as alumni.";
+    case "already_alumni":
+      return "That member is already marked as alumni.";
     case "not_found":
       return "That member could not be found in this club.";
     case "not_allowed":
@@ -550,6 +556,55 @@ export async function removeMemberAction(formData: FormData) {
   redirect(`/clubs/${parsed.data.clubId}/members?memberSuccess=Member+removed.`);
 }
 
+export async function markMemberAlumniAction(formData: FormData) {
+  const parsed = memberMarkAlumniSchema.safeParse({
+    clubId: formData.get("club_id"),
+    userId: formData.get("user_id"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}/members?memberError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    }
+    redirect("/clubs?error=Invalid+member+request.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=${encodeURIComponent(active.message)}`);
+  }
+
+  const canMark = await hasPermission(user.id, parsed.data.clubId, "members.remove");
+  if (!canMark) {
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=You+do+not+have+permission+to+update+membership+status.`);
+  }
+
+  const { data: status, error } = await supabase.rpc("set_club_membership_alumni", {
+    p_club_id: parsed.data.clubId,
+    p_target_user_id: parsed.data.userId,
+  });
+
+  if (error || status !== "ok") {
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=${encodeURIComponent(getMemberManagementErrorMessage(status ?? "unknown"))}`);
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/settings`);
+  revalidatePath("/clubs");
+  revalidatePath("/dashboard");
+  redirect(`/clubs/${parsed.data.clubId}/members?memberSuccess=Member+marked+as+alumni.`);
+}
+
 export async function createEventAction(formData: FormData) {
   const duplicateEventIdRaw = formData.get("duplicate_event_id");
   const duplicateEventId = typeof duplicateEventIdRaw === "string" ? duplicateEventIdRaw : "";
@@ -633,6 +688,7 @@ export async function createEventAction(formData: FormData) {
     .from("club_members")
     .select("user_id")
     .eq("club_id", parsed.data.clubId)
+    .eq("membership_status", "active")
     .neq("user_id", user.id);
 
   if (otherMembers && otherMembers.length > 0) {

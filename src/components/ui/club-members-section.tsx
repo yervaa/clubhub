@@ -1,10 +1,58 @@
+"use client";
+
 import Link from "next/link";
-import { removeMemberAction, updateMemberRoleAction } from "@/app/(app)/clubs/actions";
+import { useMemo, useState } from "react";
+import { markMemberAlumniAction, removeMemberAction, updateMemberRoleAction } from "@/app/(app)/clubs/actions";
 import { GettingStartedChecklist } from "@/components/ui/getting-started-checklist";
 import { MemberInvite } from "@/components/ui/member-invite";
-import type { ClubDetail } from "@/lib/clubs/queries";
+import type { ClubDetail, ClubMember } from "@/lib/clubs/queries";
 import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
+
+/** Role filter uses real data only: legacy `club_members.role` + RBAC President. */
+type RosterRoleFilter = "all" | "president" | "officer" | "member";
+
+/** Membership lifecycle filter (active vs alumni). */
+type RosterStatusFilter = "all" | "active" | "alumni";
+
+function hasRbacPresident(rbacRoles: MemberWithRoles["rbacRoles"]): boolean {
+  return rbacRoles.some((r) => r.roleName === "President" && r.isSystem);
+}
+
+function memberMatchesStatusFilter(member: ClubMember, filter: RosterStatusFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "active") return member.membershipStatus === "active";
+  if (filter === "alumni") return member.membershipStatus === "alumni";
+  return true;
+}
+
+function memberMatchesRoleFilter(
+  member: ClubMember,
+  rbacRoles: MemberWithRoles["rbacRoles"],
+  filter: RosterRoleFilter,
+): boolean {
+  if (filter === "all") return true;
+  const isPres = hasRbacPresident(rbacRoles);
+  if (filter === "president") return isPres;
+  if (filter === "officer") return member.role === "officer" && !isPres;
+  if (filter === "member") return member.role === "member";
+  return true;
+}
+
+function memberMatchesRosterSearch(
+  member: ClubMember,
+  rbacRoles: MemberWithRoles["rbacRoles"],
+  queryLower: string,
+): boolean {
+  const name = member.fullName?.trim().toLowerCase() ?? "";
+  const email = member.email?.trim().toLowerCase() ?? "";
+  const legacyRole = member.role.toLowerCase();
+  const display = getMemberRosterDisplayName(member).toLowerCase();
+  const rbacNames = rbacRoles.map((r) => r.roleName.toLowerCase()).join(" ");
+  const status = member.membershipStatus === "alumni" ? "alumni" : "";
+  const haystack = [name, email, legacyRole, display, rbacNames, status].join(" ");
+  return haystack.includes(queryLower);
+}
 
 type ClubMembersPermissions = {
   canInviteMembers: boolean;
@@ -25,9 +73,16 @@ type ClubMembersSectionProps = {
 };
 
 export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident = false, permissions }: ClubMembersSectionProps) {
-  const memberCount = club.memberCount;
-  const officerCount = club.members.filter((m) => m.role === "officer").length;
-  const regularMemberCount = memberCount - officerCount;
+  const [rosterSearch, setRosterSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RosterRoleFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<RosterStatusFilter>("all");
+
+  const activeMembers = club.members.filter((m) => m.membershipStatus === "active");
+  const alumniCount = club.members.length - activeMembers.length;
+  const memberCount = activeMembers.length;
+  const officerCount = activeMembers.filter((m) => m.role === "officer").length;
+  const regularMemberCount = activeMembers.filter((m) => m.role === "member").length;
+  const rosterTotalCount = club.members.length;
   const setupDone = memberCount > 1 && club.announcements.length > 0 && club.events.length > 0;
 
   // RBAC-based permission checks with legacy officer fallback.
@@ -41,6 +96,29 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
   const isArchived = club.status === "archived";
   const showInvite = canInviteMembers && !isArchived;
   const showManagement = hasAnyManagementPermission && !isArchived;
+
+  const rosterQuery = rosterSearch.trim().toLowerCase();
+  const hasActiveFilters = Boolean(rosterQuery) || roleFilter !== "all" || statusFilter !== "all";
+
+  const filteredMembers = useMemo(() => {
+    let list = club.members;
+    if (statusFilter !== "all") {
+      list = list.filter((m) => memberMatchesStatusFilter(m, statusFilter));
+    }
+    if (roleFilter !== "all") {
+      list = list.filter((m) =>
+        memberMatchesRoleFilter(m, rbacByUser[m.userId] ?? [], roleFilter),
+      );
+    }
+    if (!rosterQuery) return list;
+    return list.filter((m) => memberMatchesRosterSearch(m, rbacByUser[m.userId] ?? [], rosterQuery));
+  }, [club.members, rbacByUser, rosterQuery, roleFilter, statusFilter]);
+
+  function clearRosterFilters() {
+    setRosterSearch("");
+    setRoleFilter("all");
+    setStatusFilter("all");
+  }
 
   return (
     <section className="space-y-6">
@@ -60,8 +138,11 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
             <div>
               <p className="text-2xl font-bold text-slate-900">{memberCount}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
-                {memberCount === 1 ? "Member" : "Members"}
+                Active {memberCount === 1 ? "member" : "members"}
               </p>
+              {alumniCount > 0 ? (
+                <p className="mt-1 text-xs font-medium text-slate-500">{alumniCount} alumni</p>
+              ) : null}
             </div>
 
             <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
@@ -133,13 +214,96 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
               {hasAnyManagementPermission ? " — officers are listed first" : null}
             </p>
           </div>
-          <span className="badge-soft">{memberCount} total</span>
+          <span className="badge-soft">
+            {hasActiveFilters
+              ? `${filteredMembers.length} of ${rosterTotalCount}`
+              : `${rosterTotalCount} total (${memberCount} active${alumniCount > 0 ? `, ${alumniCount} alumni` : ""})`}
+          </span>
         </div>
+
+        {rosterTotalCount > 0 && (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 sm:p-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Find members</p>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
+                <div className="relative min-w-0 flex-1">
+                  <svg
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="search"
+                    value={rosterSearch}
+                    onChange={(e) => setRosterSearch(e.target.value)}
+                    placeholder="Search members…"
+                    className="input-control min-h-11 w-full pl-9 text-sm sm:min-h-10"
+                    aria-label="Search members in roster"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+                  <div className="w-full sm:min-w-[180px]">
+                    <label htmlFor="roster-status-filter" className="mb-1 block text-xs font-semibold text-slate-600">
+                      Status
+                    </label>
+                    <select
+                      id="roster-status-filter"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as RosterStatusFilter)}
+                      className="input-control min-h-11 w-full text-sm sm:min-h-10"
+                      aria-label="Filter roster by membership status"
+                    >
+                      <option value="all">All</option>
+                      <option value="active">Active only</option>
+                      <option value="alumni">Alumni only</option>
+                    </select>
+                  </div>
+                  <div className="w-full sm:min-w-[220px]">
+                    <label htmlFor="roster-role-filter" className="mb-1 block text-xs font-semibold text-slate-600">
+                      Role
+                    </label>
+                    <select
+                      id="roster-role-filter"
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value as RosterRoleFilter)}
+                      className="input-control min-h-11 w-full text-sm sm:min-h-10"
+                      aria-label="Filter roster by role"
+                    >
+                      <option value="all">All roles</option>
+                      <option value="president">President</option>
+                      <option value="officer">Officer (not President)</option>
+                      <option value="member">Member</option>
+                    </select>
+                  </div>
+                  {hasActiveFilters ? (
+                    <button
+                      type="button"
+                      onClick={clearRosterFilters}
+                      className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-h-10"
+                    >
+                      Clear filters
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-3 border-t border-slate-200/90 pt-3 text-xs leading-relaxed text-slate-500">
+                <span className="font-semibold text-slate-600">Grade &amp; class year:</span> not in the database yet
+                (profiles only store name and email). This page can filter by{" "}
+                <span className="text-slate-600">role</span> using membership and RBAC data only.
+              </p>
+            </div>
+          </div>
+        )}
 
         {query.memberSuccess ? <p className="alert-success mt-4">{query.memberSuccess}</p> : null}
         {query.memberError ? <p className="alert-error mt-3">{query.memberError}</p> : null}
 
-        {memberCount === 0 ? (
+        {rosterTotalCount === 0 ? (
           <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-8 text-center">
             <p className="font-semibold text-slate-900">No members yet</p>
             <p className="mt-1 text-sm text-slate-500">
@@ -148,11 +312,28 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                 : "You're the first one here."}
             </p>
           </div>
+        ) : filteredMembers.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-8 text-center">
+            <p className="font-semibold text-slate-900">No members match your filters</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Try another search term, change the role filter, or clear filters to see the full roster.
+            </p>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={clearRosterFilters}
+                className="btn-primary mt-4 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold"
+              >
+                Clear filters
+              </button>
+            ) : null}
+          </div>
         ) : (
           <ul className="list-stack mt-4">
-            {club.members.map((member) => {
+            {filteredMembers.map((member) => {
               const isCurrentUser = member.userId === club.currentUserId;
-              const isOfficer = member.role === "officer";
+              const isAlumni = member.membershipStatus === "alumni";
+              const isOfficer = member.role === "officer" && !isAlumni;
 
               const rbacRoles = rbacByUser[member.userId] ?? [];
               // Show non-redundant RBAC badges: skip the "Officer"/"Member" system
@@ -164,7 +345,7 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
               return (
                 <li
                   key={member.userId}
-                  className={`member-card ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""}`}
+                  className={`member-card ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""} ${isAlumni ? "border-dashed border-slate-200/90 bg-slate-50/40" : ""}`}
                 >
                   {/* Identity row */}
                   <div className="flex items-start gap-3">
@@ -179,6 +360,11 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                         <span className={`member-role-pill ${isOfficer ? "is-officer" : "is-member"}`}>
                           {member.role}
                         </span>
+                        {isAlumni ? (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                            Alumni
+                          </span>
+                        ) : null}
                         {isCurrentUser ? <span className="member-you-pill">You</span> : null}
 
                         {/* RBAC role badges (President + custom roles only) */}
@@ -197,8 +383,8 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                       </div>
                     </div>
 
-                    {/* Manage roles link — Presidents only */}
-                    {isPresident && (
+                    {/* Manage roles link — Presidents only; alumni have no RBAC roles to manage here */}
+                    {isPresident && !isAlumni && (
                       <Link
                         href={`/clubs/${club.id}/settings`}
                         className="ml-auto shrink-0 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-700"
@@ -237,9 +423,9 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                   {/* Member management actions — gated per permission */}
                   {!isArchived && !isCurrentUser && (canAssignRoles || canRemoveMembers) ? (
                     <div className="member-card-actions">
-                      {/* Role promotion/demotion — requires members.assign_roles */}
-                      {canAssignRoles && (
-                        member.role === "member" ? (
+                      {/* Role promotion/demotion — requires members.assign_roles; alumni are read-only */}
+                      {canAssignRoles && member.membershipStatus === "active" &&
+                        (member.role === "member" ? (
                           <form action={updateMemberRoleAction}>
                             <input type="hidden" name="club_id" value={club.id} />
                             <input type="hidden" name="user_id" value={member.userId} />
@@ -257,15 +443,22 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                               Demote to Member
                             </button>
                           </form>
-                        )
+                        ))}
+                      {canRemoveMembers && member.membershipStatus === "active" && (
+                        <form action={markMemberAlumniAction}>
+                          <input type="hidden" name="club_id" value={club.id} />
+                          <input type="hidden" name="user_id" value={member.userId} />
+                          <button type="submit" className="btn-secondary text-xs">
+                            Mark as alumni
+                          </button>
+                        </form>
                       )}
-                      {/* Remove — requires members.remove */}
                       {canRemoveMembers && (
                         <form action={removeMemberAction}>
                           <input type="hidden" name="club_id" value={club.id} />
                           <input type="hidden" name="user_id" value={member.userId} />
                           <button type="submit" className="btn-danger text-xs">
-                            Remove from Club
+                            {isAlumni ? "Remove from roster" : "Remove from Club"}
                           </button>
                         </form>
                       )}

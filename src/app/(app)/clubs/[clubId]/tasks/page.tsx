@@ -21,6 +21,7 @@ export default async function ClubTasksPage({ params }: ClubTasksPageProps) {
     .select("user_id")
     .eq("club_id", clubId)
     .eq("user_id", user.id)
+    .eq("membership_status", "active")
     .maybeSingle();
 
   if (!membership) notFound();
@@ -33,7 +34,8 @@ export default async function ClubTasksPage({ params }: ClubTasksPageProps) {
     supabase
       .from("club_members")
       .select("user_id, profiles ( full_name, email )")
-      .eq("club_id", clubId),
+      .eq("club_id", clubId)
+      .eq("membership_status", "active"),
     supabase
       .from("clubs")
       .select("name")

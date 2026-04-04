@@ -89,6 +89,11 @@ export const memberRemovalSchema = z.object({
   userId: uuidSchema,
 });
 
+export const memberMarkAlumniSchema = z.object({
+  clubId: uuidSchema,
+  userId: uuidSchema,
+});
+
 const roleNameSchema = z
   .string()
   .transform(sanitizeInlineText)

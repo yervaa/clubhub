@@ -47,11 +47,15 @@ export type ClubEvent = {
   } | null;
 };
 
+export type MembershipStatus = "active" | "alumni";
+
 export type ClubMember = {
   userId: string;
   fullName: string | null;
   email: string | null;
   role: "member" | "officer";
+  /** Club-specific lifecycle: alumni retain history but are not active operational members. */
+  membershipStatus: MembershipStatus;
   attendanceCount: number;
   totalTrackedEvents: number;
   attendanceRate: number;
@@ -96,6 +100,7 @@ export type ClubDetail = {
   status: ClubStatus;
   currentUserId: string;
   currentUserRole: "member" | "officer";
+  /** Count of active members (excludes alumni). Used for stats, RSVP denominators, and checklists. */
   memberCount: number;
   members: ClubMember[];
   totalTrackedEvents: number;
@@ -173,11 +178,13 @@ type ClubMemberViewRow = {
   full_name: string | null;
   email: string | null;
   role: "member" | "officer";
+  membership_status: MembershipStatus;
 };
 
 type ClubMemberBaseRow = {
   user_id: string;
   role: "member" | "officer";
+  membership_status: MembershipStatus;
 };
 
 type ClubActivityRow = {
@@ -336,6 +343,7 @@ export async function getCurrentUserClubs(): Promise<UserClub[]> {
     .from("club_members")
     .select("role, clubs(id, name, description, join_code, status)")
     .eq("user_id", user.id)
+    .eq("membership_status", "active")
     .order("joined_at", { ascending: false });
 
   if (error || !data) {
@@ -400,7 +408,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   const { data: clubMembersData } = await supabase
     .from("club_members")
     .select("club_id")
-    .in("club_id", clubIds);
+    .in("club_id", clubIds)
+    .eq("membership_status", "active");
 
   const { data: announcementsData } = await supabase
     .from("announcements")
@@ -610,7 +619,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
 
   const { data: memberBaseData } = await supabase
     .from("club_members")
-    .select("user_id, role")
+    .select("user_id, role, membership_status")
     .eq("club_id", clubId)
     .order("role", { ascending: false });
 
@@ -757,23 +766,26 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     const attendanceRate = totalTrackedEvents > 0
       ? Math.round((attendanceCount / totalTrackedEvents) * 100)
       : 0;
+    const membershipStatus = detail?.membership_status ?? member.membership_status;
 
     return {
       userId: member.user_id,
       fullName: detail?.full_name ?? null,
       email: detail?.email ?? null,
       role: member.role,
+      membershipStatus,
       attendanceCount,
       totalTrackedEvents,
       attendanceRate,
     };
   });
 
+  const activeMembersForAvg = membersWithAttendance.filter((m) => m.membershipStatus === "active");
   const clubAverageAttendance =
-    totalTrackedEvents > 0 && membersWithAttendance.length > 0
+    totalTrackedEvents > 0 && activeMembersForAvg.length > 0
       ? Math.round(
-          (membersWithAttendance.reduce((sum, member) => sum + member.attendanceCount, 0)
-            / (totalTrackedEvents * membersWithAttendance.length))
+          (activeMembersForAvg.reduce((sum, member) => sum + member.attendanceCount, 0)
+            / (totalTrackedEvents * activeMembersForAvg.length))
             * 100,
         )
       : 0;
@@ -792,7 +804,9 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     })
     .slice(0, 3);
 
-  const memberCount = ((memberBaseData ?? []) as ClubMemberBaseRow[]).length;
+  const memberCount = ((memberBaseData ?? []) as ClubMemberBaseRow[]).filter(
+    (m) => m.membership_status === "active",
+  ).length;
   const nextUpcomingEvent = nextUpcomingEventData
     ? {
         id: nextUpcomingEventData.id,
@@ -841,7 +855,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     status: lifecycleStatus,
     currentUserId: user.id,
     currentUserRole: membership.role,
-    memberCount: ((memberBaseData ?? []) as ClubMemberBaseRow[]).length,
+    memberCount,
     members: membersWithAttendance,
     totalTrackedEvents,
     clubAverageAttendance,
