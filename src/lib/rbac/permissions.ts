@@ -2,12 +2,12 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 
 // ─── Permission key catalog ───────────────────────────────────────────────────
-// Must stay in sync with the `permissions` table seeded in 016_rbac_permission_matrix.sql.
-// Run 016 after 013–015 to apply the finalised 26-key permission matrix.
+// Must stay in sync with the `permissions` table (see supabase migrations).
 
 export type PermissionKey =
   // Club administration
   | "club.manage_settings"
+  | "club.archive"
   | "club.delete"
   | "club.transfer_presidency"
   // Member management

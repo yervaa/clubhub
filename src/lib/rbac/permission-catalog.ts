@@ -41,6 +41,11 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
     description: "Edit club name, description, and join code.",
     category: "Club",
   },
+  "club.archive": {
+    label: "Archive Club",
+    description: "Mark the club as inactive and hide it from active club lists.",
+    category: "Club",
+  },
   "club.delete": {
     label: "Delete Club",
     description: "Permanently delete this club and all its data.",

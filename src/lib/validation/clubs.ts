@@ -148,6 +148,25 @@ export const governanceTransferSchema = z.object({
   targetUserId: uuidSchema,
 });
 
+// ─── Club lifecycle (leave / archive / delete) ───────────────────────────────
+
+export const leaveClubSchema = z.object({
+  clubId: uuidSchema,
+});
+
+export const archiveClubSchema = z.object({
+  clubId: uuidSchema,
+});
+
+export const deleteClubSchema = z.object({
+  clubId: uuidSchema,
+  /** Must match the club name exactly (trimmed). */
+  confirmName: z
+    .string()
+    .transform(sanitizeInlineText)
+    .pipe(z.string().min(1, "Type the club name to confirm.")),
+});
+
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
 const taskTitleSchema = z

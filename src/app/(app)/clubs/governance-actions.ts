@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { assignMemberRole, removeMemberRole } from "@/lib/rbac/role-actions";
@@ -64,6 +65,11 @@ export async function addPresidentAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(governanceUrl(clubId, { error: encodeURIComponent(active.message) }));
+  }
+
   // Gate: only users with club.transfer_presidency (i.e. Presidents) may grant Presidency.
   const canTransfer = await hasPermission(user.id, clubId, "club.transfer_presidency");
   if (!canTransfer) {
@@ -120,6 +126,11 @@ export async function removePresidentAction(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(governanceUrl(clubId, { error: encodeURIComponent(active.message) }));
+  }
 
   const canTransfer = await hasPermission(user.id, clubId, "club.transfer_presidency");
   if (!canTransfer) {
@@ -180,6 +191,11 @@ export async function transferPresidencyAction(formData: FormData) {
 
   if (targetUserId === user.id) {
     redirect(governanceUrl(clubId, { error: "You+cannot+transfer+Presidency+to+yourself." }));
+  }
+
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(governanceUrl(clubId, { error: encodeURIComponent(active.message) }));
   }
 
   const canTransfer = await hasPermission(user.id, clubId, "club.transfer_presidency");

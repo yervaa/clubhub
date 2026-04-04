@@ -8,6 +8,7 @@ import { upsertCurrentUserProfile } from "@/lib/profiles";
 import { sanitizeInlineText } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createBulkNotifications } from "@/lib/notifications/create-notification";
 import {
@@ -249,7 +250,7 @@ export async function joinClubAction(formData: FormData) {
   const admin = createAdminClient();
   const { data: clubRow, error: clubLookupError } = await admin
     .from("clubs")
-    .select("id")
+    .select("id, status")
     .eq("join_code", normalizedJoinCode)
     .maybeSingle();
 
@@ -264,12 +265,12 @@ export async function joinClubAction(formData: FormData) {
     redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Unexpected+DB+error.+Please+retry.`);
   }
 
-  if (!clubRow?.id) {
+  if (!clubRow?.id || (clubRow as { status?: string }).status === "archived") {
     logJoinClub("invalid-code", {
       userId: user.id,
       joinCode: normalizedJoinCode,
     });
-    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Invalid+join+code.`);
+    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Invalid+join+code+or+club+is+archived.`);
   }
 
   const clubId = clubRow.id;
@@ -391,6 +392,11 @@ export async function createAnnouncementAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+access+to+this+club.`);
   }
 
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(active.message)}`);
+  }
+
   const canPost = await hasPermission(user.id, parsed.data.clubId, "announcements.create");
   if (!canPost) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+permission+to+create+announcements.`);
@@ -470,6 +476,11 @@ export async function updateMemberRoleAction(formData: FormData) {
     redirect("/login");
   }
 
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=${encodeURIComponent(active.message)}`);
+  }
+
   const canAssignRoles = await hasPermission(user.id, parsed.data.clubId, "members.assign_roles");
   if (!canAssignRoles) {
     redirect(`/clubs/${parsed.data.clubId}/members?memberError=You+do+not+have+permission+to+update+member+roles.`);
@@ -512,6 +523,11 @@ export async function removeMemberAction(formData: FormData) {
 
   if (!user) {
     redirect("/login");
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/members?memberError=${encodeURIComponent(active.message)}`);
   }
 
   const canRemove = await hasPermission(user.id, parsed.data.clubId, "members.remove");
@@ -583,6 +599,13 @@ export async function createEventAction(formData: FormData) {
 
   if (membershipError || !membership) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+do+not+have+access+to+this+club.${duplicateQuery}#create-event`);
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(
+      `/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(active.message)}${duplicateQuery}#create-event`,
+    );
   }
 
   // RBAC check: requires the events.create permission (granted to President + Officer by default).
@@ -672,6 +695,11 @@ export async function upsertRsvpAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=You+do+not+have+access+to+this+club+event.`);
   }
 
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=${encodeURIComponent(active.message)}`);
+  }
+
   const { data: eventRow, error: eventError } = await supabase
     .from("events")
     .select("id, club_id")
@@ -748,6 +776,13 @@ export async function saveEventReflectionAction(formData: FormData) {
 
   if (membershipError || !membership) {
     redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=You+do+not+have+access+to+this+club.&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(
+      `/clubs/${parsed.data.clubId}/events?reflectionError=${encodeURIComponent(active.message)}&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`,
+    );
   }
 
   const canReflect = await hasPermission(user.id, parsed.data.clubId, "reflections.create");
@@ -884,6 +919,11 @@ export async function toggleAttendanceAction(formData: FormData) {
       foundMembership: Boolean(membership),
     });
     redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=You+do+not+have+access+to+this+club.`);
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=${encodeURIComponent(active.message)}`);
   }
 
   const canMarkAttendance = await hasPermission(user.id, parsed.data.clubId, "attendance.mark");

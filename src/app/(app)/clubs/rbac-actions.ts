@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/permissions";
 import type { PermissionKey } from "@/lib/rbac/permissions";
@@ -61,6 +62,11 @@ export async function createCustomRoleAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(settingsUrl(clubId, { mode: "create", error: encodeURIComponent(active.message) }));
+  }
+
   const result = await createClubRole(user.id, clubId, name, description, initialPermissions);
 
   if (!result.ok) {
@@ -105,6 +111,11 @@ export async function saveRoleAction(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(settingsUrl(clubId, { roleId, error: encodeURIComponent(active.message) }));
+  }
 
   // Determine what can be changed for this role.
   const { data: roleRow, error: roleErr } = await supabase
@@ -182,6 +193,11 @@ export async function deleteRoleAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(settingsUrl(clubId, { error: encodeURIComponent(active.message) }));
+  }
+
   const canDelete = await hasPermission(user.id, clubId, "roles.delete");
   if (!canDelete) {
     redirect(settingsUrl(clubId, { error: "You+do+not+have+permission+to+delete+roles." }));
@@ -247,6 +263,11 @@ export async function assignRoleToMemberAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(settingsUrl(clubId, { roleId, error: encodeURIComponent(active.message) }));
+  }
+
   // Fetch role name for audit metadata before the operation.
   const { data: roleNameRow } = await supabase
     .from("club_roles")
@@ -298,6 +319,11 @@ export async function removeRoleFromMemberAction(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(settingsUrl(clubId, { roleId, error: encodeURIComponent(active.message) }));
+  }
 
   // Fetch role name for audit metadata before the operation.
   const { data: roleNameRow } = await supabase

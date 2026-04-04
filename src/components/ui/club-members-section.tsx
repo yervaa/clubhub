@@ -38,6 +38,9 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
 
   // A user can see management controls if they have at least one management permission.
   const hasAnyManagementPermission = canInviteMembers || canRemoveMembers || canAssignRoles;
+  const isArchived = club.status === "archived";
+  const showInvite = canInviteMembers && !isArchived;
+  const showManagement = hasAnyManagementPermission && !isArchived;
 
   return (
     <section className="space-y-6">
@@ -81,7 +84,7 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
             )}
           </div>
 
-          {canInviteMembers && (
+          {showInvite && (
             <div className="mt-6 sm:mt-8">
               <a
                 href="#invite-members"
@@ -91,18 +94,23 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
               </a>
             </div>
           )}
+          {isArchived && (
+            <p className="mt-6 text-sm font-medium text-amber-900">
+              This club is archived — inviting new members is disabled.
+            </p>
+          )}
         </div>
       </header>
 
       {/* Invite tools — requires members.invite permission */}
-      {canInviteMembers && (
+      {showInvite && (
         <section id="invite-members">
           <MemberInvite joinCode={club.joinCode} membersCount={memberCount} />
         </section>
       )}
 
       {/* Getting started — management users only, hidden once all steps are done */}
-      {hasAnyManagementPermission && !setupDone && (
+      {showManagement && !setupDone && (
         <GettingStartedChecklist
           clubId={club.id}
           membersCount={memberCount}
@@ -227,7 +235,7 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                   </div>
 
                   {/* Member management actions — gated per permission */}
-                  {!isCurrentUser && (canAssignRoles || canRemoveMembers) ? (
+                  {!isArchived && !isCurrentUser && (canAssignRoles || canRemoveMembers) ? (
                     <div className="member-card-actions">
                       {/* Role promotion/demotion — requires members.assign_roles */}
                       {canAssignRoles && (

@@ -40,6 +40,8 @@ type GovernanceSectionProps = {
   };
   auditLogs: AuditLogEntry[];
   canViewAudit: boolean;
+  /** When true, governance mutations are disabled (archived club). */
+  clubArchived?: boolean;
 };
 
 function getMemberLabel(member: GovernanceMember): string {
@@ -66,6 +68,7 @@ const AUDIT_ACTION_ICONS: Record<string, { icon: string; color: string }> = {
   "president.added":       { icon: "crown",    color: "violet"  },
   "president.removed":     { icon: "crown-x",  color: "amber"   },
   "presidency.transferred":{ icon: "transfer", color: "violet"  },
+  "club.archived":         { icon: "archive",  color: "amber"   },
 };
 
 function formatAuditAction(entry: AuditLogEntry): string {
@@ -80,6 +83,7 @@ function formatAuditAction(entry: AuditLogEntry): string {
     case "president.added":       return `Added ${user ?? "a member"} as President`;
     case "president.removed":     return `Removed ${user ?? "a member"} from President`;
     case "presidency.transferred":return `Transferred Presidency to ${user ?? "a member"}`;
+    case "club.archived":         return "Archived the club";
     default:                      return entry.action;
   }
 }
@@ -148,6 +152,7 @@ export function GovernanceSection({
   query,
   auditLogs,
   canViewAudit,
+  clubArchived = false,
 }: GovernanceSectionProps) {
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [selectedAddUserId, setSelectedAddUserId] = useState<string>("");
@@ -238,6 +243,19 @@ export function GovernanceSection({
       )}
 
       {/* RBAC migration warning */}
+      {clubArchived && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">This club is archived</p>
+          <p className="mt-1 text-amber-950/90">
+            Presidency changes are disabled. Use{" "}
+            <a href={`/clubs/${clubId}/settings/club`} className="font-semibold underline">
+              Club &amp; exit
+            </a>{" "}
+            if you need to leave or delete the club.
+          </p>
+        </div>
+      )}
+
       {isMigrationMissing && (
         <div className="rounded-xl border border-orange-200 bg-orange-50 p-5">
           <div className="flex items-start gap-3">
@@ -341,7 +359,7 @@ export function GovernanceSection({
                     </div>
 
                     {/* Remove button — Presidents only, disabled for last */}
-                    {isPresident && !isMigrationMissing && (
+                    {isPresident && !isMigrationMissing && !clubArchived && (
                       <div className="flex w-full items-stretch gap-2 sm:w-auto sm:items-center">
                         {isLastOne ? (
                           <span className="text-xs leading-snug text-slate-400 sm:py-2" title="Cannot remove the last President">
@@ -402,7 +420,7 @@ export function GovernanceSection({
       </div>
 
       {/* ── Add Co-President ─────────────────────────────────────────────────── */}
-      {isPresident && !isMigrationMissing && (
+      {isPresident && !isMigrationMissing && !clubArchived && (
         <div className="card-surface p-4 sm:p-6">
           <div className="section-card-header">
             <div>
@@ -462,7 +480,7 @@ export function GovernanceSection({
       )}
 
       {/* ── Transfer Presidency ───────────────────────────────────────────────── */}
-      {isPresident && !isMigrationMissing && (
+      {isPresident && !isMigrationMissing && !clubArchived && (
         <div className="card-surface p-4 sm:p-6">
           <div className="section-card-header">
             <div>

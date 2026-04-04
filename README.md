@@ -54,8 +54,7 @@ cp .env.example .env.local
 
 3. Fill in the Supabase and Upstash values in `.env.local`.
 
-4. Apply the database schema in the Supabase SQL Editor:
-- Run [`supabase/001_mvp_schema.sql`](./supabase/001_mvp_schema.sql)
+4. Apply the database schema in the Supabase SQL Editor (or your migration workflow): run **every** numbered file under [`supabase/`](./supabase/) **in order** (`001` through the latest, e.g. `025`). The app depends on the full chain (RLS, RBAC, tasks, notifications, etc.), not only [`001_mvp_schema.sql`](./supabase/001_mvp_schema.sql).
 
 5. Start the app:
 
@@ -80,8 +79,8 @@ npm run dev
 
 ## Supabase Configuration Checklist
 
-- Apply [`supabase/001_mvp_schema.sql`](./supabase/001_mvp_schema.sql)
-- Confirm the `profiles`, `clubs`, `club_members`, `announcements`, `events`, and `rsvps` tables exist
+- Apply all numbered migrations in [`supabase/`](./supabase/) in order (see [docs/PRESIDENT_TEST_HANDOFF.md](./docs/PRESIDENT_TEST_HANDOFF.md) for a handoff-oriented checklist)
+- Confirm core tables exist (`profiles`, `clubs`, `club_members`, `announcements`, `events`, `rsvps`, plus any added in later migrations your project uses)
 - Set the correct production `Site URL`
 - Add your Vercel preview and production URLs to allowed redirect URLs
 - Review Auth session settings:
@@ -130,6 +129,6 @@ src/
     supabase/
     validation/
 supabase/
-  001_mvp_schema.sql
+  001_mvp_schema.sql, 002_…, … (apply all numbered `.sql` in order)
 middleware.ts
 ```

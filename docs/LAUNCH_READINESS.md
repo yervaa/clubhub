@@ -6,7 +6,7 @@ Operational notes for moving from demo/testing to **real users**. This doc compl
 
 ## What the codebase already does well
 
-- **RLS** is enabled on core tables (clubs, members, events, RSVPs, attendance, reflections, tasks, notifications, audit logs, RBAC tables). Policies evolved through migrations `001`–`021`; apply **all** migrations to production before launch.
+- **RLS** is enabled on core tables (clubs, members, events, RSVPs, attendance, reflections, tasks, notifications, audit logs, RBAC tables). Policies evolved through numbered migrations under `supabase/`; apply **all** of them to production before launch (see [PRESIDENT_TEST_HANDOFF.md](./PRESIDENT_TEST_HANDOFF.md) for an ordered handoff checklist).
 - **Server actions** for governance, tasks, clubs, and notifications generally **check auth** and use **`hasPermission` / `hasPermission`-style RPCs** before writes. Destructive governance flows use **ordered operations** and DB triggers (e.g. last President).
 - **Admin Supabase client** (`createAdminClient`) is **`server-only`** and reads the service role from **`env.server.ts`**, not from the public env module used by the browser.
 - **Demo seed** refuses default runs when `NODE_ENV=production` or `VERCEL_ENV=production` unless `ALLOW_DEMO_SEED=true`, and refuses **non-loopback** Supabase URLs unless `DEMO_SEED_TARGET_OK=true`.

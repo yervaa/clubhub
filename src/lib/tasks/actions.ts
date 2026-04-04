@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasPermission } from "@/lib/rbac/permissions";
@@ -64,6 +65,9 @@ export async function createTaskAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be logged in." };
+
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) return { ok: false, error: active.message };
 
   const canCreate = await hasPermission(user.id, clubId, "tasks.create");
   if (!canCreate) return { ok: false, error: "You do not have permission to create tasks." };
@@ -145,6 +149,9 @@ export async function updateTaskAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be logged in." };
 
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) return { ok: false, error: active.message };
+
   const canEdit = await hasPermission(user.id, clubId, "tasks.edit");
   if (!canEdit) return { ok: false, error: "You do not have permission to edit tasks." };
 
@@ -223,6 +230,9 @@ export async function updateTaskStatusAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be logged in." };
 
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) return { ok: false, error: active.message };
+
   // tasks.edit lets you change any status.
   // tasks.complete lets you mark as completed if you are an assignee.
   const [canEdit, canComplete] = await Promise.all([
@@ -283,6 +293,9 @@ export async function deleteTaskAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be logged in." };
+
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) return { ok: false, error: active.message };
 
   const canDelete = await hasPermission(user.id, clubId, "tasks.delete");
   if (!canDelete) return { ok: false, error: "You do not have permission to delete tasks." };

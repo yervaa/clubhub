@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
 import { normalizeEventType, type EventType } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
+import type { ClubStatus } from "@/lib/clubs/club-status";
 
 export type UserClub = {
   id: string;
@@ -91,6 +92,8 @@ export type ClubDetail = {
   name: string;
   description: string;
   joinCode: string;
+  /** active: normal; archived: read-only / historical */
+  status: ClubStatus;
   currentUserId: string;
   currentUserRole: "member" | "officer";
   memberCount: number;
@@ -153,12 +156,14 @@ type ClubMemberRow = {
         name: string;
         description: string;
         join_code: string;
+        status?: string;
       }
     | {
         id: string;
         name: string;
         description: string;
         join_code: string;
+        status?: string;
       }[]
     | null;
 };
@@ -216,12 +221,14 @@ function normalizeClubRelation(
         name: string;
         description: string;
         join_code: string;
+        status?: string;
       }
     | {
         id: string;
         name: string;
         description: string;
         join_code: string;
+        status?: string;
       }[]
     | null,
 ) {
@@ -327,7 +334,7 @@ export async function getCurrentUserClubs(): Promise<UserClub[]> {
 
   const { data, error } = await supabase
     .from("club_members")
-    .select("role, clubs(id, name, description, join_code)")
+    .select("role, clubs(id, name, description, join_code, status)")
     .eq("user_id", user.id)
     .order("joined_at", { ascending: false });
 
@@ -343,6 +350,7 @@ export async function getCurrentUserClubs(): Promise<UserClub[]> {
       club: normalizeClubRelation(row.clubs),
     }))
     .filter((row) => row.club)
+    .filter((row) => (row.club!.status ?? "active") === "active")
     .map((row) => ({
       id: row.club!.id,
       name: row.club!.name,
@@ -586,7 +594,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
 
   const { data: membership, error: membershipError } = await supabase
     .from("club_members")
-    .select("role, clubs(id, name, description, join_code)")
+    .select("role, clubs(id, name, description, join_code, status)")
     .eq("club_id", clubId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -822,11 +830,15 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       ctaTarget: alert.ctaTarget,
     }));
 
+  const lifecycleStatus: ClubStatus =
+    clubRelation.status === "archived" ? "archived" : "active";
+
   return {
     id: clubRelation.id,
     name: clubRelation.name,
     description: clubRelation.description,
     joinCode: clubRelation.join_code,
+    status: lifecycleStatus,
     currentUserId: user.id,
     currentUserRole: membership.role,
     memberCount: ((memberBaseData ?? []) as ClubMemberBaseRow[]).length,

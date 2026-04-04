@@ -13,7 +13,8 @@ export type AuditAction =
   | "role.removed"
   | "president.added"
   | "president.removed"
-  | "presidency.transferred";
+  | "presidency.transferred"
+  | "club.archived";
 
 // ─── Input shape ──────────────────────────────────────────────────────────────
 

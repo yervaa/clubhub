@@ -39,7 +39,7 @@ export default async function GovernancePage({ params, searchParams }: Governanc
   // Fetch club name + President role ID + membership roster in parallel.
   const [clubResult, presidentRoleResult, allMembersResult, presidencyCheck, canViewAudit] =
     await Promise.all([
-      supabase.from("clubs").select("id, name").eq("id", clubId).maybeSingle(),
+      supabase.from("clubs").select("id, name, status").eq("id", clubId).maybeSingle(),
       supabase
         .from("club_roles")
         .select("id")
@@ -56,6 +56,8 @@ export default async function GovernancePage({ params, searchParams }: Governanc
     ]);
 
   if (!clubResult.data) notFound();
+
+  const clubArchived = clubResult.data.status === "archived";
 
   const presidentRoleId = presidentRoleResult.data?.id ?? null;
 
@@ -170,6 +172,7 @@ export default async function GovernancePage({ params, searchParams }: Governanc
       query={query}
       auditLogs={auditLogs}
       canViewAudit={canViewAudit}
+      clubArchived={clubArchived}
     />
   );
 }

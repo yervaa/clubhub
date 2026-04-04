@@ -10,6 +10,7 @@ type SettingsSubnavProps = {
 const SETTINGS_TABS = [
   { label: "Roles & Permissions", href: "" },
   { label: "Governance", href: "/governance" },
+  { label: "Club & exit", href: "/club" },
 ] as const;
 
 export function SettingsSubnav({ clubId }: SettingsSubnavProps) {
@@ -21,7 +22,12 @@ export function SettingsSubnav({ clubId }: SettingsSubnavProps) {
       <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
         {SETTINGS_TABS.map((tab) => {
           const href = `${basePath}${tab.href}`;
-          const isActive = tab.href === "" ? pathname === basePath : pathname.startsWith(href);
+          const isActive =
+            tab.href === ""
+              ? pathname === basePath
+              : tab.href === "/club"
+                ? pathname === `${basePath}/club` || pathname.startsWith(`${basePath}/club/`)
+                : pathname.startsWith(href);
 
           return (
             <Link
