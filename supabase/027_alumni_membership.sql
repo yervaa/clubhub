@@ -115,6 +115,10 @@ end;
 $$;
 
 -- ─── 4. Roster RPC ────────────────────────────────────────────────────────────
+-- Replacing changes the RETURNS TABLE shape (added membership_status). Postgres
+-- requires DROP before CREATE when the row type differs (42P13).
+
+drop function if exists public.get_club_members_for_view(uuid);
 
 create or replace function public.get_club_members_for_view(target_club_id uuid)
 returns table (

@@ -327,6 +327,13 @@ function buildAttentionAlertDrafts({
   return drafts;
 }
 
+/** Pre-migration 027: `club_members.membership_status` does not exist yet. */
+function isMissingMembershipStatusColumn(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === "42703" && Boolean(error.message?.toLowerCase().includes("membership_status"))
+  );
+}
+
 /** Server logs only — helps diagnose empty dashboard when the DB is missing columns (e.g. migration 027) or RLS blocks reads. */
 function logGetCurrentUserClubsFailure(
   userId: string,
@@ -363,12 +370,24 @@ export async function getCurrentUserClubs(): Promise<UserClub[]> {
     return [];
   }
 
-  const { data, error } = await supabase
+  const select = "role, clubs(id, name, description, join_code, status)" as const;
+
+  let { data, error } = await supabase
     .from("club_members")
-    .select("role, clubs(id, name, description, join_code, status)")
+    .select(select)
     .eq("user_id", user.id)
     .eq("membership_status", "active")
     .order("joined_at", { ascending: false });
+
+  if (error && isMissingMembershipStatusColumn(error)) {
+    const retry = await supabase
+      .from("club_members")
+      .select(select)
+      .eq("user_id", user.id)
+      .order("joined_at", { ascending: false });
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     logGetCurrentUserClubsFailure(user.id, error, data);
