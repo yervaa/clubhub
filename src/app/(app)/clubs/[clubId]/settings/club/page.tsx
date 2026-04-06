@@ -31,7 +31,7 @@ export default async function ClubSettingsLifecyclePage({ params, searchParams }
   if (!membership) notFound();
 
   const [clubResult, presidencyCheck, permissions] = await Promise.all([
-    supabase.from("clubs").select("name, status").eq("id", clubId).maybeSingle(),
+    supabase.from("clubs").select("name, status, require_join_approval").eq("id", clubId).maybeSingle(),
     isClubPresident(user.id, clubId),
     getUserPermissions(user.id, clubId),
   ]);
@@ -60,6 +60,15 @@ export default async function ClubSettingsLifecyclePage({ params, searchParams }
   const canArchive = permissions.has("club.archive");
   const canDelete = permissions.has("club.delete");
 
+  const { data: policyMembership } = await supabase
+    .from("club_members")
+    .select("role")
+    .eq("club_id", clubId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const canManageJoinPolicy =
+    permissions.has("club.manage_settings") || policyMembership?.role === "officer";
+
   return (
     <ClubLifecycleSection
       clubId={clubId}
@@ -70,6 +79,8 @@ export default async function ClubSettingsLifecyclePage({ params, searchParams }
       canArchive={canArchive}
       canDelete={canDelete}
       query={query}
+      requireJoinApproval={Boolean(clubResult.data.require_join_approval)}
+      canManageJoinPolicy={canManageJoinPolicy}
     />
   );
 }

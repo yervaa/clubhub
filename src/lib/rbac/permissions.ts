@@ -15,6 +15,10 @@ export type PermissionKey =
   | "members.invite"
   | "members.remove"
   | "members.assign_roles"
+  | "members.manage_tags"
+  | "members.manage_committees"
+  | "members.manage_teams"
+  | "members.review_join_requests"
   // Role management
   | "roles.create"
   | "roles.edit"

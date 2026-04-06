@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { markMemberAlumniAction, removeMemberAction, updateMemberRoleAction } from "@/app/(app)/clubs/actions";
+import { ClubCommitteesPanel } from "@/components/ui/club-committees-panel";
+import { ClubTeamsPanel } from "@/components/ui/club-teams-panel";
 import { GettingStartedChecklist } from "@/components/ui/getting-started-checklist";
+import { ClubJoinRequestsPanel } from "@/components/ui/club-join-requests-panel";
 import { MemberInvite } from "@/components/ui/member-invite";
-import type { ClubDetail, ClubMember } from "@/lib/clubs/queries";
+import { MemberProfileDialog } from "@/components/ui/member-profile-dialog";
+import type { ClubDetail, ClubMember, PendingJoinRequest } from "@/lib/clubs/queries";
 import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
 
@@ -50,7 +54,10 @@ function memberMatchesRosterSearch(
   const display = getMemberRosterDisplayName(member).toLowerCase();
   const rbacNames = rbacRoles.map((r) => r.roleName.toLowerCase()).join(" ");
   const status = member.membershipStatus === "alumni" ? "alumni" : "";
-  const haystack = [name, email, legacyRole, display, rbacNames, status].join(" ");
+  const tagNames = (member.tags ?? []).map((t) => t.name.toLowerCase()).join(" ");
+  const committeeNames = (member.committees ?? []).map((c) => c.name.toLowerCase()).join(" ");
+  const teamNames = (member.teams ?? []).map((t) => t.name.toLowerCase()).join(" ");
+  const haystack = [name, email, legacyRole, display, rbacNames, status, tagNames, committeeNames, teamNames].join(" ");
   return haystack.includes(queryLower);
 }
 
@@ -59,6 +66,9 @@ type ClubMembersPermissions = {
   canRemoveMembers: boolean;
   canAssignRoles: boolean;
   canViewInsights?: boolean;
+  canManageMemberTags?: boolean;
+  canManageCommittees?: boolean;
+  canManageTeams?: boolean;
 };
 
 type ClubMembersSectionProps = {
@@ -70,12 +80,21 @@ type ClubMembersSectionProps = {
   rbacByUser?: Record<string, MemberWithRoles["rbacRoles"]>;
   isPresident?: boolean;
   permissions?: ClubMembersPermissions;
+  pendingJoinRequests?: PendingJoinRequest[];
 };
 
-export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident = false, permissions }: ClubMembersSectionProps) {
+export function ClubMembersSection({
+  club,
+  query,
+  rbacByUser = {},
+  isPresident = false,
+  permissions,
+  pendingJoinRequests = [],
+}: ClubMembersSectionProps) {
   const [rosterSearch, setRosterSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RosterRoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<RosterStatusFilter>("all");
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const activeMembers = club.members.filter((m) => m.membershipStatus === "active");
   const alumniCount = club.members.length - activeMembers.length;
@@ -90,9 +109,18 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
   const canInviteMembers = permissions?.canInviteMembers ?? legacyIsOfficer;
   const canRemoveMembers = permissions?.canRemoveMembers ?? legacyIsOfficer;
   const canAssignRoles = permissions?.canAssignRoles ?? legacyIsOfficer;
+  const canManageMemberTags = permissions?.canManageMemberTags ?? legacyIsOfficer;
+  const canManageCommittees = permissions?.canManageCommittees ?? legacyIsOfficer;
+  const canManageTeams = permissions?.canManageTeams ?? legacyIsOfficer;
 
   // A user can see management controls if they have at least one management permission.
-  const hasAnyManagementPermission = canInviteMembers || canRemoveMembers || canAssignRoles;
+  const hasAnyManagementPermission =
+    canInviteMembers
+    || canRemoveMembers
+    || canAssignRoles
+    || canManageMemberTags
+    || canManageCommittees
+    || canManageTeams;
   const isArchived = club.status === "archived";
   const showInvite = canInviteMembers && !isArchived;
   const showManagement = hasAnyManagementPermission && !isArchived;
@@ -186,9 +214,17 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
       {/* Invite tools — requires members.invite permission */}
       {showInvite && (
         <section id="invite-members">
-          <MemberInvite joinCode={club.joinCode} membersCount={memberCount} />
+          <MemberInvite
+            joinCode={club.joinCode}
+            membersCount={memberCount}
+            requireJoinApproval={club.requireJoinApproval}
+          />
         </section>
       )}
+
+      {pendingJoinRequests.length > 0 ? (
+        <ClubJoinRequestsPanel clubId={club.id} requests={pendingJoinRequests} />
+      ) : null}
 
       {/* Getting started — management users only, hidden once all steps are done */}
       {showManagement && !setupDone && (
@@ -199,6 +235,20 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
           eventsCount={club.events.length}
         />
       )}
+
+      <ClubCommitteesPanel
+        clubId={club.id}
+        committees={club.clubCommittees}
+        canManage={canManageCommittees}
+        isArchived={isArchived}
+      />
+
+      <ClubTeamsPanel
+        clubId={club.id}
+        teams={club.clubTeams}
+        canManage={canManageTeams}
+        isArchived={isArchived}
+      />
 
       {/* Member roster */}
       <div className="card-surface p-5" id="members">
@@ -380,7 +430,53 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
                             {r.roleName}
                           </span>
                         ))}
+                        {(member.tags ?? []).slice(0, 3).map((t) => (
+                          <span
+                            key={t.id}
+                            className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-800"
+                          >
+                            {t.name}
+                          </span>
+                        ))}
+                        {(member.tags ?? []).length > 3 ? (
+                          <span className="text-[11px] font-medium text-slate-500">
+                            +{(member.tags ?? []).length - 3}
+                          </span>
+                        ) : null}
+                        {(member.committees ?? []).slice(0, 2).map((c) => (
+                          <span
+                            key={c.id}
+                            className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-900"
+                          >
+                            {c.name}
+                          </span>
+                        ))}
+                        {(member.committees ?? []).length > 2 ? (
+                          <span className="text-[11px] font-medium text-slate-500">
+                            +{(member.committees ?? []).length - 2}
+                          </span>
+                        ) : null}
+                        {(member.teams ?? []).slice(0, 2).map((t) => (
+                          <span
+                            key={t.id}
+                            className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-900"
+                          >
+                            {t.name}
+                          </span>
+                        ))}
+                        {(member.teams ?? []).length > 2 ? (
+                          <span className="text-[11px] font-medium text-slate-500">
+                            +{(member.teams ?? []).length - 2}
+                          </span>
+                        ) : null}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setProfileUserId(member.userId)}
+                        className="mt-2 text-left text-xs font-semibold text-indigo-600 underline-offset-2 hover:underline"
+                      >
+                        View profile
+                      </button>
                     </div>
 
                     {/* Manage roles link — Presidents only; alumni have no RBAC roles to manage here */}
@@ -470,6 +566,27 @@ export function ClubMembersSection({ club, query, rbacByUser = {}, isPresident =
           </ul>
         )}
       </div>
+
+      <MemberProfileDialog
+        open={profileUserId !== null}
+        onClose={() => setProfileUserId(null)}
+        member={
+          profileUserId ? (club.members.find((m) => m.userId === profileUserId) ?? null) : null
+        }
+        clubId={club.id}
+        currentUserId={club.currentUserId}
+        rbacRoles={profileUserId ? rbacByUser[profileUserId] ?? [] : []}
+        isPresident={isPresident}
+        isArchived={isArchived}
+        canAssignRoles={canAssignRoles}
+        canRemoveMembers={canRemoveMembers}
+        memberTagDefinitions={club.memberTagDefinitions}
+        canManageMemberTags={canManageMemberTags}
+        clubCommittees={club.clubCommittees}
+        canManageCommittees={canManageCommittees}
+        clubTeams={club.clubTeams}
+        canManageTeams={canManageTeams}
+      />
 
     </section>
   );

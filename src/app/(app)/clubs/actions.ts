@@ -251,7 +251,7 @@ export async function joinClubAction(formData: FormData) {
   const admin = createAdminClient();
   const { data: clubRow, error: clubLookupError } = await admin
     .from("clubs")
-    .select("id, status")
+    .select("id, status, require_join_approval")
     .eq("join_code", normalizedJoinCode)
     .maybeSingle();
 
@@ -313,6 +313,55 @@ export async function joinClubAction(formData: FormData) {
     userId: user.id,
     clubId,
   });
+
+  const requiresApproval = Boolean(
+    (clubRow as { require_join_approval?: boolean | null }).require_join_approval,
+  );
+
+  if (requiresApproval) {
+    const { data: submitStatus, error: submitRpcError } = await supabase.rpc("submit_club_join_request", {
+      p_join_code: normalizedJoinCode,
+    });
+
+    if (submitRpcError) {
+      logJoinClub("submit-request-rpc-error", {
+        userId: user.id,
+        clubId,
+        code: submitRpcError.code,
+        message: submitRpcError.message,
+        details: submitRpcError.details,
+      });
+      redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Could+not+submit+join+request.+Please+retry.`);
+    }
+
+    switch (submitStatus) {
+      case "ok":
+        logJoinClub("join-request-pending", { userId: user.id, clubId });
+        revalidatePath("/dashboard");
+        revalidatePath("/clubs");
+        revalidatePath(`/clubs/${clubId}/members`);
+        redirect(
+          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent("Request sent. An officer will review it soon.")}`,
+        );
+      case "already_member":
+        redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
+      case "pending_exists":
+        redirect(
+          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent("You already have a pending request for this club.")}`,
+        );
+      case "invalid_code":
+        redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Invalid+join+code+or+club+is+archived.`);
+      case "archived":
+        redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Invalid+join+code+or+club+is+archived.`);
+      case "approval_not_required":
+        break;
+      case "not_authenticated":
+        redirect("/login");
+      default:
+        logJoinClub("submit-request-unexpected-status", { userId: user.id, clubId, submitStatus });
+        redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Could+not+complete+join.+Please+retry.`);
+    }
+  }
 
   const { error: joinError } = await supabase.from("club_members").insert({
     club_id: clubId,

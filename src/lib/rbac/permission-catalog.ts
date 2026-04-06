@@ -1,5 +1,5 @@
 // Permission catalog — human-readable labels, descriptions, and category grouping
-// for all 26 permission keys. Safe to import in client components (no server-only code).
+// for all permission keys. Safe to import in client components (no server-only code).
 
 import type { PermissionKey } from "@/lib/rbac/permissions";
 
@@ -67,6 +67,11 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
     description: "Share the join code and invite links.",
     category: "Members",
   },
+  "members.review_join_requests": {
+    label: "Review Join Requests",
+    description: "Approve or deny people requesting to join the club.",
+    category: "Members",
+  },
   "members.remove": {
     label: "Remove Members",
     description: "Remove members from the club.",
@@ -75,6 +80,21 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
   "members.assign_roles": {
     label: "Assign Roles",
     description: "Grant or revoke RBAC roles for any member.",
+    category: "Members",
+  },
+  "members.manage_tags": {
+    label: "Manage Member Tags",
+    description: "Create club-specific tags and assign them to members.",
+    category: "Members",
+  },
+  "members.manage_committees": {
+    label: "Manage Committees",
+    description: "Create committees and assign members to them.",
+    category: "Members",
+  },
+  "members.manage_teams": {
+    label: "Manage Teams",
+    description: "Create teams and assign members to them.",
     category: "Members",
   },
   // Roles

@@ -7,7 +7,13 @@ import { getSafeNextPath } from "@/lib/auth/redirects";
 import { createClient } from "@/lib/supabase/server";
 
 type JoinPageProps = {
-  searchParams: Promise<{ code?: string; error?: string; success?: string; clubId?: string }>;
+  searchParams: Promise<{
+    code?: string;
+    error?: string;
+    success?: string;
+    clubId?: string;
+    pending?: string;
+  }>;
 };
 
 export default async function JoinPage({ searchParams }: JoinPageProps) {
@@ -68,10 +74,21 @@ export default async function JoinPage({ searchParams }: JoinPageProps) {
 
             {params.success ? (
               <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-                <p className="text-sm font-semibold text-emerald-900">{params.success}</p>
-                <p className="mt-1 text-sm text-emerald-800">Know someone else who should join? Send them the same invite link.</p>
+                <p className="text-sm font-semibold text-emerald-900">
+                  {decodeURIComponent(params.success.replace(/\+/g, " "))}
+                </p>
+                {params.pending === "1" ? (
+                  <p className="mt-2 text-sm text-emerald-900/90">
+                    You are not a member yet. After an officer approves your request, this club will show up on your
+                    dashboard.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-emerald-800">
+                    Know someone else who should join? Send them the same invite link.
+                  </p>
+                )}
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  {params.clubId ? (
+                  {params.clubId && params.pending !== "1" ? (
                     <Link href={`/clubs/${params.clubId}`} className="btn-primary text-center">
                       Open club
                     </Link>

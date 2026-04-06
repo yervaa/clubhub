@@ -3,7 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserPermissions, isClubPresident } from "@/lib/rbac/permissions";
 import { getMembersWithRoles } from "@/lib/rbac/role-actions";
 import { ClubMembersSection } from "@/components/ui/club-members-section";
-import { getClubDetailForCurrentUser, type ClubDetail, type ClubMember } from "@/lib/clubs/queries";
+import {
+  getClubDetailForCurrentUser,
+  getPendingJoinRequestsForClub,
+  type ClubDetail,
+  type ClubMember,
+} from "@/lib/clubs/queries";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
 
 /** Prefer names/emails from getMembersWithRoles when RPC row is missing them (RLS / stale RPC). */
@@ -48,6 +53,12 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
 
   if (!club) notFound();
 
+  const canReviewJoinRequests =
+    club.status !== "archived" &&
+    (userPermissions.has("members.review_join_requests") || club.currentUserRole === "officer");
+
+  const pendingJoinRequests = canReviewJoinRequests ? await getPendingJoinRequestsForClub(clubId) : [];
+
   // Build a quick-lookup map: userId → RBAC roles
   const rbacByUser: Record<string, MemberWithRoles["rbacRoles"]> = {};
   if (membersResult.ok) {
@@ -64,6 +75,12 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
     canRemoveMembers: userPermissions.has("members.remove"),
     canAssignRoles: userPermissions.has("members.assign_roles"),
     canViewInsights: userPermissions.has("insights.view"),
+    canManageMemberTags:
+      userPermissions.has("members.manage_tags") || clubForUi.currentUserRole === "officer",
+    canManageCommittees:
+      userPermissions.has("members.manage_committees") || clubForUi.currentUserRole === "officer",
+    canManageTeams:
+      userPermissions.has("members.manage_teams") || clubForUi.currentUserRole === "officer",
   };
 
   return (
@@ -73,6 +90,7 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
       rbacByUser={rbacByUser}
       isPresident={presidencyCheck}
       permissions={permissions}
+      pendingJoinRequests={pendingJoinRequests}
     />
   );
 }

@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { logAuditEvent } from "@/lib/rbac/audit";
-import { archiveClubSchema, deleteClubSchema, leaveClubSchema } from "@/lib/validation/clubs";
+import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
+import { archiveClubSchema, clubJoinPolicySchema, deleteClubSchema, leaveClubSchema } from "@/lib/validation/clubs";
 
 function clubSettingsUrl(clubId: string, params?: Record<string, string>) {
   const base = `/clubs/${clubId}/settings/club`;
@@ -181,4 +182,68 @@ export async function deleteClubAction(formData: FormData) {
   revalidatePath("/clubs");
 
   redirect("/dashboard?success=" + encodeURIComponent("The club was permanently deleted."));
+}
+
+export async function updateClubJoinPolicyAction(formData: FormData) {
+  const parsed = clubJoinPolicySchema.safeParse({
+    clubId: formData.get("club_id"),
+    requireJoinApproval: formData.get("require_join_approval"),
+  });
+
+  if (!parsed.success) {
+    const clubId = String(formData.get("club_id") ?? "");
+    redirect(clubSettingsUrl(clubId, { error: firstIssue(parsed) }));
+  }
+
+  const { clubId, requireJoinApproval } = parsed.data;
+  const enabled = requireJoinApproval === "true";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const canManageSettings = await hasPermission(user.id, clubId, "club.manage_settings");
+  const { data: policyMembership } = await supabase
+    .from("club_members")
+    .select("role")
+    .eq("club_id", clubId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const isLegacyOfficer = policyMembership?.role === "officer";
+  if (!canManageSettings && !isLegacyOfficer) {
+    redirect(
+      clubSettingsUrl(clubId, {
+        error: encodeURIComponent("You do not have permission to change club settings."),
+      }),
+    );
+  }
+
+  const active = await assertClubActiveForMutations(clubId);
+  if (!active.ok) {
+    redirect(clubSettingsUrl(clubId, { error: encodeURIComponent(active.message) }));
+  }
+
+  const { error } = await supabase
+    .from("clubs")
+    .update({ require_join_approval: enabled })
+    .eq("id", clubId);
+
+  if (error) {
+    redirect(clubSettingsUrl(clubId, { error: encodeURIComponent("Could not update join policy. Please retry.") }));
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  revalidatePath(`/clubs/${clubId}/members`);
+  revalidatePath("/join");
+  redirect(
+    clubSettingsUrl(clubId, {
+      success: encodeURIComponent(
+        enabled
+          ? "New members will need approval before they can join."
+          : "Join codes now add members immediately again.",
+      ),
+    }),
+  );
 }

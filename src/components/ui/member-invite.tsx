@@ -6,9 +6,10 @@ import { CopyInviteLinkButton } from "@/components/ui/copy-invite-link-button";
 type MemberInviteProps = {
   joinCode: string;
   membersCount: number;
+  requireJoinApproval?: boolean;
 };
 
-export function MemberInvite({ joinCode, membersCount }: MemberInviteProps) {
+export function MemberInvite({ joinCode, membersCount, requireJoinApproval = false }: MemberInviteProps) {
   const isLowMembers = membersCount <= 5;
 
   return (
@@ -20,6 +21,12 @@ export function MemberInvite({ joinCode, membersCount }: MemberInviteProps) {
           <p className="mt-1 text-sm text-slate-600">
             Share these details to invite people into your club.
           </p>
+          {requireJoinApproval ? (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs font-medium text-amber-950">
+              This club requires officer approval before new members are added. Invitees will appear in{" "}
+              <strong>Pending join requests</strong> until someone approves them.
+            </p>
+          ) : null}
         </div>
         {isLowMembers && (
           <span className="feedback-pill feedback-pill-fresh">Let&apos;s grow</span>

@@ -94,6 +94,99 @@ export const memberMarkAlumniSchema = z.object({
   userId: uuidSchema,
 });
 
+const memberTagNameSchema = z
+  .string()
+  .transform((s) => sanitizeInlineText(s).trim().replace(/\s+/g, " "))
+  .pipe(z.string().min(1, "Tag name is required.").max(40, "Tag name must be 40 characters or fewer."));
+
+export const clubMemberTagCreateSchema = z.object({
+  clubId: uuidSchema,
+  name: memberTagNameSchema,
+});
+
+export const clubMemberTagAssignSchema = z.object({
+  clubId: uuidSchema,
+  tagId: uuidSchema,
+  userId: uuidSchema,
+});
+
+export const clubMemberTagRemoveSchema = z.object({
+  clubId: uuidSchema,
+  tagId: uuidSchema,
+  userId: uuidSchema,
+});
+
+export const clubMemberTagDeleteSchema = z.object({
+  clubId: uuidSchema,
+  tagId: uuidSchema,
+});
+
+const committeeNameSchema = z
+  .string()
+  .transform((s) => sanitizeInlineText(s).trim().replace(/\s+/g, " "))
+  .pipe(z.string().min(1, "Committee name is required.").max(80, "Name must be 80 characters or fewer."));
+
+export const clubCommitteeCreateSchema = z.object({
+  clubId: uuidSchema,
+  name: committeeNameSchema,
+});
+
+export const clubCommitteeRenameSchema = z.object({
+  clubId: uuidSchema,
+  committeeId: uuidSchema,
+  name: committeeNameSchema,
+});
+
+export const clubCommitteeDeleteSchema = z.object({
+  clubId: uuidSchema,
+  committeeId: uuidSchema,
+});
+
+export const clubCommitteeAssignSchema = z.object({
+  clubId: uuidSchema,
+  committeeId: uuidSchema,
+  userId: uuidSchema,
+});
+
+export const clubCommitteeRemoveMemberSchema = z.object({
+  clubId: uuidSchema,
+  committeeId: uuidSchema,
+  userId: uuidSchema,
+});
+
+const teamNameSchema = z
+  .string()
+  .transform((s) => sanitizeInlineText(s).trim().replace(/\s+/g, " "))
+  .pipe(z.string().min(1, "Team name is required.").max(80, "Name must be 80 characters or fewer."));
+
+export const clubTeamCreateSchema = z.object({
+  clubId: uuidSchema,
+  name: teamNameSchema,
+});
+
+export const clubTeamRenameSchema = z.object({
+  clubId: uuidSchema,
+  teamId: uuidSchema,
+  name: teamNameSchema,
+});
+
+export const clubTeamDeleteSchema = z.object({
+  clubId: uuidSchema,
+  teamId: uuidSchema,
+});
+
+export const clubTeamAssignSchema = z.object({
+  clubId: uuidSchema,
+  teamId: uuidSchema,
+  userId: uuidSchema,
+});
+
+export const clubTeamRemoveMemberSchema = z.object({
+  clubId: uuidSchema,
+  teamId: uuidSchema,
+  userId: uuidSchema,
+});
+
 const roleNameSchema = z
   .string()
   .transform(sanitizeInlineText)
@@ -157,6 +250,16 @@ export const governanceTransferSchema = z.object({
 
 export const leaveClubSchema = z.object({
   clubId: uuidSchema,
+});
+
+export const clubJoinPolicySchema = z.object({
+  clubId: uuidSchema,
+  requireJoinApproval: z.enum(["true", "false"]),
+});
+
+export const joinRequestDecisionSchema = z.object({
+  clubId: uuidSchema,
+  requestId: uuidSchema,
 });
 
 export const archiveClubSchema = z.object({

@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { archiveClubAction, deleteClubAction, leaveClubAction } from "@/app/(app)/clubs/club-lifecycle-actions";
+import {
+  archiveClubAction,
+  deleteClubAction,
+  leaveClubAction,
+  updateClubJoinPolicyAction,
+} from "@/app/(app)/clubs/club-lifecycle-actions";
 
 type ClubLifecycleSectionProps = {
   clubId: string;
@@ -16,6 +21,8 @@ type ClubLifecycleSectionProps = {
     success?: string;
     error?: string;
   };
+  requireJoinApproval: boolean;
+  canManageJoinPolicy: boolean;
 };
 
 export function ClubLifecycleSection({
@@ -27,6 +34,8 @@ export function ClubLifecycleSection({
   canArchive,
   canDelete,
   query,
+  requireJoinApproval,
+  canManageJoinPolicy,
 }: ClubLifecycleSectionProps) {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -63,6 +72,57 @@ export function ClubLifecycleSection({
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           This club is <strong>archived</strong>. It stays in the database for history, but operational actions are
           disabled. You can still leave or delete the club if you have permission.
+        </div>
+      )}
+
+      {isActiveClub && canManageJoinPolicy && (
+        <div className="surface-subcard border border-slate-200/90 p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-slate-900">How people join</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Control whether the join code and invite link add members immediately or wait for officer approval.
+          </p>
+          <form action={updateClubJoinPolicyAction} className="mt-4 space-y-4">
+            <input type="hidden" name="club_id" value={clubId} />
+            <fieldset className="space-y-3">
+              <legend className="sr-only">Join policy</legend>
+              <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 bg-white p-4 has-[:checked]:border-violet-400 has-[:checked]:ring-2 has-[:checked]:ring-violet-100">
+                <input
+                  type="radio"
+                  name="require_join_approval"
+                  value="false"
+                  defaultChecked={!requireJoinApproval}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-semibold text-slate-900">Instant join</span>
+                  <span className="mt-1 block text-sm text-slate-600">
+                    Anyone with the code or link becomes a member right away (current default).
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 bg-white p-4 has-[:checked]:border-violet-400 has-[:checked]:ring-2 has-[:checked]:ring-violet-100">
+                <input
+                  type="radio"
+                  name="require_join_approval"
+                  value="true"
+                  defaultChecked={requireJoinApproval}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-semibold text-slate-900">Require approval</span>
+                  <span className="mt-1 block text-sm text-slate-600">
+                    New join attempts appear under Members → Pending join requests until an officer approves them.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+            >
+              Save join policy
+            </button>
+          </form>
         </div>
       )}
 
