@@ -327,6 +327,30 @@ function buildAttentionAlertDrafts({
   return drafts;
 }
 
+/** Server logs only — helps diagnose empty dashboard when the DB is missing columns (e.g. migration 027) or RLS blocks reads. */
+function logGetCurrentUserClubsFailure(
+  userId: string,
+  error: { code?: string; message?: string; details?: string; hint?: string } | null,
+  data: unknown,
+) {
+  const msg = error?.message?.toLowerCase() ?? "";
+  const likelyMissingMembershipStatus =
+    msg.includes("membership_status") || msg.includes("schema cache") || msg.includes("column");
+
+  console.error("[getCurrentUserClubs] club_members query did not succeed", {
+    userId,
+    errorCode: error?.code ?? null,
+    errorMessage: error?.message ?? null,
+    details: error?.details ?? null,
+    hint: error?.hint ?? null,
+    dataWasNullish: data == null,
+    diagnose:
+      likelyMissingMembershipStatus
+        ? "Apply supabase/027_alumni_membership.sql to this Supabase project if membership_status is missing."
+        : "Check RLS on club_members/clubs, or confirm this user has club_members rows.",
+  });
+}
+
 export async function getCurrentUserClubs(): Promise<UserClub[]> {
   noStore();
 
@@ -346,7 +370,13 @@ export async function getCurrentUserClubs(): Promise<UserClub[]> {
     .eq("membership_status", "active")
     .order("joined_at", { ascending: false });
 
-  if (error || !data) {
+  if (error) {
+    logGetCurrentUserClubsFailure(user.id, error, data);
+    return [];
+  }
+
+  if (data == null) {
+    logGetCurrentUserClubsFailure(user.id, null, data);
     return [];
   }
 

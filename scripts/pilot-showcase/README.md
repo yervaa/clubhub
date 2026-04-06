@@ -2,10 +2,17 @@
 
 **Destructive:** removes **all clubs** (and cascaded data), **notifications**, **audit logs**, then **every auth user** on the project, then recreates:
 
-- **8 accounts** (1 primary + 7 roster members with visible names)
+- **9 accounts** (2 primary + 7 roster members with visible names)
 - **3 clubs** (no “Demo” in names) with distinct announcements, events, tasks, RSVPs, attendance, reflections, notifications, and sample audit rows
 
-The **primary** account is **President** in **Muslim Student Association**, **Officer** in **DECA**, and **Member** in **Photography Club**.
+## Role matrix (each primary)
+
+Using only **three** clubs, both primaries get President / Officer / Member coverage:
+
+| Account | Muslim Student Association | DECA | Photography Club |
+|--------|----------------------------|------|------------------|
+| **Primary 1** (`pilot`, Jordan Park) | **President** | **Member** | **Officer** (Marcus is President) |
+| **Primary 2** (`pilot2`, Alex Rivera) | **Member** | **President** | **Officer** (Marcus is President) |
 
 ## Prerequisites
 
@@ -22,12 +29,16 @@ ALLOW_PILOT_SHOWCASE=true npm run seed:pilot-showcase
 ALLOW_PILOT_SHOWCASE=true PILOT_SHOWCASE_TARGET_OK=true npm run seed:pilot-showcase
 ```
 
-Optional:
+### Optional env (override defaults in `constants.ts`)
 
-- `PILOT_SHOWCASE_EMAIL` — primary login email (default `showcase.pilot@clubhub.local`)
-- `PILOT_SHOWCASE_PASSWORD` — primary password (default in `constants.ts`)
+| Variable | Purpose |
+|----------|---------|
+| `PILOT_SHOWCASE_EMAIL` | Primary 1 email (default `showcase.pilot@clubhub.local`) |
+| `PILOT_SHOWCASE_PASSWORD` | Primary 1 password |
+| `PILOT_SHOWCASE_EMAIL_2` | Primary 2 email (default `showcase.pilot2@clubhub.local`) |
+| `PILOT_SHOWCASE_PASSWORD_2` | Primary 2 password |
 
-Roster accounts use `showcase.{elena,marcus,...}@clubhub.local` with the password in `constants.ts` (`ROSTER_PASSWORD`).
+Other roster accounts use `showcase.{elena,marcus,...}@clubhub.local` with `ROSTER_PASSWORD` from `constants.ts`.
 
 Join codes: **MSACLB**, **DECACL**, **PHOCLB**.
 

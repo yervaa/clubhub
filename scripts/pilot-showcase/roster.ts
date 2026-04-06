@@ -1,4 +1,6 @@
 import {
+  DEFAULT_PILOT2_EMAIL,
+  DEFAULT_PILOT2_PASSWORD,
   DEFAULT_PILOT_EMAIL,
   DEFAULT_PILOT_PASSWORD,
   ROSTER_PASSWORD,
@@ -6,6 +8,7 @@ import {
 
 export type RosterSlug =
   | "pilot"
+  | "pilot2"
   | "elena"
   | "marcus"
   | "james"
@@ -21,10 +24,16 @@ export type RosterEntry = {
   fullName: string;
 };
 
-/** Fixed roster (pilot email/password overridable via env in run.ts). */
-export function buildRoster(pilotEmail: string, pilotPassword: string): RosterEntry[] {
+/** Fixed roster (pilot / pilot2 email+password overridable via env in run.ts). */
+export function buildRoster(
+  pilotEmail: string,
+  pilotPassword: string,
+  pilot2Email: string,
+  pilot2Password: string,
+): RosterEntry[] {
   return [
     { slug: "pilot", email: pilotEmail, password: pilotPassword, fullName: "Jordan Park" },
+    { slug: "pilot2", email: pilot2Email, password: pilot2Password, fullName: "Alex Rivera" },
     { slug: "elena", email: "showcase.elena@clubhub.local", password: ROSTER_PASSWORD, fullName: "Elena Okonkwo" },
     { slug: "marcus", email: "showcase.marcus@clubhub.local", password: ROSTER_PASSWORD, fullName: "Marcus Chen" },
     { slug: "james", email: "showcase.james@clubhub.local", password: ROSTER_PASSWORD, fullName: "James Rivera" },
@@ -35,4 +44,4 @@ export function buildRoster(pilotEmail: string, pilotPassword: string): RosterEn
   ];
 }
 
-export { DEFAULT_PILOT_EMAIL, DEFAULT_PILOT_PASSWORD };
+export { DEFAULT_PILOT2_EMAIL, DEFAULT_PILOT2_PASSWORD, DEFAULT_PILOT_EMAIL, DEFAULT_PILOT_PASSWORD };

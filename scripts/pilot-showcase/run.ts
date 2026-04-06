@@ -1,8 +1,10 @@
 /**
  * Pilot showcase seed: wipes the database (clubs + notifications + audit logs + all auth users),
- * then creates one primary login + roster members and three fully populated clubs.
+ * then creates two primary logins + roster members and three fully populated clubs.
  *
- * Primary user: President in Muslim Student Association, Officer in DECA, Member in Photography Club.
+ * Each primary (pilot + pilot2): President in one club, Officer in another, Member in the third.
+ *   • pilot:  MSA President, DECA Member, Photography Officer (Marcus is President there).
+ *   • pilot2: MSA Member, DECA President, Photography Officer.
  *
  * Requires in .env.local:
  *   NEXT_PUBLIC_SUPABASE_URL
@@ -20,6 +22,8 @@ import { config } from "dotenv";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { seedSystemRolesForClub } from "../demo-seed/rbac";
 import {
+  DEFAULT_PILOT2_EMAIL,
+  DEFAULT_PILOT2_PASSWORD,
   DEFAULT_PILOT_EMAIL,
   DEFAULT_PILOT_PASSWORD,
   PILOT_SHOWCASE_ENV_FLAG,
@@ -195,7 +199,9 @@ async function main(): Promise<void> {
 
   const pilotEmail = (process.env.PILOT_SHOWCASE_EMAIL ?? DEFAULT_PILOT_EMAIL).trim();
   const pilotPassword = (process.env.PILOT_SHOWCASE_PASSWORD ?? DEFAULT_PILOT_PASSWORD).trim();
-  const roster = buildRoster(pilotEmail, pilotPassword);
+  const pilot2Email = (process.env.PILOT_SHOWCASE_EMAIL_2 ?? DEFAULT_PILOT2_EMAIL).trim();
+  const pilot2Password = (process.env.PILOT_SHOWCASE_PASSWORD_2 ?? DEFAULT_PILOT2_PASSWORD).trim();
+  const roster = buildRoster(pilotEmail, pilotPassword, pilot2Email, pilot2Password);
 
   const admin = createClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -252,10 +258,11 @@ async function main(): Promise<void> {
   console.log("Deleting all auth users…");
   await deleteAllAuthUsers(admin);
 
-  console.log("Creating roster (8 users)…");
+  console.log("Creating roster (9 users: 2 primary + 7 extras)…");
   const ids = await createRosterUsers(admin, roster);
 
   const pilot = u(ids, "pilot");
+  const pilot2 = u(ids, "pilot2");
   const elena = u(ids, "elena");
   const marcus = u(ids, "marcus");
   const james = u(ids, "james");
@@ -264,7 +271,7 @@ async function main(): Promise<void> {
   const tessa = u(ids, "tessa");
   const diego = u(ids, "diego");
 
-  // ─── Club 1: pilot = President — Muslim Student Association ─────────────
+  // ─── Club 1: pilot = President; pilot2 = Member — Muslim Student Association
   console.log("Seeding Muslim Student Association…");
   const c1 = await insertClub(admin, {
     name: "Muslim Student Association",
@@ -274,12 +281,13 @@ async function main(): Promise<void> {
     createdBy: pilot,
     presidentId: pilot,
   });
+  await addMember(admin, c1, pilot2, "member");
   await addMember(admin, c1, elena, "member");
   await addMember(admin, c1, james, "member");
   await addMember(admin, c1, priya, "member");
   await addMember(admin, c1, marcus, "officer");
 
-  const c1Members = [pilot, elena, marcus, james, priya];
+  const c1Members = [pilot, pilot2, elena, marcus, james, priya];
   const c1Officers = [pilot, marcus];
   await seedClubContent({
     admin,
@@ -297,26 +305,26 @@ async function main(): Promise<void> {
     ],
   });
 
-  // ─── Club 2: pilot = Officer, Elena = President — DECA ───────────────────
+  // ─── Club 2: pilot2 = President; pilot = Member — DECA
   console.log("Seeding DECA…");
   const c2 = await insertClub(admin, {
     name: "DECA",
     description:
       "Marketing, finance, hospitality, and entrepreneurship competitions — practice role-plays, written events, and travel to district and state.",
     joinCode: "DECACL",
-    createdBy: elena,
-    presidentId: elena,
+    createdBy: pilot2,
+    presidentId: pilot2,
   });
-  await addMember(admin, c2, pilot, "officer");
-  await addMember(admin, c2, marcus, "member");
+  await addMember(admin, c2, pilot, "member");
+  await addMember(admin, c2, marcus, "officer");
   await addMember(admin, c2, priya, "member");
 
-  const c2Members = [elena, pilot, marcus, priya];
-  const c2Officers = [elena, pilot];
+  const c2Members = [pilot2, pilot, marcus, priya];
+  const c2Officers = [pilot2, marcus];
   await seedClubContent({
     admin,
     clubId: c2,
-    presidentId: elena,
+    presidentId: pilot2,
     memberUserIds: c2Members,
     officerUserIds: c2Officers,
     userMap: ids,
@@ -324,32 +332,33 @@ async function main(): Promise<void> {
     events: DECA_EVENTS,
     tasks: DECA_TASKS,
     auditSamples: [
-      { action: "role.assigned", target: "pilot", daysAgo: 18 },
+      { action: "role.assigned", target: "marcus", daysAgo: 18 },
       { action: "announcement.posted", daysAgo: 4, metadata: { title: "District competition registration" } },
     ],
   });
 
-  // ─── Club 3: pilot = Member, Priya = President — Photography Club ──────
+  // ─── Club 3: Marcus = President; pilot + pilot2 = Officers — Photography Club
   console.log("Seeding Photography Club…");
   const c3 = await insertClub(admin, {
     name: "Photography Club",
     description:
       "Shoot together, learn lighting and editing, borrow school gear, and prep prints for the spring gallery and yearbook support.",
     joinCode: "PHOCLB",
-    createdBy: priya,
-    presidentId: priya,
+    createdBy: marcus,
+    presidentId: marcus,
   });
-  await addMember(admin, c3, sophie, "officer");
-  await addMember(admin, c3, pilot, "member");
+  await addMember(admin, c3, pilot, "officer");
+  await addMember(admin, c3, pilot2, "officer");
+  await addMember(admin, c3, sophie, "member");
   await addMember(admin, c3, tessa, "member");
   await addMember(admin, c3, diego, "member");
 
-  const c3Members = [priya, sophie, pilot, tessa, diego];
-  const c3Officers = [priya, sophie];
+  const c3Members = [marcus, pilot, pilot2, sophie, tessa, diego];
+  const c3Officers = [marcus, pilot, pilot2];
   await seedClubContent({
     admin,
     clubId: c3,
-    presidentId: priya,
+    presidentId: marcus,
     memberUserIds: c3Members,
     officerUserIds: c3Officers,
     userMap: ids,
@@ -357,15 +366,19 @@ async function main(): Promise<void> {
     events: PHOTO_EVENTS,
     tasks: PHOTO_TASKS,
     auditSamples: [
-      { action: "role.assigned", target: "sophie", daysAgo: 30 },
+      { action: "role.assigned", target: "pilot", daysAgo: 30 },
       { action: "members.invited", daysAgo: 6, metadata: { note: "New member orientation" } },
     ],
   });
 
   console.log("\nDone.");
-  console.log(`  Primary login: ${pilotEmail}  /  ${pilotPassword}`);
-  console.log(`  Roster logins: showcase.*@clubhub.local  /  ${ROSTER_PASSWORD} (same as roster password)`);
+  console.log(`  Primary 1 (Jordan): ${pilotEmail}  /  ${pilotPassword}`);
+  console.log(`  Primary 2 (Alex):   ${pilot2Email}  /  ${pilot2Password}`);
+  console.log(`  Other roster: showcase.*@clubhub.local  /  ${ROSTER_PASSWORD}`);
   console.log("  Join codes: MSACLB  DECACL  PHOCLB");
+  console.log(
+    "  Role matrix: each primary is President in one club, Member in another, Officer in the third (see header comment in run.ts).",
+  );
 }
 
 main().catch((err) => {

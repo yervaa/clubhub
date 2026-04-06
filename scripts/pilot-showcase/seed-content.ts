@@ -363,14 +363,14 @@ export const MSA_TASKS = [
   },
 ];
 
-/** DECA — business & competition club */
+/** DECA — business & competition club (president = pilot2) */
 export const DECA_ANNOUNCEMENTS = [
   {
     title: "District competition registration closes Friday",
     content:
       "Advisor needs your event code + payment confirmation screenshot. No exceptions — state won’t let us add names late.",
     daysAgo: 2,
-    by: "elena" as const,
+    by: "pilot2" as const,
   },
   {
     title: "Dress code for role-play rooms",
@@ -384,7 +384,7 @@ export const DECA_ANNOUNCEMENTS = [
     content:
       "PDF in the shared drive under /district-prep. Come with a one-page outline — we’ll pair you for mock judges.",
     daysAgo: 13,
-    by: "elena" as const,
+    by: "pilot2" as const,
   },
 ];
 
@@ -435,7 +435,7 @@ export const DECA_TASKS = [
     status: "todo" as const,
     priority: "high" as const,
     dueDays: 3,
-    creator: "elena" as const,
+    creator: "pilot2" as const,
     assignees: ["pilot"] as RosterSlug[],
   },
   {
@@ -462,19 +462,19 @@ export const DECA_TASKS = [
     status: "completed" as const,
     priority: "medium" as const,
     dueDays: -9,
-    creator: "elena" as const,
+    creator: "pilot2" as const,
     assignees: ["pilot"] as RosterSlug[],
   },
 ];
 
-/** Photography Club */
+/** Photography Club (president = marcus; pilot + pilot2 are officers) */
 export const PHOTO_ANNOUNCEMENTS = [
   {
     title: "Darkroom hours this week",
     content:
       "Mon/Wed 3:15–5pm with a certified officer present. No film unless you’ve done the safety briefing.",
     daysAgo: 3,
-    by: "priya" as const,
+    by: "marcus" as const,
   },
   {
     title: "SD cards from field trip — return by Friday",
@@ -488,7 +488,7 @@ export const PHOTO_ANNOUNCEMENTS = [
     content:
       "Each member can submit up to three prints; matting supplies in the cabinet. Theme is “our town.”",
     daysAgo: 12,
-    by: "priya" as const,
+    by: "marcus" as const,
   },
 ];
 
@@ -539,7 +539,7 @@ export const PHOTO_TASKS = [
     status: "in_progress" as const,
     priority: "high" as const,
     dueDays: 5,
-    creator: "priya" as const,
+    creator: "marcus" as const,
     assignees: ["sophie"] as RosterSlug[],
   },
   {
@@ -557,8 +557,8 @@ export const PHOTO_TASKS = [
     status: "todo" as const,
     priority: "medium" as const,
     dueDays: 12,
-    creator: "priya" as const,
-    assignees: ["diego", "pilot"] as RosterSlug[],
+    creator: "marcus" as const,
+    assignees: ["diego", "pilot", "pilot2"] as RosterSlug[],
   },
   {
     title: "Survey: best night for editing workshop",
@@ -567,6 +567,6 @@ export const PHOTO_TASKS = [
     priority: "low" as const,
     dueDays: -11,
     creator: "sophie" as const,
-    assignees: ["priya"] as RosterSlug[],
+    assignees: ["marcus"] as RosterSlug[],
   },
 ];
