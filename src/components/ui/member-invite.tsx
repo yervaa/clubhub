@@ -23,8 +23,8 @@ export function MemberInvite({ joinCode, membersCount, requireJoinApproval = fal
           </p>
           {requireJoinApproval ? (
             <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs font-medium text-amber-950">
-              This club requires officer approval before new members are added. Invitees will appear in{" "}
-              <strong>Pending join requests</strong> until someone approves them.
+              <strong>Approval required:</strong> invitees submit a request first — they are not members until an officer
+              approves them in <strong>Pending join requests</strong> on the Members page.
             </p>
           ) : null}
         </div>

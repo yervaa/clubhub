@@ -40,8 +40,8 @@ export function ClubJoinRequestsPanel({ clubId, requests }: ClubJoinRequestsPane
           <p className="section-kicker text-amber-900/80">Membership</p>
           <h2 className="mt-1 text-lg font-semibold text-slate-900">Pending join requests</h2>
           <p className="mt-1 text-sm text-slate-600">
-            These people used your join code or invite link. Approve to add them as members, or deny if the request
-            should not go through.
+            These people submitted a join request (your club requires approval). Approve to add them as members, or deny
+            if the request should not go through. They are not on the roster until you approve.
           </p>
         </div>
         <span className="feedback-pill bg-amber-100 text-amber-950">{requests.length} pending</span>

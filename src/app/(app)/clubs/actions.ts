@@ -9,6 +9,7 @@ import { sanitizeInlineText } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
+import { JOIN_REDIRECT_MESSAGES } from "@/lib/clubs/join-flow";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createBulkNotifications } from "@/lib/notifications/create-notification";
 import { getMemberManagementErrorMessage } from "@/lib/clubs/member-management-messages";
@@ -264,7 +265,9 @@ export async function joinClubAction(formData: FormData) {
       message: clubLookupError.message,
       details: clubLookupError.details,
     });
-    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Unexpected+DB+error.+Please+retry.`);
+    redirect(
+      `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Unexpected error. Please retry.")}`,
+    );
   }
 
   if (!clubRow?.id || (clubRow as { status?: string }).status === "archived") {
@@ -272,7 +275,9 @@ export async function joinClubAction(formData: FormData) {
       userId: user.id,
       joinCode: normalizedJoinCode,
     });
-    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Invalid+join+code+or+club+is+archived.`);
+    redirect(
+      `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
+    );
   }
 
   const clubId = clubRow.id;
@@ -294,7 +299,9 @@ export async function joinClubAction(formData: FormData) {
       userId: user.id,
       clubId,
     });
-    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
+    redirect(
+      `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
+    );
   }
 
   const { error: profileError } = await upsertCurrentUserProfile(supabase, user);
@@ -307,7 +314,9 @@ export async function joinClubAction(formData: FormData) {
       message: profileError.message,
       details: profileError.details,
     });
-    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Missing+profile.+Please+sign+out+and+back+in,+then+retry.`);
+    redirect(
+      `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Profile missing. Sign out and back in, then try again.")}`,
+    );
   }
 
   logJoinClub("profile-ready", {
@@ -332,7 +341,9 @@ export async function joinClubAction(formData: FormData) {
         message: submitRpcError.message,
         details: submitRpcError.details,
       });
-      redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Could+not+submit+join+request.+Please+retry.`);
+      redirect(
+        `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not submit join request. Please retry.")}`,
+      );
     }
 
     switch (submitStatus) {
@@ -342,25 +353,33 @@ export async function joinClubAction(formData: FormData) {
         revalidatePath("/clubs");
         revalidatePath(`/clubs/${clubId}/members`);
         redirect(
-          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent("Request sent. An officer will review it soon.")}`,
+          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.requestSubmitted)}`,
         );
       case "already_member":
-        redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
+        redirect(
+          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
+        );
       case "pending_exists":
         redirect(
-          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent("You already have a pending request for this club.")}`,
+          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.requestAlreadyPending)}`,
         );
       case "invalid_code":
-        redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Invalid+join+code+or+club+is+archived.`);
+        redirect(
+          `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
+        );
       case "archived":
-        redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Invalid+join+code+or+club+is+archived.`);
+        redirect(
+          `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
+        );
       case "approval_not_required":
         break;
       case "not_authenticated":
         redirect("/login");
       default:
         logJoinClub("submit-request-unexpected-status", { userId: user.id, clubId, submitStatus });
-        redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Could+not+complete+join.+Please+retry.`);
+        redirect(
+          `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not complete join. Please retry.")}`,
+        );
     }
   }
 
@@ -376,7 +395,9 @@ export async function joinClubAction(formData: FormData) {
         userId: user.id,
         clubId,
       });
-      redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=You+are+already+a+member+of+this+club.`);
+      redirect(
+        `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
+      );
     }
 
     logJoinClub("membership-insert-error", {
@@ -386,7 +407,9 @@ export async function joinClubAction(formData: FormData) {
       message: joinError.message,
       details: joinError.details,
     });
-    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=Membership+insert+failed.+Please+retry.`);
+    redirect(
+      `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not add membership. Please retry.")}`,
+    );
   }
 
   logJoinClub("success", {
@@ -397,7 +420,9 @@ export async function joinClubAction(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/clubs");
   revalidatePath(`/clubs/${clubId}`);
-  redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&success=You+joined+the+club.`);
+  redirect(
+    `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.joinedImmediate)}`,
+  );
 }
 
 export async function createAnnouncementAction(formData: FormData) {
