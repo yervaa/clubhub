@@ -97,6 +97,47 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
     description: "Create teams and assign members to them.",
     category: "Members",
   },
+  "members.manage_volunteer_hours": {
+    label: "Manage Volunteer Hours",
+    description: "Record and adjust club volunteer hour entries for members.",
+    category: "Members",
+  },
+  "members.manage_member_skills": {
+    label: "Manage Member Skills & Interests",
+    description: "Add or remove skills and interests for any member in the club.",
+    category: "Members",
+  },
+  "members.manage_member_availability": {
+    label: "Manage Member Availability",
+    description: "Edit weekly availability slots for any member in the club.",
+    category: "Members",
+  },
+  "members.manage_officer_notes": {
+    label: "Manage Officer Notes",
+    description: "View and edit internal leadership-only notes about members.",
+    category: "Members",
+  },
+  "members.manage_member_dues": {
+    label: "Manage Member Dues Status",
+    description: "View and set per-member dues/payment status for this club (leadership only; not visible to members).",
+    category: "Members",
+  },
+  "members.export_roster": {
+    label: "Export Member Roster",
+    description: "Download the club member list as a CSV file.",
+    category: "Members",
+  },
+  "members.import_roster": {
+    label: "Import Member List (CSV)",
+    description: "Upload a CSV to add existing ClubHub accounts to this club (leadership only).",
+    category: "Members",
+  },
+  "members.view_member_contact": {
+    label: "View Member Contact (Club)",
+    description:
+      "See optional club phone and contact preference for members in the profile dialog (read-only; members edit their own).",
+    category: "Members",
+  },
   // Roles
   "roles.create": {
     label: "Create Roles",

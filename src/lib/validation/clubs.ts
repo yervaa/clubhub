@@ -94,6 +94,69 @@ export const memberMarkAlumniSchema = z.object({
   userId: uuidSchema,
 });
 
+/** Bulk roster actions: cap selection size for predictable server work. */
+export const bulkMemberUserIdsSchema = z
+  .array(uuidSchema)
+  .min(1, "Select at least one member.")
+  .max(60, "You can select at most 60 members at a time.");
+
+export const bulkMemberTagMutationSchema = z.object({
+  clubId: uuidSchema,
+  tagId: uuidSchema,
+  userIds: bulkMemberUserIdsSchema,
+});
+
+export const bulkMemberCommitteeMutationSchema = z.object({
+  clubId: uuidSchema,
+  committeeId: uuidSchema,
+  userIds: bulkMemberUserIdsSchema,
+});
+
+export const bulkMemberTeamMutationSchema = z.object({
+  clubId: uuidSchema,
+  teamId: uuidSchema,
+  userIds: bulkMemberUserIdsSchema,
+});
+
+export const bulkMarkAlumniSchema = z.object({
+  clubId: uuidSchema,
+  userIds: bulkMemberUserIdsSchema,
+  confirmation: z
+    .string()
+    .refine((s) => s.trim().toUpperCase() === "MARK ALUMNI", 'Type MARK ALUMNI to confirm.'),
+});
+
+export const bulkRemoveMembersSchema = z.object({
+  clubId: uuidSchema,
+  userIds: bulkMemberUserIdsSchema,
+  /** Compared case-insensitively to the club name after trim (no aggressive sanitization). */
+  confirmationClubName: z.string().trim().min(1, "Enter the club name to confirm.").max(200),
+});
+
+const clubContactPhoneSchema = z
+  .string()
+  .max(40, "Phone must be 40 characters or fewer.")
+  .optional()
+  .transform((s) => {
+    const t = (s ?? "").trim();
+    return t === "" ? null : t;
+  })
+  .superRefine((val, ctx) => {
+    if (val === null) return;
+    if (!/^[\d\s\-+().]{3,40}$/.test(val)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Use digits and common phone symbols only (spaces, +, -, parentheses).",
+      });
+    }
+  });
+
+export const clubMemberContactUpsertSchema = z.object({
+  clubId: uuidSchema,
+  phoneNumber: clubContactPhoneSchema,
+  preferredContactMethod: z.enum(["email", "phone", "either"]).nullable().optional(),
+});
+
 const memberTagNameSchema = z
   .string()
   .transform((s) => sanitizeInlineText(s).trim().replace(/\s+/g, " "))
@@ -185,6 +248,156 @@ export const clubTeamRemoveMemberSchema = z.object({
   clubId: uuidSchema,
   teamId: uuidSchema,
   userId: uuidSchema,
+});
+
+const volunteerHoursStringSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter hours.")
+  .refine((s) => /^\d+(\.\d{1,2})?$/.test(s), "Use a number with up to two decimal places (e.g. 2 or 2.5).")
+  .transform((s) => Number.parseFloat(s))
+  .pipe(z.number().positive("Hours must be greater than zero.").max(500, "Maximum 500 hours per entry."));
+
+const volunteerHoursNoteOptionalSchema = z
+  .string()
+  .optional()
+  .transform((raw) => {
+    if (raw == null || raw.trim() === "") return undefined;
+    const t = sanitizeMultilineText(raw).trim();
+    if (t === "") return undefined;
+    return t.length > 500 ? t.slice(0, 500) : t;
+  });
+
+const volunteerServiceDateSchema = z
+  .string()
+  .trim()
+  .min(1, "Service date is required.")
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date.")
+  .refine((s) => !Number.isNaN(Date.parse(`${s}T12:00:00Z`)), "Invalid calendar date.");
+
+export const volunteerHoursAddSchema = z.object({
+  clubId: uuidSchema,
+  userId: uuidSchema,
+  hours: volunteerHoursStringSchema,
+  note: volunteerHoursNoteOptionalSchema,
+  serviceDate: volunteerServiceDateSchema,
+});
+
+export const volunteerHoursUpdateSchema = z.object({
+  clubId: uuidSchema,
+  entryId: uuidSchema,
+  hours: volunteerHoursStringSchema,
+  note: volunteerHoursNoteOptionalSchema,
+  serviceDate: volunteerServiceDateSchema,
+});
+
+export const volunteerHoursDeleteSchema = z.object({
+  clubId: uuidSchema,
+  entryId: uuidSchema,
+});
+
+const memberSkillInterestLabelSchema = z
+  .string()
+  .transform((s) => sanitizeInlineText(s).trim().replace(/\s+/g, " "))
+  .pipe(
+    z
+      .string()
+      .min(1, "Enter a skill or interest.")
+      .max(80, "Keep it to 80 characters or fewer."),
+  );
+
+export const clubMemberSkillInterestAddSchema = z.object({
+  clubId: uuidSchema,
+  userId: uuidSchema,
+  kind: z.enum(["skill", "interest"]),
+  label: memberSkillInterestLabelSchema,
+});
+
+export const clubMemberSkillInterestDeleteSchema = z.object({
+  clubId: uuidSchema,
+  entryId: uuidSchema,
+});
+
+const availabilityTimeHmSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{2}:\d{2}$/, "Use a valid time.");
+
+export const clubMemberAvailabilityAddSchema = z
+  .object({
+    clubId: uuidSchema,
+    userId: uuidSchema,
+    dayOfWeek: z.coerce.number().int().min(1).max(7),
+    window: z.enum(["allday", "range"]),
+    timeStart: z.string().optional(),
+    timeEnd: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.window !== "range") return;
+    const ts = data.timeStart?.trim() ?? "";
+    const te = data.timeEnd?.trim() ?? "";
+    const tss = availabilityTimeHmSchema.safeParse(ts);
+    const tes = availabilityTimeHmSchema.safeParse(te);
+    if (!tss.success) {
+      ctx.addIssue({ code: "custom", message: "Choose a valid start time.", path: ["timeStart"] });
+      return;
+    }
+    if (!tes.success) {
+      ctx.addIssue({ code: "custom", message: "Choose a valid end time.", path: ["timeEnd"] });
+      return;
+    }
+    const [sh, sm] = ts.split(":").map((x) => Number.parseInt(x, 10));
+    const [eh, em] = te.split(":").map((x) => Number.parseInt(x, 10));
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    if (endMin <= startMin) {
+      ctx.addIssue({
+        code: "custom",
+        message: "End time must be after start time.",
+        path: ["timeEnd"],
+      });
+    }
+  })
+  .transform((data) => ({
+    clubId: data.clubId,
+    userId: data.userId,
+    dayOfWeek: data.dayOfWeek,
+    timeStart: data.window === "allday" ? null : (data.timeStart?.trim() ?? null),
+    timeEnd: data.window === "allday" ? null : (data.timeEnd?.trim() ?? null),
+  }));
+
+export const clubMemberAvailabilityDeleteSchema = z.object({
+  clubId: uuidSchema,
+  entryId: uuidSchema,
+});
+
+export const clubMemberOfficerNoteSetSchema = z.object({
+  clubId: uuidSchema,
+  targetUserId: uuidSchema,
+  body: z
+    .string()
+    .transform((s) => sanitizeMultilineText(s))
+    .pipe(z.string().max(4000, "Note must be 4000 characters or fewer.")),
+});
+
+const clubMemberDuesFormStatusSchema = z.enum([
+  "unset",
+  "unpaid",
+  "paid",
+  "partial",
+  "exempt",
+  "waived",
+]);
+
+export const clubMemberDuesSetSchema = z.object({
+  clubId: uuidSchema,
+  targetUserId: uuidSchema,
+  status: clubMemberDuesFormStatusSchema,
+  notes: z
+    .string()
+    .optional()
+    .transform((s) => sanitizeMultilineText(s ?? ""))
+    .pipe(z.string().max(500, "Notes must be 500 characters or fewer.")),
 });
 
 const roleNameSchema = z
@@ -322,4 +535,19 @@ export const taskStatusUpdateSchema = z.object({
 export const taskDeleteSchema = z.object({
   clubId: uuidSchema,
   taskId: uuidSchema,
+});
+
+const memberImportEmailSchema = z
+  .string()
+  .trim()
+  .min(1, "Email is required.")
+  .email("Enter a valid email address.")
+  .transform((s) => s.toLowerCase());
+
+/** Body for confirming a CSV import — only emails that were "ready" in preview. */
+export const memberImportCommitSchema = z.object({
+  clubId: uuidSchema,
+  emails: z
+    .array(memberImportEmailSchema)
+    .max(400, "Too many rows in one import (max 400)."),
 });

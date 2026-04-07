@@ -12,7 +12,8 @@ type PolicyName =
   | "clubJoin"
   | "announcementCreate"
   | "eventCreate"
-  | "rsvpWrite";
+  | "rsvpWrite"
+  | "memberImport";
 
 type PolicyConfig = {
   limit: number;
@@ -46,6 +47,7 @@ const RATE_LIMIT_POLICIES: Record<PolicyName, PolicyConfig> = {
   announcementCreate: { limit: 20, duration: "10 m", windowMs: 10 * 60 * 1000 },
   eventCreate: { limit: 12, duration: "15 m", windowMs: 15 * 60 * 1000 },
   rsvpWrite: { limit: 40, duration: "5 m", windowMs: 5 * 60 * 1000 },
+  memberImport: { limit: 24, duration: "1 h", windowMs: 60 * 60 * 1000 },
 };
 
 const localStore = globalThis.__clubhubRateLimitStore ?? new Map<string, LocalBucket>();

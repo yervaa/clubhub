@@ -72,7 +72,9 @@ export function ClubSubnav({ clubId }: ClubSubnavProps) {
             const isActive =
               tab.href === "/settings" || tab.href === "/tasks"
                 ? pathname.startsWith(href)
-                : pathname === href;
+                : tab.href === "/members"
+                  ? pathname === href || pathname.startsWith(`${href}/`)
+                  : pathname === href;
 
             return (
               <li key={href}>

@@ -3,6 +3,11 @@ import { unstable_noStore as noStore } from "next/cache";
 import { normalizeEventType, type EventType } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
 import type { ClubStatus } from "@/lib/clubs/club-status";
+import {
+  buildLastEngagementByUserMs,
+  computeLikelyInactiveMember,
+} from "@/lib/clubs/member-inactivity";
+import { compareAvailabilitySlots, normalizeAvailabilityTime } from "@/lib/clubs/member-availability-display";
 
 export type UserClub = {
   id: string;
@@ -67,6 +72,35 @@ export type ClubTeamSummary = {
   name: string;
 };
 
+/** Single volunteer hours log row for a member within a club. */
+export type ClubVolunteerHourEntry = {
+  id: string;
+  hours: number;
+  note: string | null;
+  /** ISO date string (YYYY-MM-DD). */
+  serviceDate: string;
+  createdAt: string;
+};
+
+/** Club-scoped skill or interest label for a member (not leadership tags). */
+export type ClubMemberSkillInterestEntry = {
+  id: string;
+  kind: "skill" | "interest";
+  label: string;
+  createdAt: string;
+};
+
+/** Recurring weekly availability within a club (local wall times). */
+export type ClubMemberAvailabilitySlot = {
+  id: string;
+  /** 1 = Monday … 7 = Sunday */
+  dayOfWeek: number;
+  /** `HH:MM` or null with null end = all day / flexible */
+  timeStart: string | null;
+  timeEnd: string | null;
+  createdAt: string;
+};
+
 export type ClubMember = {
   userId: string;
   fullName: string | null;
@@ -85,6 +119,20 @@ export type ClubMember = {
   attendanceCount: number;
   totalTrackedEvents: number;
   attendanceRate: number;
+  /** Most recent engagement from RSVP or attended event; null if none in loaded history. */
+  lastEngagementAt: string | null;
+  /** Club has too few tracked events to fairly label inactivity. */
+  engagementSignalWeak: boolean;
+  /** Derived hint: low recent participation (not a membership status). */
+  likelyInactive: boolean;
+  /** Sum of logged volunteer hours in this club. */
+  volunteerHoursTotal: number;
+  /** Newest-first entries (same club). */
+  volunteerHourEntries: ClubVolunteerHourEntry[];
+  /** Skills and interests for this member in this club (oldest-first). */
+  skillInterestEntries: ClubMemberSkillInterestEntry[];
+  /** Weekly availability slots (Mon=1 … Sun=7), sorted for display. */
+  availabilitySlots: ClubMemberAvailabilitySlot[];
 };
 
 export type ClubActivityItem = {
@@ -870,9 +918,16 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     eventIds.length > 0
       ? await supabase
           .from("rsvps")
-          .select("event_id, user_id, status")
+          .select("event_id, user_id, status, created_at")
           .in("event_id", eventIds)
-      : { data: [] as { event_id: string; user_id: string; status: "yes" | "no" | "maybe" }[] };
+      : {
+          data: [] as {
+            event_id: string;
+            user_id: string;
+            status: "yes" | "no" | "maybe";
+            created_at: string;
+          }[],
+        };
 
   const { data: attendanceData } =
     eventIds.length > 0
@@ -939,6 +994,113 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     trackedAttendanceByUser.set(attendance.user_id, userAttendance);
   }
 
+  const lastEngagementByUserMs = buildLastEngagementByUserMs({
+    now,
+    events: eventsData.map((e) => ({ id: e.id, event_date: e.event_date })),
+    pastAttendance: pastAttendanceData ?? [],
+    rsvps: (rsvpData ?? []) as { event_id: string; user_id: string; created_at: string }[],
+  });
+
+  const volunteerHoursFetch = await supabase
+    .from("club_member_volunteer_hours")
+    .select("id, user_id, hours, note, service_date, created_at")
+    .eq("club_id", clubId);
+
+  const volunteerRowsRaw = volunteerHoursFetch.error ? [] : (volunteerHoursFetch.data ?? []);
+
+  const volunteerEntriesByUser = new Map<string, ClubVolunteerHourEntry[]>();
+  const volunteerTotalByUser = new Map<string, number>();
+
+  for (const row of volunteerRowsRaw as {
+    id: string;
+    user_id: string;
+    hours: string | number;
+    note: string | null;
+    service_date: string;
+    created_at: string;
+  }[]) {
+    const h = typeof row.hours === "string" ? Number.parseFloat(row.hours) : Number(row.hours);
+    if (!Number.isFinite(h)) continue;
+    const entry: ClubVolunteerHourEntry = {
+      id: row.id,
+      hours: h,
+      note: row.note,
+      serviceDate: row.service_date,
+      createdAt: row.created_at,
+    };
+    const list = volunteerEntriesByUser.get(row.user_id) ?? [];
+    list.push(entry);
+    volunteerEntriesByUser.set(row.user_id, list);
+    volunteerTotalByUser.set(row.user_id, (volunteerTotalByUser.get(row.user_id) ?? 0) + h);
+  }
+  for (const list of volunteerEntriesByUser.values()) {
+    list.sort((a, b) => {
+      if (a.serviceDate !== b.serviceDate) return b.serviceDate.localeCompare(a.serviceDate);
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+  }
+
+  const skillInterestFetch = await supabase
+    .from("club_member_skills_interests")
+    .select("id, user_id, kind, label, created_at")
+    .eq("club_id", clubId)
+    .order("created_at", { ascending: true });
+
+  const skillInterestRowsRaw = skillInterestFetch.error ? [] : (skillInterestFetch.data ?? []);
+
+  const skillInterestByUser = new Map<string, ClubMemberSkillInterestEntry[]>();
+  for (const row of skillInterestRowsRaw as {
+    id: string;
+    user_id: string;
+    kind: string;
+    label: string;
+    created_at: string;
+  }[]) {
+    if (row.kind !== "skill" && row.kind !== "interest") continue;
+    const entry: ClubMemberSkillInterestEntry = {
+      id: row.id,
+      kind: row.kind,
+      label: row.label.trim(),
+      createdAt: row.created_at,
+    };
+    const list = skillInterestByUser.get(row.user_id) ?? [];
+    list.push(entry);
+    skillInterestByUser.set(row.user_id, list);
+  }
+
+  const availabilityFetch = await supabase
+    .from("club_member_availability_slots")
+    .select("id, user_id, day_of_week, time_start, time_end, created_at")
+    .eq("club_id", clubId);
+
+  const availabilityRowsRaw = availabilityFetch.error ? [] : (availabilityFetch.data ?? []);
+
+  const availabilityByUser = new Map<string, ClubMemberAvailabilitySlot[]>();
+  for (const row of availabilityRowsRaw as {
+    id: string;
+    user_id: string;
+    day_of_week: number;
+    time_start: string | null;
+    time_end: string | null;
+    created_at: string;
+  }[]) {
+    const dow = Number(row.day_of_week);
+    if (!Number.isFinite(dow) || dow < 1 || dow > 7) continue;
+    const slot: ClubMemberAvailabilitySlot = {
+      id: row.id,
+      dayOfWeek: dow,
+      timeStart: normalizeAvailabilityTime(row.time_start),
+      timeEnd: normalizeAvailabilityTime(row.time_end),
+      createdAt: row.created_at,
+    };
+    const list = availabilityByUser.get(row.user_id) ?? [];
+    list.push(slot);
+    availabilityByUser.set(row.user_id, list);
+  }
+  for (const list of availabilityByUser.values()) {
+    list.sort(compareAvailabilitySlots);
+  }
+
   const membersWithAttendance = ((memberBaseData ?? []) as ClubMemberBaseRow[]).map((member) => {
     const detail = memberViewById.get(member.user_id);
     const attendanceCount = trackedAttendanceByUser.get(member.user_id)?.size ?? 0;
@@ -946,6 +1108,14 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       ? Math.round((attendanceCount / totalTrackedEvents) * 100)
       : 0;
     const membershipStatus = detail?.membership_status ?? member.membership_status;
+
+    const engagement = computeLikelyInactiveMember({
+      membershipStatus,
+      joinedAtIso: member.joined_at ?? null,
+      totalTrackedEvents,
+      lastEngagementMs: lastEngagementByUserMs.get(member.user_id),
+      now,
+    });
 
     return {
       userId: member.user_id,
@@ -960,6 +1130,13 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       attendanceCount,
       totalTrackedEvents,
       attendanceRate,
+      lastEngagementAt: engagement.lastEngagementAt,
+      engagementSignalWeak: engagement.engagementSignalWeak,
+      likelyInactive: engagement.likelyInactive,
+      volunteerHoursTotal: volunteerTotalByUser.get(member.user_id) ?? 0,
+      volunteerHourEntries: volunteerEntriesByUser.get(member.user_id) ?? [],
+      skillInterestEntries: skillInterestByUser.get(member.user_id) ?? [],
+      availabilitySlots: availabilityByUser.get(member.user_id) ?? [],
     };
   });
 
@@ -1136,4 +1313,174 @@ export async function getPendingJoinRequestsForClub(clubId: string): Promise<Pen
     fullName: row.full_name?.trim() ? row.full_name : null,
     requestedAt: row.requested_at,
   }));
+}
+
+/**
+ * Leadership-only: internal officer notes for roster members in this club.
+ * RLS returns no rows if the current user is not authorized — do not merge into `ClubDetail` / `ClubMember`.
+ */
+export async function fetchClubMemberOfficerNotesMap(clubId: string): Promise<Record<string, string>> {
+  noStore();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {};
+  }
+
+  const { data, error } = await supabase
+    .from("club_member_officer_notes")
+    .select("user_id, body")
+    .eq("club_id", clubId);
+
+  if (error || !data) {
+    return {};
+  }
+
+  const map: Record<string, string> = {};
+  for (const row of data as { user_id: string; body: string }[]) {
+    map[row.user_id] = row.body ?? "";
+  }
+  return map;
+}
+
+export type ClubMemberDuesStatus = "unpaid" | "paid" | "partial" | "exempt" | "waived";
+
+export type ClubMemberDuesRecord = {
+  status: ClubMemberDuesStatus;
+  notes: string;
+  updatedAt: string | null;
+};
+
+/**
+ * Leadership-only: per-member dues status. RLS returns no rows when unauthorized — do not merge into `ClubMember` / roster export.
+ */
+export async function fetchClubMemberDuesMap(clubId: string): Promise<Record<string, ClubMemberDuesRecord>> {
+  noStore();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {};
+  }
+
+  const { data, error } = await supabase
+    .from("club_member_dues")
+    .select("user_id, status, notes, updated_at")
+    .eq("club_id", clubId);
+
+  if (error || !data) {
+    return {};
+  }
+
+  const valid: ClubMemberDuesStatus[] = ["unpaid", "paid", "partial", "exempt", "waived"];
+  const map: Record<string, ClubMemberDuesRecord> = {};
+  for (const row of data as { user_id: string; status: string; notes: string; updated_at: string | null }[]) {
+    if (!valid.includes(row.status as ClubMemberDuesStatus)) continue;
+    map[row.user_id] = {
+      status: row.status as ClubMemberDuesStatus,
+      notes: row.notes ?? "",
+      updatedAt: row.updated_at ?? null,
+    };
+  }
+  return map;
+}
+
+/** One row per event where this member appears in `event_attendance` (marked present). */
+export type ClubMemberAttendanceHistoryEntry = {
+  eventId: string;
+  title: string;
+  /** ISO instant from `events.event_date` */
+  eventDateIso: string;
+  /** When attendance was recorded, if returned by the API */
+  markedAtIso: string | null;
+};
+
+/**
+ * Past events in this club + attendance rows, grouped by member.
+ * RLS on `events` / `event_attendance` applies.
+ * Pass `onlyUserIds` to limit rows returned (privacy — regular members should only load their own history).
+ */
+export async function fetchClubAttendanceHistoryByUserMap(
+  clubId: string,
+  options?: { onlyUserIds?: string[] },
+): Promise<Record<string, ClubMemberAttendanceHistoryEntry[]>> {
+  noStore();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {};
+  }
+
+  const nowIso = new Date().toISOString();
+
+  const { data: pastEvents, error: pastError } = await supabase
+    .from("events")
+    .select("id, title, event_date")
+    .eq("club_id", clubId)
+    .lt("event_date", nowIso)
+    .order("event_date", { ascending: false });
+
+  if (pastError || !pastEvents?.length) {
+    return {};
+  }
+
+  const eventById = new Map(
+    (pastEvents as { id: string; title: string; event_date: string }[]).map((e) => [e.id, e]),
+  );
+  const pastEventIds = pastEvents.map((e) => e.id);
+
+  const onlyUserIds = options?.onlyUserIds;
+  let attendanceQuery = supabase
+    .from("event_attendance")
+    .select("event_id, user_id, marked_at")
+    .in("event_id", pastEventIds);
+
+  if (onlyUserIds !== undefined) {
+    if (onlyUserIds.length === 0) {
+      return {};
+    }
+    attendanceQuery = attendanceQuery.in("user_id", onlyUserIds);
+  }
+
+  const { data: attendanceRows, error: attError } = await attendanceQuery;
+
+  if (attError || !attendanceRows?.length) {
+    return {};
+  }
+
+  const historyByUser = new Map<string, ClubMemberAttendanceHistoryEntry[]>();
+
+  for (const row of attendanceRows as { event_id: string; user_id: string; marked_at: string | null }[]) {
+    const ev = eventById.get(row.event_id);
+    if (!ev) continue;
+
+    const entry: ClubMemberAttendanceHistoryEntry = {
+      eventId: row.event_id,
+      title: ev.title,
+      eventDateIso: ev.event_date,
+      markedAtIso: row.marked_at ?? null,
+    };
+    const list = historyByUser.get(row.user_id) ?? [];
+    list.push(entry);
+    historyByUser.set(row.user_id, list);
+  }
+
+  const result: Record<string, ClubMemberAttendanceHistoryEntry[]> = {};
+  for (const [userId, list] of historyByUser) {
+    list.sort((a, b) => b.eventDateIso.localeCompare(a.eventDateIso));
+    result[userId] = list;
+  }
+
+  return result;
 }

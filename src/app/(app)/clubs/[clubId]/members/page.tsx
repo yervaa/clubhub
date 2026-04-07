@@ -1,32 +1,22 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  buildClubMembersPagePermissionGates,
+  canReviewClubJoinRequests,
+} from "@/lib/clubs/member-management-access";
+import { canImportMemberList as userCanImportMemberList } from "@/lib/clubs/member-import-auth";
 import { getUserPermissions, isClubPresident } from "@/lib/rbac/permissions";
 import { getMembersWithRoles } from "@/lib/rbac/role-actions";
 import { ClubMembersSection } from "@/components/ui/club-members-section";
+import { mergeClubRosterIdentities } from "@/lib/clubs/merge-club-roster-identities";
 import {
+  fetchClubAttendanceHistoryByUserMap,
+  fetchClubMemberDuesMap,
+  fetchClubMemberOfficerNotesMap,
   getClubDetailForCurrentUser,
   getPendingJoinRequestsForClub,
-  type ClubDetail,
-  type ClubMember,
 } from "@/lib/clubs/queries";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
-
-/** Prefer names/emails from getMembersWithRoles when RPC row is missing them (RLS / stale RPC). */
-function mergeClubRosterIdentities(club: ClubDetail, withRoles: MemberWithRoles[]): ClubDetail {
-  if (withRoles.length === 0) return club;
-  const map = new Map(withRoles.map((m) => [m.userId, m]));
-  const enrich = (member: ClubMember): ClubMember => {
-    const r = map.get(member.userId);
-    const name = member.fullName?.trim() || r?.fullName?.trim() || null;
-    const email = member.email ?? r?.email ?? null;
-    return { ...member, fullName: name, email };
-  };
-  return {
-    ...club,
-    members: club.members.map(enrich),
-    topMembers: club.topMembers.map(enrich),
-  };
-}
 
 type ClubMembersPageProps = {
   params: Promise<{ clubId: string }>;
@@ -53,9 +43,25 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
 
   if (!club) notFound();
 
-  const canReviewJoinRequests =
-    club.status !== "archived" &&
-    (userPermissions.has("members.review_join_requests") || club.currentUserRole === "officer");
+  const { data: viewerMembership } = await supabase
+    .from("club_members")
+    .select("role, membership_status")
+    .eq("club_id", clubId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const viewerRow =
+    viewerMembership?.role && viewerMembership?.membership_status
+      ? { role: viewerMembership.role, membership_status: viewerMembership.membership_status }
+      : null;
+
+  const permissionGates = buildClubMembersPagePermissionGates(userPermissions, viewerRow);
+
+  const canReviewJoinRequests = canReviewClubJoinRequests(
+    userPermissions,
+    viewerRow,
+    club.status === "archived",
+  );
 
   const pendingJoinRequests = canReviewJoinRequests ? await getPendingJoinRequestsForClub(clubId) : [];
 
@@ -70,17 +76,20 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
   const clubForUi =
     membersResult.ok ? mergeClubRosterIdentities(club, membersResult.data) : club;
 
+  const [officerNotesByUserId, duesByUserId, attendanceHistoryByUserId] = await Promise.all([
+    permissionGates.canManageOfficerNotes ? fetchClubMemberOfficerNotesMap(clubId) : Promise.resolve(undefined),
+    permissionGates.canManageMemberDues ? fetchClubMemberDuesMap(clubId) : Promise.resolve(undefined),
+    fetchClubAttendanceHistoryByUserMap(
+      clubId,
+      permissionGates.canViewOthersMemberAttendanceHistory
+        ? undefined
+        : { onlyUserIds: [user.id] },
+    ),
+  ]);
+
   const permissions = {
-    canInviteMembers: userPermissions.has("members.invite"),
-    canRemoveMembers: userPermissions.has("members.remove"),
-    canAssignRoles: userPermissions.has("members.assign_roles"),
-    canViewInsights: userPermissions.has("insights.view"),
-    canManageMemberTags:
-      userPermissions.has("members.manage_tags") || clubForUi.currentUserRole === "officer",
-    canManageCommittees:
-      userPermissions.has("members.manage_committees") || clubForUi.currentUserRole === "officer",
-    canManageTeams:
-      userPermissions.has("members.manage_teams") || clubForUi.currentUserRole === "officer",
+    ...permissionGates,
+    canImportMemberList: await userCanImportMemberList(user.id, clubId),
   };
 
   return (
@@ -91,6 +100,9 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
       isPresident={presidencyCheck}
       permissions={permissions}
       pendingJoinRequests={pendingJoinRequests}
+      officerNotesByUserId={officerNotesByUserId}
+      duesByUserId={duesByUserId}
+      attendanceHistoryByUserId={attendanceHistoryByUserId}
     />
   );
 }

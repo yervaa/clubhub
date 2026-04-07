@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
+import { isViewerActiveLegacyOfficer } from "@/lib/clubs/member-management-access";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -21,12 +22,12 @@ async function assertCanManageCommittees(userId: string, clubId: string): Promis
 
   const { data: row } = await supabase
     .from("club_members")
-    .select("role")
+    .select("role, membership_status")
     .eq("club_id", clubId)
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (row?.role === "officer") {
+  if (isViewerActiveLegacyOfficer(row ?? null)) {
     return { ok: true };
   }
 

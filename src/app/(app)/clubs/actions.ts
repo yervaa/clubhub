@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createBulkNotifications } from "@/lib/notifications/create-notification";
+import { getMemberManagementErrorMessage } from "@/lib/clubs/member-management-messages";
 import {
   announcementCreateSchema,
   attendanceToggleSchema,
@@ -486,25 +487,6 @@ export async function createAnnouncementAction(formData: FormData) {
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=Announcement+posted.`);
-}
-
-function getMemberManagementErrorMessage(status: string) {
-  switch (status) {
-    case "cannot_edit_self":
-      return "You cannot change your own membership from this screen.";
-    case "last_officer":
-      return "This club must keep at least one officer.";
-    case "last_president":
-      return "This club must keep at least one President — assign another President before marking this member as alumni.";
-    case "already_alumni":
-      return "That member is already marked as alumni.";
-    case "not_found":
-      return "That member could not be found in this club.";
-    case "not_allowed":
-      return "Only officers can manage members.";
-    default:
-      return "Unable to update this member right now.";
-  }
 }
 
 export async function updateMemberRoleAction(formData: FormData) {

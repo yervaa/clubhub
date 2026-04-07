@@ -116,7 +116,7 @@ export function ClubLifecycleSection({
                 </span>
               </label>
             </fieldset>
-            <button
+            <button suppressHydrationWarning
               type="submit"
               className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
             >
@@ -149,7 +149,7 @@ export function ClubLifecycleSection({
               </li>
               {canArchive && (
                 <li>
-                  <button
+                  <button suppressHydrationWarning
                     type="button"
                     className="font-semibold text-violet-700 underline"
                     onClick={() => setArchiveOpen(true)}
@@ -161,7 +161,7 @@ export function ClubLifecycleSection({
               )}
               {canDelete && (
                 <li>
-                  <button
+                  <button suppressHydrationWarning
                     type="button"
                     className="font-semibold text-red-700 underline"
                     onClick={() => setDeleteStep(1)}
@@ -176,7 +176,7 @@ export function ClubLifecycleSection({
         ) : (
           <>
             {!leaveOpen ? (
-              <button
+              <button suppressHydrationWarning
                 type="button"
                 onClick={() => setLeaveOpen(true)}
                 className="mt-4 inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
@@ -192,13 +192,13 @@ export function ClubLifecycleSection({
                     : "Leave this club? You will need a new invite or join code to return."}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <button
+                  <button suppressHydrationWarning
                     type="submit"
                     className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
                   >
                     Yes, leave club
                   </button>
-                  <button
+                  <button suppressHydrationWarning
                     type="button"
                     onClick={() => setLeaveOpen(false)}
                     className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
@@ -221,7 +221,7 @@ export function ClubLifecycleSection({
             still open it for read-only history until they leave.
           </p>
           {!archiveOpen ? (
-            <button
+            <button suppressHydrationWarning
               type="button"
               onClick={() => setArchiveOpen(true)}
               className="mt-4 inline-flex rounded-lg border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-100/60"
@@ -237,13 +237,13 @@ export function ClubLifecycleSection({
               <p className="text-sm font-medium text-slate-900">Archive &ldquo;{clubName}&rdquo;?</p>
               <p className="text-sm text-slate-600">This cannot be undone from the member UI (contact support if needed).</p>
               <div className="flex flex-wrap gap-2">
-                <button
+                <button suppressHydrationWarning
                   type="submit"
                   className="inline-flex rounded-lg bg-amber-800 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-900"
                 >
                   Yes, archive this club
                 </button>
-                <button
+                <button suppressHydrationWarning
                   type="button"
                   onClick={() => setArchiveOpen(false)}
                   className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
@@ -266,7 +266,7 @@ export function ClubLifecycleSection({
           </p>
 
           {deleteStep === 0 && (
-            <button
+            <button suppressHydrationWarning
               type="button"
               onClick={() => setDeleteStep(1)}
               className="mt-4 inline-flex rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-800 shadow-sm hover:bg-red-100/60"
@@ -283,7 +283,7 @@ export function ClubLifecycleSection({
                 other club-scoped data will be removed with the club.
               </p>
               <div className="flex flex-wrap gap-2">
-                <button
+                <button suppressHydrationWarning
                   type="button"
                   onClick={() => {
                     setDeleteStep(2);
@@ -293,7 +293,7 @@ export function ClubLifecycleSection({
                 >
                   I understand — continue
                 </button>
-                <button
+                <button suppressHydrationWarning
                   type="button"
                   onClick={() => setDeleteStep(0)}
                   className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
@@ -324,14 +324,14 @@ export function ClubLifecycleSection({
                 placeholder={clubName}
               />
               <div className="flex flex-wrap gap-2 pt-1">
-                <button
+                <button suppressHydrationWarning
                   type="submit"
                   disabled={confirmName.trim() !== clubName.trim()}
                   className="inline-flex rounded-lg bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Permanently delete club
                 </button>
-                <button
+                <button suppressHydrationWarning
                   type="button"
                   onClick={() => {
                     setDeleteStep(0);

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
+import { isViewerActiveLegacyOfficer } from "@/lib/clubs/member-management-access";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { joinRequestDecisionSchema } from "@/lib/validation/clubs";
@@ -15,11 +16,11 @@ async function assertCanReviewJoinRequests(userId: string, clubId: string): Prom
   const supabase = await createClient();
   const { data: row } = await supabase
     .from("club_members")
-    .select("role")
+    .select("role, membership_status")
     .eq("club_id", clubId)
     .eq("user_id", userId)
     .maybeSingle();
-  return row?.role === "officer";
+  return isViewerActiveLegacyOfficer(row ?? null);
 }
 
 export async function reviewJoinRequestAction(
