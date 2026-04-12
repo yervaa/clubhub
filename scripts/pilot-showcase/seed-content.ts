@@ -206,7 +206,7 @@ export async function seedClubContent(args: {
     notifRows.push({
       user_id: uidMember,
       club_id: clubId,
-      type: "announcement.posted",
+      type: "announcement_created",
       title: "New announcement",
       body: "Something new was posted in your club — open the app to read it.",
       href: `/clubs/${clubId}/announcements`,
@@ -220,7 +220,7 @@ export async function seedClubContent(args: {
       notifRows.push({
         user_id: uid(userMap, firstAssignee),
         club_id: clubId,
-        type: "task.assigned",
+        type: "task_assigned",
         title: "Task assigned",
         body: `${taskSpecs[0].title} — check Tasks.`,
         href: `/clubs/${clubId}/tasks`,

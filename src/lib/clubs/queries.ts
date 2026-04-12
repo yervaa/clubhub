@@ -1,5 +1,7 @@
 import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
+import { signAnnouncementAttachmentRows } from "@/lib/announcements/attachment-signing";
+import { parsePollOptionsFromDb } from "@/lib/announcements/poll-options";
 import { normalizeEventType, type EventType } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
 import type { ClubStatus } from "@/lib/clubs/club-status";
@@ -17,12 +19,56 @@ export type UserClub = {
   role: "member" | "officer";
 };
 
+export type ClubAnnouncementAttachment = {
+  id: string;
+  fileName: string;
+  fileType: string;
+  signedUrl: string;
+};
+
 export type ClubAnnouncement = {
   id: string;
   title: string;
   content: string;
   createdAt: string;
+  createdAtRaw: string;
+  pollQuestion: string | null;
+  pollOptions: string[] | null;
+  scheduledFor: string | null;
+  isPublished: boolean;
+  /** Populated on the announcements tab (aggregated RPCs). */
+  readCount?: number;
+  totalMembers?: number;
+  pollTallies?: { optionIndex: number; count: number }[];
+  totalPollVotes?: number;
+  userPollVoteIndex?: number | null;
+  attachments?: ClubAnnouncementAttachment[];
 };
+
+type AnnouncementSelectRow = {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  poll_question?: string | null;
+  poll_options?: unknown;
+  scheduled_for?: string | null;
+  is_published?: boolean | null;
+};
+
+function mapAnnouncementRow(row: AnnouncementSelectRow): ClubAnnouncement {
+  return {
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    createdAt: new Date(row.created_at).toLocaleString(),
+    createdAtRaw: row.created_at,
+    pollQuestion: row.poll_question ?? null,
+    pollOptions: parsePollOptionsFromDb(row.poll_options),
+    scheduledFor: row.scheduled_for ?? null,
+    isPublished: row.is_published ?? true,
+  };
+}
 
 export type ClubEvent = {
   id: string;
@@ -963,7 +1009,9 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     supabase.from("club_teams").select("id, name").eq("club_id", clubId).order("name"),
     supabase
       .from("announcements")
-      .select("id, title, content, created_at")
+      .select(
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published",
+      )
       .eq("club_id", clubId)
       .order("created_at", { ascending: false })
       .limit(10),
@@ -1391,12 +1439,9 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       createdAt: new Date(item.created_at).toLocaleString(),
       createdAtIso: item.created_at,
     })),
-    announcements: (announcementsData ?? []).map((announcement) => ({
-      id: announcement.id,
-      title: announcement.title,
-      content: announcement.content,
-      createdAt: new Date(announcement.created_at).toLocaleString(),
-    })),
+    announcements: (announcementsData ?? []).map((announcement) =>
+      mapAnnouncementRow(announcement as AnnouncementSelectRow),
+    ),
     memberTagDefinitions: safeTagDefs.map((t) => ({ id: t.id, name: t.name })),
     clubCommittees: safeCommittees.map((c) => ({ id: c.id, name: c.name })),
     clubTeams: safeTeams.map((t) => ({ id: t.id, name: t.name })),
@@ -1441,27 +1486,119 @@ export async function getClubDetailForAnnouncementsForCurrentUser(clubId: string
     return null;
   }
 
-  const [{ data: announcementsData }, { count: activeMemberCount }] = await Promise.all([
+  const [{ data: announcementsData }, { count: activeMemberCount }, readSumRes, pollSumRes] = await Promise.all([
     supabase
       .from("announcements")
-      .select("id, title, content, created_at")
+      .select(
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published",
+      )
       .eq("club_id", clubId)
       .order("created_at", { ascending: false })
-      .limit(10),
+      .limit(30),
     supabase
       .from("club_members")
       .select("id", { count: "exact", head: true })
       .eq("club_id", clubId)
       .eq("membership_status", "active"),
+    supabase.rpc("get_club_announcement_read_summaries", { p_club_id: clubId }),
+    supabase.rpc("get_club_announcement_poll_summaries", { p_club_id: clubId }),
   ]);
 
+  const annRows = announcementsData ?? [];
+  const annIds = annRows.map((a) => a.id);
+
+  type AttachRow = {
+    id: string;
+    announcement_id: string;
+    file_url: string;
+    file_name: string;
+    file_type: string;
+  };
+
+  const [myVotesRes, attachRes] =
+    annIds.length === 0
+      ? [
+          { data: [] as { announcement_id: string; option_index: number }[] },
+          { data: [] as AttachRow[] },
+        ]
+      : await Promise.all([
+          supabase
+            .from("poll_votes")
+            .select("announcement_id, option_index")
+            .eq("user_id", user.id)
+            .in("announcement_id", annIds),
+          supabase
+            .from("announcement_attachments")
+            .select("id, announcement_id, file_url, file_name, file_type")
+            .in("announcement_id", annIds)
+            .order("created_at", { ascending: true }),
+        ]);
+
+  const readByAnn = new Map<string, { readCount: number; memberCount: number }>();
+  for (const r of (readSumRes.data ?? []) as {
+    announcement_id: string;
+    read_count: number;
+    member_count: number;
+  }[]) {
+    readByAnn.set(r.announcement_id, {
+      readCount: Number(r.read_count),
+      memberCount: Number(r.member_count),
+    });
+  }
+
+  const pollTalliesByAnn = new Map<string, { optionIndex: number; count: number }[]>();
+  for (const pr of (pollSumRes.data ?? []) as {
+    announcement_id: string;
+    option_index: number;
+    vote_count: number;
+  }[]) {
+    const list = pollTalliesByAnn.get(pr.announcement_id) ?? [];
+    list.push({ optionIndex: pr.option_index, count: Number(pr.vote_count) });
+    pollTalliesByAnn.set(pr.announcement_id, list);
+  }
+
+  const voteByAnn = new Map<string, number>();
+  for (const v of myVotesRes.data ?? []) {
+    voteByAnn.set(v.announcement_id, v.option_index);
+  }
+
+  const attachRows = (attachRes.data ?? []) as AttachRow[];
+  const signed = await signAnnouncementAttachmentRows(attachRows);
+
+  const attachmentsByAnn = new Map<string, ClubAnnouncementAttachment[]>();
+  for (const ar of attachRows) {
+    const url = signed.get(ar.id);
+    if (!url) continue;
+    const list = attachmentsByAnn.get(ar.announcement_id) ?? [];
+    list.push({
+      id: ar.id,
+      fileName: ar.file_name,
+      fileType: ar.file_type,
+      signedUrl: url,
+    });
+    attachmentsByAnn.set(ar.announcement_id, list);
+  }
+
   const lifecycleStatus: ClubStatus = clubRelation.status === "archived" ? "archived" : "active";
-  const announcements = (announcementsData ?? []).map((announcement) => ({
-    id: announcement.id,
-    title: announcement.title,
-    content: announcement.content,
-    createdAt: new Date(announcement.created_at).toLocaleString(),
-  }));
+
+  const announcements: ClubAnnouncement[] = annRows.map((row) => {
+    const base = mapAnnouncementRow(row as AnnouncementSelectRow);
+    const read = readByAnn.get(row.id);
+    const tallies = pollTalliesByAnn.get(row.id) ?? [];
+    const sortedTallies = [...tallies].sort((a, b) => a.optionIndex - b.optionIndex);
+    const totalPollVotes = sortedTallies.reduce((s, t) => s + t.count, 0);
+    const hasPoll = Boolean(base.pollQuestion && base.pollOptions && base.pollOptions.length > 0);
+
+    return {
+      ...base,
+      readCount: read?.readCount ?? 0,
+      totalMembers: read?.memberCount ?? activeMemberCount ?? 0,
+      pollTallies: hasPoll ? sortedTallies : undefined,
+      totalPollVotes: hasPoll ? totalPollVotes : undefined,
+      userPollVoteIndex: hasPoll ? (voteByAnn.has(row.id) ? voteByAnn.get(row.id)! : null) : null,
+      attachments: attachmentsByAnn.get(row.id),
+    };
+  });
 
   return {
     id: clubRelation.id,
@@ -1677,7 +1814,9 @@ export async function getClubDetailForOverviewForCurrentUser(clubId: string): Pr
       .order("role", { ascending: false }),
     supabase
       .from("announcements")
-      .select("id, title, content, created_at")
+      .select(
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published",
+      )
       .eq("club_id", clubId)
       .order("created_at", { ascending: false })
       .limit(10),
@@ -1858,12 +1997,9 @@ export async function getClubDetailForOverviewForCurrentUser(clubId: string): Pr
       createdAt: new Date(item.created_at).toLocaleString(),
       createdAtIso: item.created_at,
     })),
-    announcements: (announcementsData ?? []).map((announcement) => ({
-      id: announcement.id,
-      title: announcement.title,
-      content: announcement.content,
-      createdAt: new Date(announcement.created_at).toLocaleString(),
-    })),
+    announcements: (announcementsData ?? []).map((announcement) =>
+      mapAnnouncementRow(announcement as AnnouncementSelectRow),
+    ),
     memberTagDefinitions: [],
     clubCommittees: [],
     clubTeams: [],

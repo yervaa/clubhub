@@ -33,6 +33,8 @@ export default async function ClubAnnouncementsPage({ params, searchParams }: Cl
     canPostAnnouncements: userPermissions.has("announcements.create"),
     canEditAnnouncements: userPermissions.has("announcements.edit"),
     canDeleteAnnouncements: userPermissions.has("announcements.delete"),
+    canViewReadersList:
+      userPermissions.has("announcements.edit") || club.currentUserRole === "officer",
   };
 
   return <ClubAnnouncementsSection club={club} query={query} permissions={permissions} />;

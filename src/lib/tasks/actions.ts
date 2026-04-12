@@ -127,7 +127,7 @@ export async function createTaskAction(
         notifyIds.map((uid) => ({
           userId: uid,
           clubId,
-          type: "task.assigned" as const,
+          type: "task_assigned" as const,
           title: `You were assigned a task: ${title}`,
           body: description ? description.slice(0, 100) : "A new task was assigned to you.",
           href: `/clubs/${clubId}/tasks`,
@@ -241,7 +241,7 @@ export async function updateTaskAction(
       addedIds.map((uid) => ({
         userId: uid,
         clubId,
-        type: "task.assigned" as const,
+        type: "task_assigned" as const,
         title: `You were assigned a task: ${title}`,
         body: description ? description.slice(0, 100) : "A task was assigned to you.",
         href: `/clubs/${clubId}/tasks`,

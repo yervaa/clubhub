@@ -7,10 +7,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type NotificationType =
   | "announcement.posted"
+  | "announcement_created"
+  | "poll_created"
   | "event.created"
+  | "event_reminder"
   | "role.assigned"
   | "role.removed"
-  | "task.assigned";
+  | "task.assigned"
+  | "task_assigned";
 
 // ─── Input shape ──────────────────────────────────────────────────────────────
 

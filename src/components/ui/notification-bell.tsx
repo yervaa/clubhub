@@ -38,12 +38,24 @@ type TypeConfig = {
 function getTypeConfig(type: string): TypeConfig {
   switch (type) {
     case "announcement.posted":
+    case "announcement_created":
       return {
         bg: "bg-amber-100",
         text: "text-amber-600",
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+          </svg>
+        ),
+      };
+
+    case "poll_created":
+      return {
+        bg: "bg-amber-100",
+        text: "text-amber-700",
+        icon: (
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
           </svg>
         ),
       };
@@ -82,12 +94,24 @@ function getTypeConfig(type: string): TypeConfig {
       };
 
     case "task.assigned":
+    case "task_assigned":
       return {
         bg: "bg-emerald-100",
         text: "text-emerald-600",
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        ),
+      };
+
+    case "event_reminder":
+      return {
+        bg: "bg-sky-100",
+        text: "text-sky-600",
+        icon: (
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         ),
       };
@@ -225,6 +249,11 @@ export function NotificationBell({ unreadCount, notifications }: NotificationBel
                         <p className={`text-sm leading-snug ${!item.isRead ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>
                           {item.title}
                         </p>
+                        {item.clubName ? (
+                          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                            {item.clubName}
+                          </p>
+                        ) : null}
                         {item.body && (
                           <p className="mt-0.5 truncate text-xs text-slate-500">{item.body}</p>
                         )}

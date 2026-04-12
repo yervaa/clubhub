@@ -464,7 +464,7 @@ async function seedClubContent(
     notifRows.push({
       user_id: uidMember,
       club_id: clubId,
-      type: "announcement.posted",
+      type: "announcement_created",
       title: "New announcement",
       body: "Meeting room change this week is live — check the feed.",
       href: `/clubs/${clubId}/announcements`,
@@ -475,7 +475,7 @@ async function seedClubContent(
   notifRows.push({
     user_id: idx(userIds, 2),
     club_id: clubId,
-    type: "task.assigned",
+    type: "task_assigned",
     title: "Task assigned to you",
     body: "Finalize flyer for Instagram — due soon.",
     href: `/clubs/${clubId}/tasks`,

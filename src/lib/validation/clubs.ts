@@ -75,6 +75,114 @@ export const announcementCreateSchema = z.object({
   content: plainTextSchema,
 });
 
+export const MAX_ANNOUNCEMENT_ATTACHMENTS = 5;
+export const MAX_ANNOUNCEMENT_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+export const ANNOUNCEMENT_ATTACHMENT_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+]);
+
+const pollOptionSchema = z
+  .string()
+  .transform(sanitizeInlineText)
+  .pipe(z.string().min(1).max(200));
+
+const optionalPollQuestionSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (v == null ? "" : String(v)))
+  .transform(sanitizeInlineText)
+  .pipe(z.string().max(500));
+
+/** Optional schedule: datetime string from `<input type="datetime-local" />` or empty. */
+const optionalScheduleSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (v == null ? "" : String(v).trim().slice(0, 48)));
+
+export type AnnouncementCreateExtras = {
+  pollQuestion: string | null;
+  pollOptions: string[] | null;
+  scheduledForIso: string | null;
+  isPublished: boolean;
+};
+
+/**
+ * Parses poll + schedule fields from the announcement form.
+ * When poll question is non-empty, requires 2–10 options (already sanitized strings).
+ */
+export function parseAnnouncementCreateExtras(formData: FormData): {
+  ok: true;
+  data: AnnouncementCreateExtras;
+} | { ok: false; error: string } {
+  const pollQuestionRaw = optionalPollQuestionSchema.safeParse(formData.get("poll_question"));
+  if (!pollQuestionRaw.success) {
+    return { ok: false, error: pollQuestionRaw.error.issues[0]?.message ?? "Invalid poll question." };
+  }
+
+  const pollOptionInputs = formData
+    .getAll("poll_option")
+    .filter((x): x is string => typeof x === "string")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  const pollQuestion = pollQuestionRaw.data.trim();
+  let pollOptions: string[] | null = null;
+
+  if (pollQuestion.length > 0) {
+    if (pollOptionInputs.length < 2) {
+      return { ok: false, error: "Add at least two poll options." };
+    }
+    if (pollOptionInputs.length > 10) {
+      return { ok: false, error: "You can add at most 10 poll options." };
+    }
+    const parsed: string[] = [];
+    for (const opt of pollOptionInputs) {
+      const r = pollOptionSchema.safeParse(opt);
+      if (!r.success) {
+        return { ok: false, error: r.error.issues[0]?.message ?? "Invalid poll option." };
+      }
+      parsed.push(r.data);
+    }
+    pollOptions = parsed;
+  } else if (pollOptionInputs.length > 0) {
+    return { ok: false, error: "Remove poll options or enter a poll question." };
+  }
+
+  const scheduleRaw = optionalScheduleSchema.safeParse(formData.get("scheduled_for"));
+  if (!scheduleRaw.success) {
+    return { ok: false, error: "Invalid schedule value." };
+  }
+
+  const scheduleStr = scheduleRaw.data;
+  let scheduledForIso: string | null = null;
+  let isPublished = true;
+
+  if (scheduleStr.length > 0) {
+    const ms = Date.parse(scheduleStr);
+    if (Number.isNaN(ms)) {
+      return { ok: false, error: "Enter a valid publish date and time." };
+    }
+    const minAhead = Date.now() + 60_000;
+    if (ms < minAhead) {
+      return { ok: false, error: "Schedule at least one minute in the future, or leave empty to post now." };
+    }
+    scheduledForIso = new Date(ms).toISOString();
+    isPublished = false;
+  }
+
+  return {
+    ok: true,
+    data: {
+      pollQuestion: pollQuestion.length > 0 ? pollQuestion : null,
+      pollOptions,
+      scheduledForIso,
+      isPublished,
+    },
+  };
+}
+
 /** Reflection / optional note blocks — FormData may omit or send null. */
 const optionalNotesSchema = z
   .union([z.string(), z.null(), z.undefined()])

@@ -17,12 +17,16 @@ import {
   announcementCreateSchema,
   attendanceToggleSchema,
   clubCreateSchema,
+  ANNOUNCEMENT_ATTACHMENT_MIMES,
   eventCreateSchema,
   eventReflectionSchema,
   joinCodeSchema,
+  MAX_ANNOUNCEMENT_ATTACHMENTS,
+  MAX_ANNOUNCEMENT_ATTACHMENT_BYTES,
   memberRemovalSchema,
   memberMarkAlumniSchema,
   memberRoleUpdateSchema,
+  parseAnnouncementCreateExtras,
   rsvpSchema,
 } from "@/lib/validation/clubs";
 
@@ -425,6 +429,11 @@ export async function joinClubAction(formData: FormData) {
   );
 }
 
+function safeAttachmentFilename(name: string): string {
+  const base = name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+  return base || "file";
+}
+
 export async function createAnnouncementAction(formData: FormData) {
   const parsed = announcementCreateSchema.safeParse({
     clubId: formData.get("club_id"),
@@ -438,6 +447,37 @@ export async function createAnnouncementAction(formData: FormData) {
       redirect(`/clubs/${fallbackClubId}/announcements?annError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
     }
     redirect("/clubs?error=Invalid+club.");
+  }
+
+  const extras = parseAnnouncementCreateExtras(formData);
+  if (!extras.ok) {
+    redirect(
+      `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(extras.error)}`,
+    );
+  }
+
+  const attachmentFiles = formData
+    .getAll("attachments")
+    .filter((f): f is File => typeof f !== "string" && f instanceof File);
+
+  if (attachmentFiles.length > MAX_ANNOUNCEMENT_ATTACHMENTS) {
+    redirect(
+      `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(`You can attach at most ${MAX_ANNOUNCEMENT_ATTACHMENTS} files.`)}`,
+    );
+  }
+
+  for (const file of attachmentFiles) {
+    if (file.size > MAX_ANNOUNCEMENT_ATTACHMENT_BYTES) {
+      redirect(
+        `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent("Each attachment must be 5 MB or smaller.")}`,
+      );
+    }
+    const mime = (file.type || "").toLowerCase();
+    if (!ANNOUNCEMENT_ATTACHMENT_MIMES.has(mime)) {
+      redirect(
+        `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent("Attachments must be images (JPEG, PNG, GIF, WebP) or PDF.")}`,
+      );
+    }
   }
 
   const supabase = await createClient();
@@ -479,40 +519,93 @@ export async function createAnnouncementAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+permission+to+create+announcements.`);
   }
 
-  const { error: insertError } = await supabase.from("announcements").insert({
-    club_id: parsed.data.clubId,
-    title: parsed.data.title,
-    content: parsed.data.content,
-    created_by: user.id,
-  });
+  const { data: inserted, error: insertError } = await supabase
+    .from("announcements")
+    .insert({
+      club_id: parsed.data.clubId,
+      title: parsed.data.title,
+      content: parsed.data.content,
+      created_by: user.id,
+      poll_question: extras.data.pollQuestion,
+      poll_options: extras.data.pollOptions,
+      scheduled_for: extras.data.scheduledForIso,
+      is_published: extras.data.isPublished,
+    })
+    .select("id")
+    .maybeSingle();
 
-  if (insertError) {
+  if (insertError || !inserted?.id) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Unable+to+create+announcement.+Please+retry.`);
   }
 
-  // Notify all other club members about the new announcement (non-fatal).
-  const { data: otherMembers } = await supabase
-    .from("club_members")
-    .select("user_id")
-    .eq("club_id", parsed.data.clubId)
-    .eq("membership_status", "active")
-    .neq("user_id", user.id);
+  const announcementId = inserted.id;
 
-  if (otherMembers && otherMembers.length > 0) {
-    await createBulkNotifications(
-      otherMembers.map((m) => ({
-        userId: m.user_id,
-        clubId: parsed.data.clubId,
-        type: "announcement.posted" as const,
-        title: parsed.data.title,
-        body: "A new announcement was posted in your club.",
-        href: `/clubs/${parsed.data.clubId}/announcements`,
-      })),
-    );
+  if (attachmentFiles.length > 0) {
+    const admin = createAdminClient();
+    for (const file of attachmentFiles) {
+      const mime = (file.type || "application/octet-stream").toLowerCase();
+      const path = `${parsed.data.clubId}/${announcementId}/${randomUUID()}-${safeAttachmentFilename(file.name)}`;
+      const buf = Buffer.from(await file.arrayBuffer());
+      const { error: upErr } = await admin.storage.from("announcement-attachments").upload(path, buf, {
+        contentType: mime,
+        upsert: false,
+      });
+      if (upErr) {
+        console.error("[announcements] attachment upload failed", upErr.message);
+        redirect(
+          `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent("Could not upload an attachment. Please retry.")}`,
+        );
+      }
+
+      const { error: attErr } = await admin.from("announcement_attachments").insert({
+        announcement_id: announcementId,
+        file_url: path,
+        file_name: file.name.slice(0, 240),
+        file_type: mime,
+      });
+
+      if (attErr) {
+        console.error("[announcements] attachment row insert failed", attErr.message);
+        redirect(
+          `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent("Could not save attachment metadata. Please retry.")}`,
+        );
+      }
+    }
+  }
+
+  if (extras.data.isPublished) {
+    const { data: otherMembers } = await supabase
+      .from("club_members")
+      .select("user_id")
+      .eq("club_id", parsed.data.clubId)
+      .eq("membership_status", "active")
+      .neq("user_id", user.id);
+
+    if (otherMembers && otherMembers.length > 0) {
+      const hasPoll = Boolean(extras.data.pollQuestion);
+      const href = `/clubs/${parsed.data.clubId}/announcements#announcement-${announcementId}`;
+      await createBulkNotifications(
+        otherMembers.map((m) => ({
+          userId: m.user_id,
+          clubId: parsed.data.clubId,
+          type: hasPoll ? ("poll_created" as const) : ("announcement_created" as const),
+          title: parsed.data.title,
+          body: hasPoll ? "A new poll was posted in your club." : "A new announcement was posted in your club.",
+          href,
+          metadata: { announcement_id: announcementId },
+        })),
+      );
+    }
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
-  redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=Announcement+posted.`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/announcements`);
+  revalidatePath("/dashboard");
+
+  const successMsg = extras.data.isPublished
+    ? "Announcement posted."
+    : "Announcement scheduled — members will be notified when it publishes.";
+  redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=${encodeURIComponent(successMsg)}`);
 }
 
 export async function updateMemberRoleAction(formData: FormData) {

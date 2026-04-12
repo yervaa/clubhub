@@ -28,6 +28,26 @@ function isToday(isoString: string): boolean {
   return then.toDateString() === now.toDateString();
 }
 
+function groupNotificationsByClub(items: NotificationItem[]) {
+  const order: string[] = [];
+  const groups = new Map<string, { clubKey: string; clubName: string; items: NotificationItem[] }>();
+
+  for (const n of items) {
+    const key = n.clubId ?? "__general";
+    if (!groups.has(key)) {
+      order.push(key);
+      groups.set(key, {
+        clubKey: key,
+        clubName: n.clubName ?? (key === "__general" ? "Other" : "Club"),
+        items: [],
+      });
+    }
+    groups.get(key)!.items.push(n);
+  }
+
+  return order.map((k) => groups.get(k)!);
+}
+
 // ─── Icon helpers ─────────────────────────────────────────────────────────────
 
 type TypeConfig = {
@@ -40,6 +60,7 @@ type TypeConfig = {
 function getTypeConfig(type: string): TypeConfig {
   switch (type) {
     case "announcement.posted":
+    case "announcement_created":
       return {
         bg: "bg-amber-100",
         text: "text-amber-600",
@@ -47,6 +68,17 @@ function getTypeConfig(type: string): TypeConfig {
         icon: (
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+          </svg>
+        ),
+      };
+    case "poll_created":
+      return {
+        bg: "bg-amber-100",
+        text: "text-amber-700",
+        label: "Poll",
+        icon: (
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
           </svg>
         ),
       };
@@ -84,6 +116,7 @@ function getTypeConfig(type: string): TypeConfig {
         ),
       };
     case "task.assigned":
+    case "task_assigned":
       return {
         bg: "bg-emerald-100",
         text: "text-emerald-600",
@@ -91,6 +124,18 @@ function getTypeConfig(type: string): TypeConfig {
         icon: (
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        ),
+      };
+
+    case "event_reminder":
+      return {
+        bg: "bg-sky-100",
+        text: "text-sky-600",
+        label: "Event reminder",
+        icon: (
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         ),
       };
@@ -128,10 +173,12 @@ export default async function NotificationsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Notifications</h1>
-          {unreadCount > 0 && (
-            <p className="mt-0.5 text-sm text-slate-500">
-              {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
+          {unreadCount > 0 ? (
+            <p className="mt-0.5 text-sm font-semibold text-slate-800">
+              {unreadCount} unread
             </p>
+          ) : (
+            <p className="mt-0.5 text-sm text-slate-500">You are all caught up.</p>
           )}
         </div>
         {unreadCount > 0 && (
@@ -167,19 +214,29 @@ export default async function NotificationsPage() {
         </div>
       )}
 
-      {/* Today */}
+      {/* Today — grouped by club */}
       {todayItems.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Today</h2>
-          <NotificationList items={todayItems} />
+        <section className="space-y-5">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Today</h2>
+          {groupNotificationsByClub(todayItems).map((group) => (
+            <div key={`today-${group.clubKey}`}>
+              <h3 className="mb-2 text-sm font-semibold text-slate-800">{group.clubName}</h3>
+              <NotificationList items={group.items} />
+            </div>
+          ))}
         </section>
       )}
 
-      {/* Earlier */}
+      {/* Earlier — grouped by club */}
       {earlierItems.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Earlier</h2>
-          <NotificationList items={earlierItems} />
+        <section className="space-y-5">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Earlier</h2>
+          {groupNotificationsByClub(earlierItems).map((group) => (
+            <div key={`earlier-${group.clubKey}`}>
+              <h3 className="mb-2 text-sm font-semibold text-slate-800">{group.clubName}</h3>
+              <NotificationList items={group.items} />
+            </div>
+          ))}
         </section>
       )}
     </div>
@@ -209,9 +266,7 @@ function NotificationList({ items }: { items: NotificationItem[] }) {
                   <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-slate-900" />
                 )}
               </div>
-              {item.body && (
-                <p className="mt-0.5 text-sm text-slate-500">{item.body}</p>
-              )}
+              {item.body ? <p className="mt-0.5 text-sm text-slate-500">{item.body}</p> : null}
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
                 <span className="rounded-full bg-slate-100 px-1.5 py-0.5 font-medium text-slate-500">
                   {config.label}

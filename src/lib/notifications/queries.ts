@@ -12,6 +12,8 @@ export type NotificationItem = {
   isRead: boolean;
   createdAt: string;
   clubId: string | null;
+  /** Resolved when club_id is set (extra query, batched). */
+  clubName: string | null;
 };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -35,7 +37,18 @@ export async function getRecentNotifications(limit = 10): Promise<NotificationIt
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  return (data ?? []).map((n) => ({
+  const rows = data ?? [];
+  const clubIds = [...new Set(rows.map((r) => r.club_id).filter((id): id is string => Boolean(id)))];
+  const clubNameById = new Map<string, string>();
+
+  if (clubIds.length > 0) {
+    const { data: clubRows } = await supabase.from("clubs").select("id, name").in("id", clubIds);
+    for (const c of clubRows ?? []) {
+      clubNameById.set(c.id, c.name);
+    }
+  }
+
+  return rows.map((n) => ({
     id: n.id,
     type: n.type as string,
     title: n.title,
@@ -44,6 +57,7 @@ export async function getRecentNotifications(limit = 10): Promise<NotificationIt
     isRead: n.is_read,
     createdAt: n.created_at,
     clubId: n.club_id,
+    clubName: n.club_id ? clubNameById.get(n.club_id) ?? null : null,
   }));
 }
 
