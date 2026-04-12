@@ -50,12 +50,18 @@ export async function createNotification(input: NotificationInput): Promise<void
   }
 }
 
+export type BulkNotificationResult = { ok: true } | { ok: false; message: string };
+
 /**
  * Inserts multiple notifications in a single round-trip.
  * Use when broadcasting to all club members (e.g. announcement / event created).
+ * Returns ok:false when the insert fails so callers can retry (e.g. cron) without duplicating
+ * if combined with existence checks or delivery marker columns.
  */
-export async function createBulkNotifications(inputs: NotificationInput[]): Promise<void> {
-  if (inputs.length === 0) return;
+export async function createBulkNotifications(inputs: NotificationInput[]): Promise<BulkNotificationResult> {
+  if (inputs.length === 0) {
+    return { ok: true };
+  }
 
   const admin = createAdminClient();
 
@@ -73,5 +79,8 @@ export async function createBulkNotifications(inputs: NotificationInput[]): Prom
 
   if (error) {
     console.error("[notifications] Failed to create bulk notifications:", inputs[0]?.type, error.message);
+    return { ok: false, message: error.message };
   }
+
+  return { ok: true };
 }

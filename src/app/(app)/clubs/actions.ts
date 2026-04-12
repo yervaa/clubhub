@@ -581,20 +581,30 @@ export async function createAnnouncementAction(formData: FormData) {
       .eq("membership_status", "active")
       .neq("user_id", user.id);
 
-    if (otherMembers && otherMembers.length > 0) {
-      const hasPoll = Boolean(extras.data.pollQuestion);
-      const href = `/clubs/${parsed.data.clubId}/announcements#announcement-${announcementId}`;
-      await createBulkNotifications(
-        otherMembers.map((m) => ({
-          userId: m.user_id,
-          clubId: parsed.data.clubId,
-          type: hasPoll ? ("poll_created" as const) : ("announcement_created" as const),
-          title: parsed.data.title,
-          body: hasPoll ? "A new poll was posted in your club." : "A new announcement was posted in your club.",
-          href,
-          metadata: { announcement_id: announcementId },
-        })),
-      );
+    const admin = createAdminClient();
+    const hasPoll = Boolean(extras.data.pollQuestion);
+    const href = `/clubs/${parsed.data.clubId}/announcements#announcement-${announcementId}`;
+    const sent =
+      otherMembers && otherMembers.length > 0
+        ? await createBulkNotifications(
+            otherMembers.map((m) => ({
+              userId: m.user_id,
+              clubId: parsed.data.clubId,
+              type: hasPoll ? ("poll_created" as const) : ("announcement_created" as const),
+              title: parsed.data.title,
+              body: hasPoll ? "A new poll was posted in your club." : "A new announcement was posted in your club.",
+              href,
+              metadata: { announcement_id: announcementId },
+            })),
+          )
+        : ({ ok: true } as const);
+
+    if (sent.ok) {
+      await admin
+        .from("announcements")
+        .update({ member_broadcast_sent_at: new Date().toISOString() })
+        .eq("id", announcementId)
+        .is("member_broadcast_sent_at", null);
     }
   }
 
