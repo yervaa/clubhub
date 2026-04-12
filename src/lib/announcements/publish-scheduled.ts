@@ -24,10 +24,22 @@ export async function publishDueScheduledAnnouncements(): Promise<{ published: n
   let published = 0;
 
   for (const row of due) {
-    const { error: upErr } = await admin.from("announcements").update({ is_published: true }).eq("id", row.id);
+    // Only treat as newly published if we flip is_published false → true (idempotent under
+    // overlapping cron runs and safe to retry without duplicate notifications).
+    const { data: flipped, error: upErr } = await admin
+      .from("announcements")
+      .update({ is_published: true })
+      .eq("id", row.id)
+      .eq("is_published", false)
+      .select("id")
+      .maybeSingle();
 
     if (upErr) {
       console.error("[announcements:publish-scheduled] update failed", row.id, upErr.message);
+      continue;
+    }
+
+    if (!flipped) {
       continue;
     }
 
