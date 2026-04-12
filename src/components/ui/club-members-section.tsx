@@ -211,7 +211,9 @@ export function ClubMembersSection({
   const memberCount = activeMembers.length;
   const officerCount = activeMembers.filter((m) => m.role === "officer").length;
   const rosterTotalCount = club.members.length;
-  const setupDone = memberCount > 1 && club.announcements.length > 0 && club.events.length > 0;
+  const announcementsCountForUi = club.rosterAnnouncementsCount ?? club.announcements.length;
+  const eventsCountForUi = club.rosterEventsCount ?? club.events.length;
+  const setupDone = memberCount > 1 && announcementsCountForUi > 0 && eventsCountForUi > 0;
 
   // RBAC-based permission checks with legacy officer fallback.
   const legacyIsOfficer = club.currentUserRole === "officer";
@@ -397,8 +399,8 @@ export function ClubMembersSection({
         <GettingStartedChecklist
           clubId={club.id}
           membersCount={memberCount}
-          announcementsCount={club.announcements.length}
-          eventsCount={club.events.length}
+          announcementsCount={announcementsCountForUi}
+          eventsCount={eventsCountForUi}
         />
       )}
 

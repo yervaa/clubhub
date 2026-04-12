@@ -11,6 +11,8 @@ Operational notes for moving from demo/testing to **real users**. This doc compl
 - **Admin Supabase client** (`createAdminClient`) is **`server-only`** and reads the service role from **`env.server.ts`**, not from the public env module used by the browser.
 - **Demo seed** refuses default runs when `NODE_ENV=production` or `VERCEL_ENV=production` unless `ALLOW_DEMO_SEED=true`, and refuses **non-loopback** Supabase URLs unless `DEMO_SEED_TARGET_OK=true`.
 - **Events ICS export** route checks session + **club membership** before returning data.
+- **Startup checks on Vercel** — `src/instrumentation.ts` logs once per Node server boot when `VERCEL_ENV` is `preview` or `production`, if public Supabase vars, service role, or Upstash pair are missing (see host logs after deploy).
+- **Rate limits** — If Upstash is configured but `limit()` throws (network/API), the app logs **`[clubhub] Upstash ratelimit failed`** and falls back to in-memory for that request (operational visibility without hard-failing user traffic).
 
 ---
 
@@ -18,6 +20,7 @@ Operational notes for moving from demo/testing to **real users**. This doc compl
 
 1. **`DEMO_SEED_TARGET_OK`** — Demo seed against `*.supabase.co` (or any non-`localhost` / `127.0.0.1` host) requires this flag so a dev `.env` pointing at a shared project cannot wipe data accidentally.
 2. **Service role env isolation** — `getSupabaseServiceRoleKey` lives in **`src/lib/supabase/env.server.ts`** (`server-only`); public URL/anon stay in **`env.ts`** for the browser client.
+3. **`instrumentation.ts` + rate-limit resilience** — Vercel preview/production cold-start env warnings; Upstash errors logged with policy name before in-memory fallback.
 
 ---
 
@@ -53,6 +56,7 @@ Operational notes for moving from demo/testing to **real users**. This doc compl
 
 4. **Monitoring**
    - Add **error tracking** (e.g. Sentry) and **uptime** checks; not wired in this repo by default.
+   - After each deploy, skim **Vercel → Functions / Runtime Logs** for **`[clubhub]`** lines on first request (startup instrumentation) and for Upstash failures during traffic spikes.
 
 5. **Legal / product**
    - Privacy policy, data retention, and account deletion expectations if you owe them to users.
@@ -68,6 +72,7 @@ Operational notes for moving from demo/testing to **real users**. This doc compl
 - [ ] Supabase **Auth** URLs and **email** provider configured for your domain.
 - [ ] Backups enabled; you know how to restore.
 - [ ] Optional: error monitoring and log drain configured on the host.
+- [ ] Open Vercel logs after deploy: confirm **no** `[clubhub] Missing …` errors for Supabase/Upstash on preview and production (or fix env in the dashboard).
 
 ---
 

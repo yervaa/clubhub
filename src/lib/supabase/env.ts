@@ -1,3 +1,8 @@
+/**
+ * Public Supabase settings only (`NEXT_PUBLIC_*`). Safe for the browser bundle via
+ * `lib/supabase/client.ts`. Do **not** read `SUPABASE_SERVICE_ROLE_KEY` or other
+ * server secrets here — use `env.server.ts` / `admin.ts` on the server only.
+ */
 import { cleanEnvValue } from "@/lib/supabase/env.shared";
 
 function ensureValidUrl(value: string, envName: string) {

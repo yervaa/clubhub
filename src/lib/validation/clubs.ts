@@ -3,6 +3,55 @@ import { EVENT_TYPE_OPTIONS } from "@/lib/events";
 import { sanitizeCode, sanitizeInlineText, sanitizeMultilineText } from "@/lib/sanitize";
 
 const uuidSchema = z.uuid("Invalid record identifier.");
+
+/** JSON `assignee_ids` field from task forms — cap size before `JSON.parse`. */
+const MAX_TASK_ASSIGNEE_JSON_CHARS = 4096;
+/** Matches practical UI limits and keeps notification / insert batches bounded. */
+export const MAX_TASK_ASSIGNEES_PER_TASK = 30;
+
+/**
+ * Parses the JSON array of user ids from task create/update forms.
+ * Rejects malformed JSON, non-arrays, non-UUID strings, and oversized lists.
+ */
+export function parseTaskAssigneeIdsJson(raw: unknown): { ok: true; ids: string[] } | { ok: false; error: string } {
+  const s = typeof raw === "string" ? raw : "";
+  if (s.length > MAX_TASK_ASSIGNEE_JSON_CHARS) {
+    return { ok: false, error: "Assignee list is too large." };
+  }
+  const t = s.trim();
+  if (t === "") return { ok: true, ids: [] };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(t);
+  } catch {
+    return { ok: false, error: "Invalid assignee data." };
+  }
+  if (!Array.isArray(parsed)) {
+    return { ok: false, error: "Assignee list must be a JSON array." };
+  }
+  if (parsed.length > MAX_TASK_ASSIGNEES_PER_TASK) {
+    return { ok: false, error: `You can assign at most ${MAX_TASK_ASSIGNEES_PER_TASK} members per task.` };
+  }
+  const ids: string[] = [];
+  for (const item of parsed) {
+    if (typeof item !== "string" || !uuidSchema.safeParse(item).success) {
+      return { ok: false, error: "Invalid assignee identifier." };
+    }
+    ids.push(item);
+  }
+  return { ok: true, ids };
+}
+
+/** Parses optional due datetime; rejects invalid dates instead of silently dropping them. */
+export function parseTaskDueAtFormValue(raw: unknown): { ok: true; iso: string | null } | { ok: false; error: string } {
+  const s = typeof raw === "string" ? raw.trim().slice(0, 48) : "";
+  if (s === "") return { ok: true, iso: null };
+  const ms = Date.parse(s);
+  if (Number.isNaN(ms)) {
+    return { ok: false, error: "Enter a valid due date." };
+  }
+  return { ok: true, iso: new Date(ms).toISOString() };
+}
 const shortTitleSchema = z.string().transform(sanitizeInlineText).pipe(z.string().min(1).max(160));
 const plainTextSchema = z.string().transform(sanitizeMultilineText).pipe(z.string().min(1).max(2000));
 const shortInlineSchema = z.string().transform(sanitizeInlineText).pipe(z.string().min(1).max(160));
@@ -26,7 +75,12 @@ export const announcementCreateSchema = z.object({
   content: plainTextSchema,
 });
 
-const optionalNotesSchema = z.string().transform(sanitizeMultilineText).pipe(z.string().max(2000));
+/** Reflection / optional note blocks — FormData may omit or send null. */
+const optionalNotesSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (v == null ? "" : v))
+  .transform(sanitizeMultilineText)
+  .pipe(z.string().max(2000));
 
 export const eventCreateSchema = z
   .object({
@@ -35,7 +89,7 @@ export const eventCreateSchema = z
     description: plainTextSchema,
     location: shortInlineSchema,
     eventType: eventTypeSchema,
-    eventDate: z.string().min(1),
+    eventDate: z.string().min(1).max(40, "Event date value is too long."),
   })
   .superRefine((value, ctx) => {
     const parsedDate = new Date(value.eventDate);
@@ -415,7 +469,13 @@ export const roleCreateSchema = z.object({
   name: roleNameSchema,
   description: roleDescriptionSchema,
   /** Optional — if a valid template key is submitted, initial permissions are seeded from it. */
-  templateKey: z.string().optional(),
+  templateKey: z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((v) => {
+      if (typeof v !== "string") return undefined;
+      const t = sanitizeInlineText(v).trim().slice(0, 64);
+      return t === "" ? undefined : t;
+    }),
 });
 
 export const roleUpdateSchema = z.object({
@@ -503,16 +563,26 @@ const taskDescriptionSchema = z
 const taskStatusSchema = z.enum(["todo", "in_progress", "blocked", "completed"]);
 const taskPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
 
+const taskDueAtFormFieldSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (typeof v === "string" ? v : ""))
+  .pipe(z.string().max(48));
+
+const taskAssigneeIdsFormFieldSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (typeof v === "string" ? v : ""))
+  .pipe(z.string().max(MAX_TASK_ASSIGNEE_JSON_CHARS));
+
 export const taskCreateSchema = z.object({
   clubId: uuidSchema,
   title: taskTitleSchema,
   description: taskDescriptionSchema.optional(),
   status: taskStatusSchema.default("todo"),
   priority: taskPrioritySchema.default("medium"),
-  /** ISO-8601 date-time string or empty string (no due date). */
-  dueAt: z.string().optional(),
-  /** JSON-encoded array of user UUIDs. */
-  assigneeIds: z.string().optional(),
+  /** Raw due field from the form — validated with `parseTaskDueAtFormValue` in the action. */
+  dueAt: taskDueAtFormFieldSchema,
+  /** Raw JSON array string — validated with `parseTaskAssigneeIdsJson` in the action. */
+  assigneeIds: taskAssigneeIdsFormFieldSchema,
 });
 
 export const taskUpdateSchema = z.object({
@@ -522,8 +592,8 @@ export const taskUpdateSchema = z.object({
   description: taskDescriptionSchema.optional(),
   status: taskStatusSchema,
   priority: taskPrioritySchema,
-  dueAt: z.string().optional(),
-  assigneeIds: z.string().optional(),
+  dueAt: taskDueAtFormFieldSchema,
+  assigneeIds: taskAssigneeIdsFormFieldSchema,
 });
 
 export const taskStatusUpdateSchema = z.object({
@@ -547,7 +617,8 @@ const memberImportEmailSchema = z
 /** Body for confirming a CSV import — only emails that were "ready" in preview. */
 export const memberImportCommitSchema = z.object({
   clubId: uuidSchema,
+  /** Aligned with `MAX_DATA_ROWS` in member-import preview (single batch). */
   emails: z
     .array(memberImportEmailSchema)
-    .max(400, "Too many rows in one import (max 400)."),
+    .max(300, "Too many rows in one import (max 300)."),
 });

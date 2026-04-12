@@ -6,6 +6,7 @@ import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
 import { csvJoinRow } from "@/lib/csv";
 import { getMemberRosterDisplayName } from "@/lib/member-display";
 import { actorCanExportMemberRoster } from "@/lib/clubs/member-management-access";
+import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
 import { getMembersWithRoles } from "@/lib/rbac/role-actions";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
 
@@ -46,6 +47,15 @@ export async function GET(
 
   if (!(await actorCanExportMemberRoster(user.id, clubId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const exportLimit = await enforceRateLimit({
+    policy: "clubDataExport",
+    userId: user.id,
+    hint: clubId,
+  });
+  if (!exportLimit.success) {
+    return NextResponse.json({ error: getRateLimitErrorMessage() }, { status: 429 });
   }
 
   const [club, membersResult] = await Promise.all([

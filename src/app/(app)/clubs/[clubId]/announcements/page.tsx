@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubAnnouncementsSection } from "@/components/ui/club-announcements-section";
-import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
+import { getClubDetailForAnnouncementsForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubAnnouncementsPageProps = {
   params: Promise<{ clubId: string }>;
@@ -21,7 +21,7 @@ export default async function ClubAnnouncementsPage({ params, searchParams }: Cl
   if (!user) redirect("/login");
 
   const [club, userPermissions] = await Promise.all([
-    getClubDetailForCurrentUser(clubId),
+    getClubDetailForAnnouncementsForCurrentUser(clubId),
     getUserPermissions(user.id, clubId),
   ]);
 

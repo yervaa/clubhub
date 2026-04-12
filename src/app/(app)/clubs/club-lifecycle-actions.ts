@@ -237,6 +237,7 @@ export async function updateClubJoinPolicyAction(formData: FormData) {
   revalidatePath(`/clubs/${clubId}`);
   revalidatePath(`/clubs/${clubId}/members`);
   revalidatePath("/join");
+  revalidatePath("/clubs/join");
   redirect(
     clubSettingsUrl(clubId, {
       success: encodeURIComponent(

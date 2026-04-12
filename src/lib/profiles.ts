@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { User } from "@supabase/supabase-js";
 import { sanitizeInlineText } from "@/lib/sanitize";
 import { createClient } from "@/lib/supabase/server";

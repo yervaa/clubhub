@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 function escapeIcs(s: string): string {
@@ -31,6 +32,15 @@ export async function GET(
 
   if (!membership) {
     return NextResponse.json({ error: "Not a member" }, { status: 403 });
+  }
+
+  const exportLimit = await enforceRateLimit({
+    policy: "clubDataExport",
+    userId: user.id,
+    hint: clubId,
+  });
+  if (!exportLimit.success) {
+    return NextResponse.json({ error: getRateLimitErrorMessage() }, { status: 429 });
   }
 
   // Fetch club name + events.

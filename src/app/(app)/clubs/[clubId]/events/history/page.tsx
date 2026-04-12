@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubEventPastFoldable } from "@/components/ui/club-event-past-foldable";
-import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
+import { getClubDetailForEventsForCurrentUser } from "@/lib/clubs/queries";
 import { partitionEventsByLifecycle } from "@/lib/clubs/event-lifecycle";
 
 type PageProps = {
@@ -18,7 +18,7 @@ export default async function ClubEventHistoryPage({ params }: PageProps) {
   if (!user) redirect("/login");
 
   const [club, userPermissions] = await Promise.all([
-    getClubDetailForCurrentUser(clubId),
+    getClubDetailForEventsForCurrentUser(clubId),
     getUserPermissions(user.id, clubId),
   ]);
 

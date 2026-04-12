@@ -5,7 +5,7 @@ import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubEventsSection } from "@/components/ui/club-events-section";
 import { EventCalendarView } from "@/components/ui/event-calendar-view";
 import { partitionEventsByLifecycle } from "@/lib/clubs/event-lifecycle";
-import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
+import { getClubDetailForEventsForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubEventsPageProps = {
   params: Promise<{ clubId: string }>;
@@ -40,7 +40,7 @@ export default async function ClubEventsPage({ params, searchParams }: ClubEvent
   if (!user) redirect("/login");
 
   const [club, userPermissions] = await Promise.all([
-    getClubDetailForCurrentUser(clubId),
+    getClubDetailForEventsForCurrentUser(clubId),
     getUserPermissions(user.id, clubId),
   ]);
 

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserPermissions } from "@/lib/rbac/permissions";
 import { getMembersWithRoles } from "@/lib/rbac/role-actions";
 import { ClubVolunteerHoursOverview } from "@/components/ui/club-volunteer-hours-overview";
-import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
+import { getClubDetailForVolunteerHoursForCurrentUser } from "@/lib/clubs/queries";
 import { mergeClubRosterIdentities } from "@/lib/clubs/merge-club-roster-identities";
 
 export default async function ClubVolunteerHoursPage({ params }: { params: Promise<{ clubId: string }> }) {
@@ -17,7 +17,7 @@ export default async function ClubVolunteerHoursPage({ params }: { params: Promi
   if (!user) redirect("/login");
 
   const [club, membersResult, userPermissions] = await Promise.all([
-    getClubDetailForCurrentUser(clubId),
+    getClubDetailForVolunteerHoursForCurrentUser(clubId),
     getMembersWithRoles(clubId),
     getUserPermissions(user.id, clubId),
   ]);

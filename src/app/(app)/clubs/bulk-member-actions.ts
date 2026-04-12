@@ -5,6 +5,7 @@ import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { isViewerActiveLegacyOfficer } from "@/lib/clubs/member-management-access";
 import { getMemberManagementErrorMessage } from "@/lib/clubs/member-management-messages";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import {
   bulkMarkAlumniSchema,
@@ -132,6 +133,18 @@ function revalidateMemberSurfaces(clubId: string) {
   revalidatePath("/dashboard");
 }
 
+async function enforceBulkRateLimit(userId: string, clubId: string): Promise<BulkMutationResult | null> {
+  const rateLimit = await enforceRateLimit({
+    policy: "bulkMemberWrite",
+    userId,
+    hint: clubId,
+  });
+  if (!rateLimit.success) {
+    return { ok: false, error: getRateLimitErrorMessage() };
+  }
+  return null;
+}
+
 export async function bulkAssignMemberTagAction(input: unknown): Promise<BulkMutationResult> {
   const parsed = bulkMemberTagMutationSchema.safeParse(input);
   if (!parsed.success) {
@@ -146,6 +159,9 @@ export async function bulkAssignMemberTagAction(input: unknown): Promise<BulkMut
 
   const active = await assertClubActiveForMutations(parsed.data.clubId);
   if (!active.ok) return { ok: false, error: active.message };
+
+  const bulkRl = await enforceBulkRateLimit(user.id, parsed.data.clubId);
+  if (bulkRl) return bulkRl;
 
   const gate = await assertCanManageTags(user.id, parsed.data.clubId);
   if (gate) return gate;
@@ -208,6 +224,9 @@ export async function bulkRemoveMemberTagAction(input: unknown): Promise<BulkMut
   const active = await assertClubActiveForMutations(parsed.data.clubId);
   if (!active.ok) return { ok: false, error: active.message };
 
+  const bulkRl = await enforceBulkRateLimit(user.id, parsed.data.clubId);
+  if (bulkRl) return bulkRl;
+
   const gate = await assertCanManageTags(user.id, parsed.data.clubId);
   if (gate) return gate;
 
@@ -264,6 +283,9 @@ export async function bulkAssignCommitteeMembersAction(input: unknown): Promise<
 
   const active = await assertClubActiveForMutations(parsed.data.clubId);
   if (!active.ok) return { ok: false, error: active.message };
+
+  const bulkRl = await enforceBulkRateLimit(user.id, parsed.data.clubId);
+  if (bulkRl) return bulkRl;
 
   const gate = await assertCanManageCommittees(user.id, parsed.data.clubId);
   if (gate) return gate;
@@ -326,6 +348,9 @@ export async function bulkRemoveCommitteeMembersAction(input: unknown): Promise<
   const active = await assertClubActiveForMutations(parsed.data.clubId);
   if (!active.ok) return { ok: false, error: active.message };
 
+  const bulkRl = await enforceBulkRateLimit(user.id, parsed.data.clubId);
+  if (bulkRl) return bulkRl;
+
   const gate = await assertCanManageCommittees(user.id, parsed.data.clubId);
   if (gate) return gate;
 
@@ -382,6 +407,9 @@ export async function bulkAssignTeamMembersAction(input: unknown): Promise<BulkM
 
   const active = await assertClubActiveForMutations(parsed.data.clubId);
   if (!active.ok) return { ok: false, error: active.message };
+
+  const bulkRl = await enforceBulkRateLimit(user.id, parsed.data.clubId);
+  if (bulkRl) return bulkRl;
 
   const gate = await assertCanManageTeams(user.id, parsed.data.clubId);
   if (gate) return gate;
@@ -444,6 +472,9 @@ export async function bulkRemoveTeamMembersAction(input: unknown): Promise<BulkM
   const active = await assertClubActiveForMutations(parsed.data.clubId);
   if (!active.ok) return { ok: false, error: active.message };
 
+  const bulkRl = await enforceBulkRateLimit(user.id, parsed.data.clubId);
+  if (bulkRl) return bulkRl;
+
   const gate = await assertCanManageTeams(user.id, parsed.data.clubId);
   if (gate) return gate;
 
@@ -501,6 +532,9 @@ export async function bulkMarkMembersAlumniAction(input: unknown): Promise<BulkM
   const active = await assertClubActiveForMutations(parsed.data.clubId);
   if (!active.ok) return { ok: false, error: active.message };
 
+  const bulkRl = await enforceBulkRateLimit(user.id, parsed.data.clubId);
+  if (bulkRl) return bulkRl;
+
   const canMark = await hasPermission(user.id, parsed.data.clubId, "members.remove");
   if (!canMark) {
     return { ok: false, error: "You do not have permission to update membership status." };
@@ -552,6 +586,9 @@ export async function bulkRemoveMembersAction(input: unknown): Promise<BulkMutat
 
   const active = await assertClubActiveForMutations(parsed.data.clubId);
   if (!active.ok) return { ok: false, error: active.message };
+
+  const bulkRl = await enforceBulkRateLimit(user.id, parsed.data.clubId);
+  if (bulkRl) return bulkRl;
 
   const canRemove = await hasPermission(user.id, parsed.data.clubId, "members.remove");
   if (!canRemove) {

@@ -2,11 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
+import { findUserIdsNotActiveInClub } from "@/lib/clubs/validate-active-club-members";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
+import { getClubTaskIdIfInClub } from "@/lib/tasks/task-scope";
 import { createBulkNotifications } from "@/lib/notifications/create-notification";
 import {
+  parseTaskAssigneeIdsJson,
+  parseTaskDueAtFormValue,
   taskCreateSchema,
   taskUpdateSchema,
   taskStatusUpdateSchema,
@@ -19,23 +24,16 @@ export type TaskActionResult =
   | { ok: true }
   | { ok: false; error: string };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseAssigneeIds(raw: string | undefined): string[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.filter((id) => typeof id === "string");
-    return [];
-  } catch {
-    return [];
+async function enforceTaskWriteLimit(userId: string, clubId: string): Promise<TaskActionResult | null> {
+  const rateLimit = await enforceRateLimit({
+    policy: "taskWrite",
+    userId,
+    hint: clubId,
+  });
+  if (!rateLimit.success) {
+    return { ok: false, error: getRateLimitErrorMessage() };
   }
-}
-
-function parseDueAt(raw: string | undefined): string | null {
-  if (!raw || raw.trim() === "") return null;
-  const d = new Date(raw);
-  return isNaN(d.getTime()) ? null : d.toISOString();
+  return null;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -59,8 +57,18 @@ export async function createTaskAction(
   }
 
   const { clubId, title, description, status, priority, dueAt, assigneeIds } = parsed.data;
-  const assignees = parseAssigneeIds(assigneeIds);
-  const dueAtIso = parseDueAt(dueAt);
+
+  const assigneeParsed = parseTaskAssigneeIdsJson(assigneeIds);
+  if (!assigneeParsed.ok) {
+    return { ok: false, error: assigneeParsed.error };
+  }
+  const assignees = assigneeParsed.ids;
+
+  const dueParsed = parseTaskDueAtFormValue(dueAt);
+  if (!dueParsed.ok) {
+    return { ok: false, error: dueParsed.error };
+  }
+  const dueAtIso = dueParsed.iso;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -71,6 +79,16 @@ export async function createTaskAction(
 
   const canCreate = await hasPermission(user.id, clubId, "tasks.create");
   if (!canCreate) return { ok: false, error: "You do not have permission to create tasks." };
+
+  const taskRl = await enforceTaskWriteLimit(user.id, clubId);
+  if (taskRl) return taskRl;
+
+  if (assignees.length > 0) {
+    const invalidAssignees = await findUserIdsNotActiveInClub(supabase, clubId, assignees);
+    if (invalidAssignees.length > 0) {
+      return { ok: false, error: "Every assignee must be an active member of this club." };
+    }
+  }
 
   const admin = createAdminClient();
 
@@ -142,8 +160,18 @@ export async function updateTaskAction(
   }
 
   const { clubId, taskId, title, description, status, priority, dueAt, assigneeIds } = parsed.data;
-  const newAssignees = parseAssigneeIds(assigneeIds);
-  const dueAtIso = parseDueAt(dueAt);
+
+  const assigneeParsed = parseTaskAssigneeIdsJson(assigneeIds);
+  if (!assigneeParsed.ok) {
+    return { ok: false, error: assigneeParsed.error };
+  }
+  const newAssignees = assigneeParsed.ids;
+
+  const dueParsed = parseTaskDueAtFormValue(dueAt);
+  if (!dueParsed.ok) {
+    return { ok: false, error: dueParsed.error };
+  }
+  const dueAtIso = dueParsed.iso;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -155,13 +183,28 @@ export async function updateTaskAction(
   const canEdit = await hasPermission(user.id, clubId, "tasks.edit");
   if (!canEdit) return { ok: false, error: "You do not have permission to edit tasks." };
 
+  const taskRl = await enforceTaskWriteLimit(user.id, clubId);
+  if (taskRl) return taskRl;
+
   const admin = createAdminClient();
+
+  const scopedTaskId = await getClubTaskIdIfInClub(admin, taskId, clubId);
+  if (!scopedTaskId) {
+    return { ok: false, error: "Task not found." };
+  }
+
+  if (newAssignees.length > 0) {
+    const invalidAssignees = await findUserIdsNotActiveInClub(supabase, clubId, newAssignees);
+    if (invalidAssignees.length > 0) {
+      return { ok: false, error: "Every assignee must be an active member of this club." };
+    }
+  }
 
   // Fetch current assignees to determine who is newly added.
   const { data: currentAssigneeRows } = await admin
     .from("club_task_assignees")
     .select("user_id")
-    .eq("task_id", taskId);
+    .eq("task_id", scopedTaskId);
 
   const currentIds = (currentAssigneeRows ?? []).map((r) => r.user_id);
 
@@ -177,18 +220,18 @@ export async function updateTaskAction(
       due_at: dueAtIso,
       completed_at: completedAt,
     })
-    .eq("id", taskId)
+    .eq("id", scopedTaskId)
     .eq("club_id", clubId);
 
   if (updateErr) return { ok: false, error: updateErr.message };
 
   // Replace assignees atomically.
-  await admin.from("club_task_assignees").delete().eq("task_id", taskId);
+  await admin.from("club_task_assignees").delete().eq("task_id", scopedTaskId);
 
   if (newAssignees.length > 0) {
     await admin
       .from("club_task_assignees")
-      .insert(newAssignees.map((uid) => ({ task_id: taskId, user_id: uid })));
+      .insert(newAssignees.map((uid) => ({ task_id: scopedTaskId, user_id: uid })));
   }
 
   // Notify members who were newly assigned.
@@ -240,6 +283,12 @@ export async function updateTaskStatusAction(
     hasPermission(user.id, clubId, "tasks.complete"),
   ]);
 
+  const admin = createAdminClient();
+  const scopedTaskId = await getClubTaskIdIfInClub(admin, taskId, clubId);
+  if (!scopedTaskId) {
+    return { ok: false, error: "Task not found." };
+  }
+
   if (!canEdit) {
     if (!canComplete) return { ok: false, error: "You do not have permission to update tasks." };
 
@@ -248,25 +297,26 @@ export async function updateTaskStatusAction(
       return { ok: false, error: "You can only mark tasks as complete." };
     }
 
-    const admin = createAdminClient();
     const { data: assignment } = await admin
       .from("club_task_assignees")
       .select("task_id")
-      .eq("task_id", taskId)
+      .eq("task_id", scopedTaskId)
       .eq("user_id", user.id)
       .maybeSingle();
 
     if (!assignment) return { ok: false, error: "You are not assigned to this task." };
   }
 
-  const admin = createAdminClient();
+  const taskRl = await enforceTaskWriteLimit(user.id, clubId);
+  if (taskRl) return taskRl;
+
   const { error } = await admin
     .from("club_tasks")
     .update({
       status,
       completed_at: status === "completed" ? new Date().toISOString() : null,
     })
-    .eq("id", taskId)
+    .eq("id", scopedTaskId)
     .eq("club_id", clubId);
 
   if (error) return { ok: false, error: error.message };
@@ -300,11 +350,19 @@ export async function deleteTaskAction(
   const canDelete = await hasPermission(user.id, clubId, "tasks.delete");
   if (!canDelete) return { ok: false, error: "You do not have permission to delete tasks." };
 
+  const taskRl = await enforceTaskWriteLimit(user.id, clubId);
+  if (taskRl) return taskRl;
+
   const admin = createAdminClient();
+  const scopedTaskId = await getClubTaskIdIfInClub(admin, taskId, clubId);
+  if (!scopedTaskId) {
+    return { ok: false, error: "Task not found." };
+  }
+
   const { error } = await admin
     .from("club_tasks")
     .delete()
-    .eq("id", taskId)
+    .eq("id", scopedTaskId)
     .eq("club_id", clubId);
 
   if (error) return { ok: false, error: error.message };

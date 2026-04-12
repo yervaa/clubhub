@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ClubInsightsSection } from "@/components/ui/club-insights-section";
-import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
+import { getClubDetailForInsightsForCurrentUser } from "@/lib/clubs/queries";
 
 type ClubInsightsPageProps = {
   params: Promise<{ clubId: string }>;
@@ -8,7 +8,7 @@ type ClubInsightsPageProps = {
 
 export default async function ClubInsightsPage({ params }: ClubInsightsPageProps) {
   const { clubId } = await params;
-  const club = await getClubDetailForCurrentUser(clubId);
+  const club = await getClubDetailForInsightsForCurrentUser(clubId);
 
   if (!club) {
     notFound();

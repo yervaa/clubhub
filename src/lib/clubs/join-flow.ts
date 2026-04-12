@@ -1,6 +1,7 @@
 /**
- * Join-by-code flow: canonical redirect messages and query-param decoding for `/join`.
- * Keep server redirects and the join page in sync.
+ * Join-by-code flow: canonical redirect messages and query-param decoding for join URLs.
+ * Logged-in users use `/clubs/join` (app shell); public invite links use `/join` (sign-in gate).
+ * Keep server redirects and the join pages in sync.
  */
 
 export const JOIN_REDIRECT_MESSAGES = {

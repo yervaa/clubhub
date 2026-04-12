@@ -224,7 +224,7 @@ export async function joinClubAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/join?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    redirect(`/clubs/join?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
   }
 
   const supabase = await createClient();
@@ -247,7 +247,7 @@ export async function joinClubAction(formData: FormData) {
     userId: user.id,
   });
   if (!rateLimit.success) {
-    redirect(`/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(getRateLimitErrorMessage())}`);
+    redirect(`/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
   const admin = createAdminClient();
@@ -266,7 +266,7 @@ export async function joinClubAction(formData: FormData) {
       details: clubLookupError.details,
     });
     redirect(
-      `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Unexpected error. Please retry.")}`,
+      `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Unexpected error. Please retry.")}`,
     );
   }
 
@@ -276,7 +276,7 @@ export async function joinClubAction(formData: FormData) {
       joinCode: normalizedJoinCode,
     });
     redirect(
-      `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
+      `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
     );
   }
 
@@ -300,7 +300,7 @@ export async function joinClubAction(formData: FormData) {
       clubId,
     });
     redirect(
-      `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
+      `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
     );
   }
 
@@ -315,7 +315,7 @@ export async function joinClubAction(formData: FormData) {
       details: profileError.details,
     });
     redirect(
-      `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Profile missing. Sign out and back in, then try again.")}`,
+      `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Profile missing. Sign out and back in, then try again.")}`,
     );
   }
 
@@ -342,7 +342,7 @@ export async function joinClubAction(formData: FormData) {
         details: submitRpcError.details,
       });
       redirect(
-        `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not submit join request. Please retry.")}`,
+        `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not submit join request. Please retry.")}`,
       );
     }
 
@@ -353,23 +353,23 @@ export async function joinClubAction(formData: FormData) {
         revalidatePath("/clubs");
         revalidatePath(`/clubs/${clubId}/members`);
         redirect(
-          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.requestSubmitted)}`,
+          `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.requestSubmitted)}`,
         );
       case "already_member":
         redirect(
-          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
+          `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
         );
       case "pending_exists":
         redirect(
-          `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.requestAlreadyPending)}`,
+          `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&pending=1&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.requestAlreadyPending)}`,
         );
       case "invalid_code":
         redirect(
-          `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
+          `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
         );
       case "archived":
         redirect(
-          `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
+          `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.invalidOrArchived)}`,
         );
       case "approval_not_required":
         break;
@@ -378,7 +378,7 @@ export async function joinClubAction(formData: FormData) {
       default:
         logJoinClub("submit-request-unexpected-status", { userId: user.id, clubId, submitStatus });
         redirect(
-          `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not complete join. Please retry.")}`,
+          `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not complete join. Please retry.")}`,
         );
     }
   }
@@ -396,7 +396,7 @@ export async function joinClubAction(formData: FormData) {
         clubId,
       });
       redirect(
-        `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
+        `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&error=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.alreadyMember)}`,
       );
     }
 
@@ -408,7 +408,7 @@ export async function joinClubAction(formData: FormData) {
       details: joinError.details,
     });
     redirect(
-      `/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not add membership. Please retry.")}`,
+      `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&error=${encodeURIComponent("Could not add membership. Please retry.")}`,
     );
   }
 
@@ -421,7 +421,7 @@ export async function joinClubAction(formData: FormData) {
   revalidatePath("/clubs");
   revalidatePath(`/clubs/${clubId}`);
   redirect(
-    `/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.joinedImmediate)}`,
+    `/clubs/join?code=${encodeURIComponent(normalizedJoinCode)}&clubId=${clubId}&success=${encodeURIComponent(JOIN_REDIRECT_MESSAGES.joinedImmediate)}`,
   );
 }
 
@@ -452,6 +452,7 @@ export async function createAnnouncementAction(formData: FormData) {
   const rateLimit = await enforceRateLimit({
     policy: "announcementCreate",
     userId: user.id,
+    hint: parsed.data.clubId,
   });
   if (!rateLimit.success) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(getRateLimitErrorMessage())}`);
@@ -696,6 +697,7 @@ export async function createEventAction(formData: FormData) {
   const rateLimit = await enforceRateLimit({
     policy: "eventCreate",
     userId: user.id,
+    hint: parsed.data.clubId,
   });
   if (!rateLimit.success) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(getRateLimitErrorMessage())}${duplicateQuery}#create-event`);
@@ -791,6 +793,7 @@ export async function upsertRsvpAction(formData: FormData) {
   const rateLimit = await enforceRateLimit({
     policy: "rsvpWrite",
     userId: user.id,
+    hint: parsed.data.clubId,
   });
   if (!rateLimit.success) {
     redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=${encodeURIComponent(getRateLimitErrorMessage())}`);
@@ -874,6 +877,7 @@ export async function saveEventReflectionAction(formData: FormData) {
   const rateLimit = await enforceRateLimit({
     policy: "announcementCreate",
     userId: user.id,
+    hint: parsed.data.clubId,
   });
   if (!rateLimit.success) {
     redirect(`/clubs/${parsed.data.clubId}/events?reflectionError=${encodeURIComponent(getRateLimitErrorMessage())}&reflectionEventId=${encodeURIComponent(parsed.data.eventId)}#events`);
@@ -1009,6 +1013,7 @@ export async function toggleAttendanceAction(formData: FormData) {
   const rateLimit = await enforceRateLimit({
     policy: "rsvpWrite",
     userId: user.id,
+    hint: parsed.data.clubId,
   });
   if (!rateLimit.success) {
     redirect(`/clubs/${parsed.data.clubId}/events?attendanceError=${encodeURIComponent(getRateLimitErrorMessage())}`);

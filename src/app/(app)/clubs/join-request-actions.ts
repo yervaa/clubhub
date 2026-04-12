@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { isViewerActiveLegacyOfficer } from "@/lib/clubs/member-management-access";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { enforceRateLimit, getRateLimitErrorMessage } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { joinRequestDecisionSchema } from "@/lib/validation/clubs";
 
@@ -65,6 +66,15 @@ export async function approveJoinRequestAction(formData: FormData): Promise<Join
     return { ok: false as const, error: "You do not have permission to approve join requests." };
   }
 
+  const rateLimit = await enforceRateLimit({
+    policy: "joinRequestReview",
+    userId: user.id,
+    hint: parsed.data.clubId,
+  });
+  if (!rateLimit.success) {
+    return { ok: false as const, error: getRateLimitErrorMessage() };
+  }
+
   const { data: status, error } = await supabase.rpc("approve_club_join_request", {
     p_club_id: parsed.data.clubId,
     p_request_id: parsed.data.requestId,
@@ -114,6 +124,15 @@ export async function denyJoinRequestAction(formData: FormData): Promise<JoinReq
   const canReview = await assertCanReviewJoinRequests(user.id, parsed.data.clubId);
   if (!canReview) {
     return { ok: false as const, error: "You do not have permission to deny join requests." };
+  }
+
+  const rateLimit = await enforceRateLimit({
+    policy: "joinRequestReview",
+    userId: user.id,
+    hint: parsed.data.clubId,
+  });
+  if (!rateLimit.success) {
+    return { ok: false as const, error: getRateLimitErrorMessage() };
   }
 
   const { data: status, error } = await supabase.rpc("deny_club_join_request", {

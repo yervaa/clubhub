@@ -77,6 +77,8 @@ npm run dev
 4. Add the variables to both `Preview` and `Production`.
 5. Redeploy after any env change.
 
+On the first server boot in each Vercel environment (`preview` / `production`), the app logs **`[clubhub]`** messages if required env vars are missing or if Upstash is absent (see **Runtime / Functions** logs). Fix missing vars in the Vercel dashboard rather than ignoring those lines.
+
 ## Supabase Configuration Checklist
 
 - Apply all numbered migrations in [`supabase/`](./supabase/) in order (see [docs/PRESIDENT_TEST_HANDOFF.md](./docs/PRESIDENT_TEST_HANDOFF.md) for a handoff-oriented checklist)

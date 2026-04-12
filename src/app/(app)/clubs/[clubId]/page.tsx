@@ -7,7 +7,7 @@ import { ClubActivityFeed } from "@/components/ui/club-activity-feed";
 import type { ActivityFeedItem } from "@/components/ui/club-activity-feed";
 import { formatActivityTime } from "@/lib/clubs/format-activity-time";
 import { EventMetaRow } from "@/components/ui/event-summary";
-import { getClubDetailForCurrentUser } from "@/lib/clubs/queries";
+import { getClubDetailForOverviewForCurrentUser } from "@/lib/clubs/queries";
 import { getMyClubTasks } from "@/lib/tasks/queries";
 
 type ClubOverviewPageProps = {
@@ -22,7 +22,7 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
   if (!user) redirect("/login");
 
   const [club, userPermissions, myTasks] = await Promise.all([
-    getClubDetailForCurrentUser(clubId),
+    getClubDetailForOverviewForCurrentUser(clubId),
     getUserPermissions(user.id, clubId),
     getMyClubTasks(clubId, user.id),
   ]);

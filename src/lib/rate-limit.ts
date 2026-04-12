@@ -13,7 +13,11 @@ type PolicyName =
   | "announcementCreate"
   | "eventCreate"
   | "rsvpWrite"
-  | "memberImport";
+  | "memberImport"
+  | "bulkMemberWrite"
+  | "clubDataExport"
+  | "joinRequestReview"
+  | "taskWrite";
 
 type PolicyConfig = {
   limit: number;
@@ -48,6 +52,14 @@ const RATE_LIMIT_POLICIES: Record<PolicyName, PolicyConfig> = {
   eventCreate: { limit: 12, duration: "15 m", windowMs: 15 * 60 * 1000 },
   rsvpWrite: { limit: 40, duration: "5 m", windowMs: 5 * 60 * 1000 },
   memberImport: { limit: 24, duration: "1 h", windowMs: 60 * 60 * 1000 },
+  /** Tag/committee/team bulk ops, alumni/removal batches — per user per club. */
+  bulkMemberWrite: { limit: 48, duration: "1 h", windowMs: 60 * 60 * 1000 },
+  /** Roster CSV + calendar ICS downloads — per user per club. */
+  clubDataExport: { limit: 24, duration: "1 h", windowMs: 60 * 60 * 1000 },
+  /** Approve/deny join requests — per reviewer per club. */
+  joinRequestReview: { limit: 120, duration: "10 m", windowMs: 10 * 60 * 1000 },
+  /** Task create/update/status/delete — per user per club. */
+  taskWrite: { limit: 72, duration: "15 m", windowMs: 15 * 60 * 1000 },
 };
 
 const localStore = globalThis.__clubhubRateLimitStore ?? new Map<string, LocalBucket>();
@@ -116,7 +128,9 @@ function getClientIp(headerStore: Awaited<ReturnType<typeof headers>>) {
 
 async function getIdentity({ userId, hint }: Pick<EnforceRateLimitOptions, "userId" | "hint">) {
   if (userId) {
-    return hashValue(`user:${userId}`);
+    // Scope by club (or other hint) when provided — e.g. import/bulk/export per club, not global per user.
+    const suffix = hint ? `:${hint}` : "";
+    return hashValue(`user:${userId}${suffix}`);
   }
 
   const headerStore = await headers();
@@ -151,24 +165,34 @@ export async function enforceRateLimit(options: EnforceRateLimitOptions): Promis
   const ratelimiter = getRatelimiter(options.policy);
 
   if (!ratelimiter) {
-    if (process.env.NODE_ENV === "production" && !hasWarnedAboutLocalFallback) {
+    const shouldWarn =
+      !hasWarnedAboutLocalFallback &&
+      (process.env.NODE_ENV === "production" ||
+        process.env.VERCEL_ENV === "production" ||
+        process.env.VERCEL_ENV === "preview");
+    if (shouldWarn) {
       hasWarnedAboutLocalFallback = true;
       console.warn(
-        "Rate limiting is using the in-memory fallback because UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN is missing.",
+        "[clubhub] Rate limiting uses in-memory fallback (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN missing). Not reliable across serverless instances — configure Upstash on the host.",
       );
     }
 
     return localLimit(options.policy, identifier);
   }
 
-  const result = await ratelimiter.limit(identifier);
-
-  return {
-    success: result.success,
-    reset: result.reset,
-    remaining: result.remaining,
-    limit: result.limit,
-  };
+  try {
+    const result = await ratelimiter.limit(identifier);
+    return {
+      success: result.success,
+      reset: result.reset,
+      remaining: result.remaining,
+      limit: result.limit,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[clubhub] Upstash ratelimit failed for policy "${options.policy}": ${msg}`);
+    return localLimit(options.policy, identifier);
+  }
 }
 
 export function getRateLimitErrorMessage() {

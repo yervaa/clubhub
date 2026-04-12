@@ -13,7 +13,7 @@ import {
   fetchClubAttendanceHistoryByUserMap,
   fetchClubMemberDuesMap,
   fetchClubMemberOfficerNotesMap,
-  getClubDetailForCurrentUser,
+  getClubDetailForMembersRosterForCurrentUser,
   getPendingJoinRequestsForClub,
 } from "@/lib/clubs/queries";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
@@ -35,7 +35,7 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
   if (!user) redirect("/login");
 
   const [club, membersResult, userPermissions, presidencyCheck] = await Promise.all([
-    getClubDetailForCurrentUser(clubId),
+    getClubDetailForMembersRosterForCurrentUser(clubId),
     getMembersWithRoles(clubId),
     getUserPermissions(user.id, clubId),
     isClubPresident(user.id, clubId),
