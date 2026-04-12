@@ -21,6 +21,14 @@ function isImageMime(mime: string): boolean {
   return mime.startsWith("image/");
 }
 
+const READ_MORE_MIN_CHARS = 160;
+
+function contentNeedsToggle(text: string): boolean {
+  const t = text.trim();
+  if (t.length >= READ_MORE_MIN_CHARS) return true;
+  return t.split(/\r?\n/).filter(Boolean).length > 3;
+}
+
 export function AnnouncementFeedItem({
   announcement,
   canOpenReadersList,
@@ -29,11 +37,12 @@ export function AnnouncementFeedItem({
   const router = useRouter();
   const rootRef = useRef<HTMLElement | null>(null);
   const markedRef = useRef(false);
-  const [readersOpen, setReadersOpen] = useState(false);
+  const [readStatsOpen, setReadStatsOpen] = useState(false);
   const [readers, setReaders] = useState<AnnouncementReaderRow[] | null>(null);
   const [readersLoading, setReadersLoading] = useState(false);
   const [pending, startTransition] = useTransition();
   const [localVoteIndex, setLocalVoteIndex] = useState<number | null>(announcement.userPollVoteIndex ?? null);
+  const [bodyExpanded, setBodyExpanded] = useState(false);
 
   useEffect(() => {
     setLocalVoteIndex(announcement.userPollVoteIndex ?? null);
@@ -74,9 +83,8 @@ export function AnnouncementFeedItem({
     return () => obs.disconnect();
   }, [recordRead]);
 
-  async function openReaders() {
+  async function ensureReadersLoaded() {
     if (!canOpenReadersList) return;
-    setReadersOpen(true);
     if (readers !== null) return;
     setReadersLoading(true);
     const res = await getAnnouncementReadersAction(announcement.id);
@@ -85,6 +93,14 @@ export function AnnouncementFeedItem({
       setReaders(res.readers);
     } else {
       setReaders([]);
+    }
+  }
+
+  function toggleReadStats() {
+    const next = !readStatsOpen;
+    setReadStatsOpen(next);
+    if (next && canOpenReadersList) {
+      void ensureReadersLoaded();
     }
   }
 
@@ -107,14 +123,24 @@ export function AnnouncementFeedItem({
       ? `Scheduled · ${new Date(announcement.scheduledFor).toLocaleString()}`
       : null;
 
-  const articleClass =
-    variant === "featured" ? "ann-latest-card" : "sm:surface-subcard sm:p-4 sm:py-4 py-3 first:pt-0 last:pb-0";
+  const showReadRow = announcement.isPublished && totalMembers > 0;
+  const expandableBody = contentNeedsToggle(announcement.content);
+
+  const cardClass =
+    variant === "featured"
+      ? "ann-latest-card"
+      : "rounded-xl border border-slate-100 bg-white/90 p-4 shadow-sm sm:border-slate-200/90 sm:p-5";
+
+  const titleClass =
+    variant === "featured"
+      ? "mt-2 text-lg font-bold tracking-tight text-slate-900 sm:text-xl"
+      : "mt-1.5 text-base font-semibold tracking-tight text-slate-900";
 
   return (
-    <article ref={rootRef} id={`announcement-${announcement.id}`} className={articleClass}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <article ref={rootRef} id={`announcement-${announcement.id}`} className={cardClass}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
             {variant === "featured" ? (
               <span className="feedback-pill feedback-pill-fresh">Latest</span>
             ) : null}
@@ -123,66 +149,90 @@ export function AnnouncementFeedItem({
                 {scheduledLabel}
               </span>
             ) : null}
-            <span className="text-xs text-slate-400">{announcement.createdAt}</span>
+            <span className="text-slate-400">{announcement.createdAt}</span>
           </div>
-          <h3
-            className={
-              variant === "featured"
-                ? "mt-2 text-lg font-bold tracking-tight text-slate-900 sm:mt-3 sm:text-xl"
-                : "text-sm font-semibold text-slate-900"
-            }
-          >
-            {announcement.title}
-          </h3>
+          <h3 className={titleClass}>{announcement.title}</h3>
         </div>
       </div>
 
-      <p
-        className={
-          variant === "featured"
-            ? "mt-3 text-sm leading-relaxed text-slate-600 sm:mt-4 sm:leading-7"
-            : "mt-1.5 line-clamp-3 text-xs leading-relaxed text-slate-600 sm:mt-2 sm:line-clamp-none sm:text-sm sm:leading-6"
-        }
-      >
-        {announcement.content}
-      </p>
+      <div className="mt-2">
+        <p
+          className={`text-sm leading-relaxed text-slate-600 ${
+            !bodyExpanded && expandableBody ? "line-clamp-3" : ""
+          }`}
+        >
+          {announcement.content}
+        </p>
+        {expandableBody ? (
+          <button
+            type="button"
+            onClick={() => setBodyExpanded(!bodyExpanded)}
+            className="mt-1.5 text-xs font-semibold text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+          >
+            {bodyExpanded ? "Show less" : "Read more"}
+          </button>
+        ) : null}
+      </div>
 
       {announcement.attachments && announcement.attachments.length > 0 ? (
-        <ul className="mt-3 flex flex-col gap-2 sm:mt-4">
-          {announcement.attachments.map((att) => (
-            <li key={att.id} className="rounded-lg border border-slate-200 bg-slate-50/80 p-2">
-              {isImageMime(att.fileType) ? (
-                <a
-                  href={att.signedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block overflow-hidden rounded-md"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- signed Supabase URL */}
-                  <img
-                    src={att.signedUrl}
-                    alt={att.fileName}
-                    className="h-auto max-h-64 w-full object-contain"
-                  />
-                </a>
-              ) : (
-                <a
-                  href={att.signedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-slate-800 underline decoration-slate-300 underline-offset-2 hover:text-slate-950"
-                >
-                  Download {att.fileName}
-                </a>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3 sm:mt-4">
+          {(() => {
+            const images = announcement.attachments.filter((a) => isImageMime(a.fileType));
+            const files = announcement.attachments.filter((a) => !isImageMime(a.fileType));
+            return (
+              <>
+                {images.length > 0 ? (
+                  <ul className="-mx-1 flex max-sm:snap-x max-sm:snap-mandatory gap-3 overflow-x-auto pb-2 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:pb-0">
+                    {images.map((att) => (
+                      <li
+                        key={att.id}
+                        className="w-[min(100%,280px)] max-sm:snap-center max-sm:shrink-0 sm:w-auto sm:max-w-md sm:shrink"
+                      >
+                        <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-1.5 sm:p-2">
+                          <a
+                            href={att.signedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block overflow-hidden rounded-md"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element -- signed Supabase URL */}
+                            <img
+                              src={att.signedUrl}
+                              alt={att.fileName}
+                              className="h-40 w-full object-cover sm:h-auto sm:max-h-52 sm:object-contain"
+                            />
+                          </a>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {files.length > 0 ? (
+                  <ul className="mt-2 flex flex-col gap-2">
+                    {files.map((att) => (
+                      <li key={att.id} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+                        <a
+                          href={att.signedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-slate-800 underline decoration-slate-300 underline-offset-2 hover:text-slate-950"
+                        >
+                          Download {att.fileName}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            );
+          })()}
+        </div>
       ) : null}
 
       {hasPoll && announcement.pollOptions ? (
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 p-3 sm:p-4">
-          <p className="text-sm font-semibold text-slate-900">{announcement.pollQuestion}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Poll</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">{announcement.pollQuestion}</p>
           {!hasVoted ? (
             <div className="mt-3 flex flex-col gap-2">
               {announcement.pollOptions.map((label, idx) => (
@@ -230,54 +280,61 @@ export function AnnouncementFeedItem({
         </div>
       ) : null}
 
-      {announcement.isPublished ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <span>
-            Seen by {readCount} / {totalMembers} members
-          </span>
-          {canOpenReadersList && readCount > 0 ? (
-            <>
-              <span aria-hidden>·</span>
-              <button
-                type="button"
-                onClick={openReaders}
-                className="font-semibold text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
-              >
-                Who read this?
-              </button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
+      {showReadRow ? (
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            onClick={toggleReadStats}
+            className="flex w-full items-center justify-between gap-2 text-left text-xs font-medium text-slate-600"
+            aria-expanded={readStatsOpen}
+          >
+            <span>
+              Seen by {readCount} / {totalMembers} members
+            </span>
+            <span className="shrink-0 text-slate-400" aria-hidden>
+              {readStatsOpen ? "▲" : "▼"}
+            </span>
+          </button>
 
-      {readersOpen ? (
-        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold text-slate-900">Read receipt</p>
-            <button
-              type="button"
-              onClick={() => setReadersOpen(false)}
-              className="text-xs font-medium text-slate-500 hover:text-slate-800"
-            >
-              Close
-            </button>
-          </div>
-          {readersLoading ? (
-            <p className="mt-2 text-xs text-slate-500">Loading…</p>
-          ) : readers && readers.length > 0 ? (
-            <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto text-xs text-slate-700">
-              {readers.map((r) => (
-                <li key={r.userId} className="flex justify-between gap-2 border-b border-slate-100 pb-1.5 last:border-0">
-                  <span className="min-w-0 truncate">{r.fullName || r.email || "Member"}</span>
-                  <span className="flex-shrink-0 text-slate-400">
-                    {new Date(r.readAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-2 text-xs text-slate-500">No reads recorded yet.</p>
-          )}
+          {readStatsOpen ? (
+            <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm">
+              {!canOpenReadersList ? (
+                <p className="text-xs text-slate-600">
+                  {readCount === 0
+                    ? "No members have opened this post in the app yet."
+                    : `${readCount} of ${totalMembers} members have opened this update.`}
+                </p>
+              ) : readersLoading ? (
+                <p className="text-xs text-slate-500">Loading…</p>
+              ) : readers && readers.length > 0 ? (
+                <>
+                  <p className="text-xs font-semibold text-slate-800">Who read this</p>
+                  <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto text-xs text-slate-700">
+                    {readers.map((r) => (
+                      <li
+                        key={r.userId}
+                        className="flex justify-between gap-2 border-b border-slate-100 pb-1.5 last:border-0"
+                      >
+                        <span className="min-w-0 truncate">{r.fullName || r.email || "Member"}</span>
+                        <span className="flex-shrink-0 text-slate-400">
+                          {new Date(r.readAt).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : readCount > 0 ? (
+                <p className="text-xs text-slate-500">Could not load the reader list.</p>
+              ) : (
+                <p className="text-xs text-slate-500">No reads recorded yet.</p>
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </article>

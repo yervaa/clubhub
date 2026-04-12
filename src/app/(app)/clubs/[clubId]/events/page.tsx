@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserPermissions } from "@/lib/rbac/permissions";
+import { ClubPageStickyActions } from "@/components/ui/club-page-sticky-actions";
 import { ClubEventsSection } from "@/components/ui/club-events-section";
 import { EventCalendarView } from "@/components/ui/event-calendar-view";
 import { partitionEventsByLifecycle } from "@/lib/clubs/event-lifecycle";
@@ -75,53 +76,35 @@ export default async function ClubEventsPage({ params, searchParams }: ClubEvent
     rsvpStatus: e.userRsvpStatus,
   }));
 
+  const statsLine = [
+    `${club.events.length} total`,
+    upcomingCount > 0 ? `${upcomingCount} upcoming` : null,
+    recentCount > 0 ? `${recentCount} recent` : null,
+    pastCount > 0 ? `${pastCount} past` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <section className="space-y-4 lg:space-y-6">
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-blue-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
+    <section className={`space-y-4 lg:space-y-6 ${permissions.canCreateEvents ? "pb-24 lg:pb-0" : ""}`}>
+      <ClubPageStickyActions
+        visible={permissions.canCreateEvents}
+        href="#create-event"
+        label="Create event"
+      />
+
+      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-blue-50/80 p-4 shadow-sm sm:p-5 lg:border-2 lg:p-6">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Events</p>
-          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Events</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
+          <h1 className="section-title text-xl sm:text-2xl md:text-3xl">Events</h1>
+          <p className="section-subtitle mt-1.5 hidden max-w-2xl text-sm text-slate-600 sm:mt-2 sm:block sm:text-base">
             {permissions.canCreateEvents
-              ? "Create events, track RSVPs, mark attendance, and review reflections — with a clear path from upcoming to history."
-              : "See upcoming events, your RSVP history, and the club timeline after each event ends."}
+              ? "RSVPs on the surface — attendance, reflections, and metrics stay under Organizer tools."
+              : "Upcoming events, your RSVPs, and what happened after each event."}
           </p>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:gap-8 lg:mt-8">
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{club.events.length}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
-                Total events
-              </p>
-            </div>
-            {upcomingCount > 0 && (
-              <>
-                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
-                <div>
-                  <p className="text-2xl font-bold text-blue-600">{upcomingCount}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-blue-500">Upcoming</p>
-                </div>
-              </>
-            )}
-            {recentCount > 0 && (
-              <>
-                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
-                <div>
-                  <p className="text-2xl font-bold text-amber-600">{recentCount}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-amber-700">Recent</p>
-                </div>
-              </>
-            )}
-            {pastCount > 0 && (
-              <>
-                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
-                <div>
-                  <p className="text-2xl font-bold text-slate-500">{pastCount}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-400">Past</p>
-                </div>
-              </>
-            )}
-          </div>
+          <p className="mt-3 text-xs font-medium leading-snug text-slate-600 sm:text-sm">
+            <span className="text-slate-800">{statsLine}</span>
+          </p>
 
           {viewMode === "list" ? (
             <nav
@@ -163,16 +146,7 @@ export default async function ClubEventsPage({ params, searchParams }: ClubEvent
             </nav>
           ) : null}
 
-          {/* View toggle + CTA */}
-          <div className="mt-4 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 lg:mt-8">
-            {permissions.canCreateEvents && (
-              <a
-                href="#create-event"
-                className="btn-primary w-full px-6 py-3 text-center text-base font-semibold sm:w-auto"
-              >
-                Create Event
-              </a>
-            )}
+          <div className="mt-4 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 lg:mt-6">
             <a
               href={`/clubs/${clubId}/events/export`}
               download

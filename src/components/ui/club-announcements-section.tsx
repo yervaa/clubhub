@@ -1,5 +1,7 @@
+import { AnnouncementComposerCollapsible } from "@/components/ui/announcement-composer-collapsible";
 import { AnnouncementGenerator } from "@/components/ui/announcement-generator";
 import { AnnouncementFeedItem } from "@/components/ui/announcement-feed-item";
+import { ClubPageStickyActions } from "@/components/ui/club-page-sticky-actions";
 import { PollOptionFields } from "@/components/ui/poll-option-fields";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
 import { createAnnouncementAction } from "@/app/(app)/clubs/actions";
@@ -33,49 +35,31 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
     permissions?.canViewReadersList ??
     ((permissions?.canEditAnnouncements ?? false) || legacyIsOfficer);
 
+  const statsParts: string[] = [`${count} post${count === 1 ? "" : "s"}`];
+  if (latestAnnouncement) {
+    statsParts.push(`Latest: ${latestAnnouncement.title}`);
+  }
+
   return (
-    <section className="space-y-4 lg:space-y-6">
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-amber-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
+    <section className={`space-y-4 lg:space-y-6 ${canPostAnnouncements ? "pb-24 lg:pb-0" : ""}`}>
+      <ClubPageStickyActions
+        visible={canPostAnnouncements}
+        href="#post-announcement"
+        label="Post announcement"
+      />
+
+      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-amber-50/80 p-4 shadow-sm sm:p-5 lg:border-2 lg:p-6">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Announcements</p>
-          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Announcements</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
+          <h1 className="section-title text-xl sm:text-2xl md:text-3xl">Announcements</h1>
+          <p className="section-subtitle mt-1.5 hidden max-w-2xl text-sm text-slate-600 sm:mt-2 sm:block sm:text-base">
             {canPostAnnouncements
-              ? "Post updates, polls, and files — and see who has read each update."
-              : "Stay up to date with the latest news and updates from your club."}
+              ? "Post updates, polls, and files — see read receipts when you have editor access."
+              : "Latest news and updates from your club."}
           </p>
 
-          <div className="mt-4 flex flex-col gap-3 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-8 lg:mt-8">
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{count}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
-                {count === 1 ? "Announcement" : "Announcements"}
-              </p>
-            </div>
-
-            {latestAnnouncement && (
-              <>
-                <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
-                <div className="min-w-0 max-w-full sm:max-w-[18rem]">
-                  <p className="truncate text-base font-bold text-slate-900">{latestAnnouncement.title}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
-                    Latest · {latestAnnouncement.createdAt}
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-
-          {canPostAnnouncements && (
-            <div className="mt-4 sm:mt-6 lg:mt-8">
-              <a
-                href="#post-announcement"
-                className="btn-primary block w-full px-6 py-3 text-center text-base font-semibold sm:inline-block sm:w-auto"
-              >
-                Post Announcement
-              </a>
-            </div>
-          )}
+          <p className="mt-3 text-xs font-medium leading-snug text-slate-600 sm:text-sm">
+            <span className="tabular-nums text-slate-800">{statsParts.join(" · ")}</span>
+          </p>
         </div>
       </header>
 
@@ -83,104 +67,110 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
       {query.annError ? <p className="alert-error">{query.annError}</p> : null}
 
       {canPostAnnouncements && (
-        <section id="post-announcement" className="card-surface p-4 sm:p-6">
-          <div className="section-card-header">
-            <div>
-              <p className="section-kicker">Post</p>
-              <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">New announcement</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Optional poll, attachments, or a scheduled publish time. Members are notified when the post goes live.
-              </p>
-            </div>
-          </div>
-
-          <form action={createAnnouncementAction} className="mt-5 space-y-4" encType="multipart/form-data">
-            <input type="hidden" name="club_id" value={club.id} />
-            <AnnouncementGenerator
-              titleSelector='input[name="title"]'
-              contentSelector='textarea[name="content"]'
-            />
-            <div>
-              <label htmlFor="ann-title" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Title
-              </label>
-              <input
-                id="ann-title"
-                name="title"
-                type="text"
-                required
-                className="input-control"
-                placeholder="Announcement title"
-              />
-            </div>
-            <div>
-              <label htmlFor="ann-content" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Content
-              </label>
-              <textarea
-                id="ann-content"
-                name="content"
-                rows={4}
-                required
-                className="textarea-control"
-                placeholder="Write your announcement..."
-              />
+        <AnnouncementComposerCollapsible defaultOpen={count === 0}>
+          <section className="card-surface p-4 sm:p-6">
+            <div className="section-card-header">
+              <div>
+                <p className="section-kicker">Compose</p>
+                <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">New announcement</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Members are notified when the post goes live. Optional poll, attachments, or schedule below.
+                </p>
+              </div>
             </div>
 
-            <div>
-              <label htmlFor="ann-schedule" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Schedule publish (optional)
-              </label>
-              <input
-                id="ann-schedule"
-                name="scheduled_for"
-                type="datetime-local"
-                className="input-control max-w-md"
+            <form action={createAnnouncementAction} className="mt-5 space-y-4">
+              <input type="hidden" name="club_id" value={club.id} />
+              <AnnouncementGenerator
+                titleSelector='input[name="title"]'
+                contentSelector='textarea[name="content"]'
               />
-              <p className="mt-1 text-xs text-slate-500">Leave empty to post immediately. Scheduled posts stay hidden until they publish.</p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-              <p className="text-sm font-semibold text-slate-900">Poll (optional)</p>
-              <p className="mt-0.5 text-xs text-slate-500">Add a question to show voting buttons. Leave blank for a normal announcement.</p>
-              <div className="mt-3">
-                <label htmlFor="ann-poll-q" className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Poll question
+              <div>
+                <label htmlFor="ann-title" className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Title
                 </label>
                 <input
-                  id="ann-poll-q"
-                  name="poll_question"
+                  id="ann-title"
+                  name="title"
                   type="text"
+                  required
                   className="input-control"
-                  placeholder="e.g. Which meeting time works best?"
-                  maxLength={500}
+                  placeholder="Announcement title"
                 />
               </div>
-              <div className="mt-3">
-                <PollOptionFields />
+              <div>
+                <label htmlFor="ann-content" className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Content
+                </label>
+                <textarea
+                  id="ann-content"
+                  name="content"
+                  rows={4}
+                  required
+                  className="textarea-control"
+                  placeholder="Write your announcement..."
+                />
               </div>
-            </div>
 
-            <div>
-              <label htmlFor="ann-files" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Attachments (optional)
-              </label>
-              <input
-                id="ann-files"
-                name="attachments"
-                type="file"
-                multiple
-                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
-              />
-              <p className="mt-1 text-xs text-slate-500">Up to 5 files, 5 MB each — images or PDF.</p>
-            </div>
+              <div>
+                <label htmlFor="ann-schedule" className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Schedule publish (optional)
+                </label>
+                <input
+                  id="ann-schedule"
+                  name="scheduled_for"
+                  type="datetime-local"
+                  className="input-control max-w-md"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Leave empty to post immediately. Scheduled posts stay hidden until they publish.
+                </p>
+              </div>
 
-            <button type="submit" className="btn-primary">
-              Publish
-            </button>
-          </form>
-        </section>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                <p className="text-sm font-semibold text-slate-900">Poll (optional)</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Add a question to show voting buttons. Leave blank for a normal announcement.
+                </p>
+                <div className="mt-3">
+                  <label htmlFor="ann-poll-q" className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Poll question
+                  </label>
+                  <input
+                    id="ann-poll-q"
+                    name="poll_question"
+                    type="text"
+                    className="input-control"
+                    placeholder="e.g. Which meeting time works best?"
+                    maxLength={500}
+                  />
+                </div>
+                <div className="mt-3">
+                  <PollOptionFields />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="ann-files" className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Attachments (optional)
+                </label>
+                <input
+                  id="ann-files"
+                  name="attachments"
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                  className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+                />
+                <p className="mt-1 text-xs text-slate-500">Up to 5 files, 5 MB each — images or PDF.</p>
+              </div>
+
+              <button type="submit" className="btn-primary">
+                Publish
+              </button>
+            </form>
+          </section>
+        </AnnouncementComposerCollapsible>
       )}
 
       {count === 0 ? (
@@ -199,12 +189,12 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
             <h3 className="mt-4 text-base font-semibold text-slate-900">No announcements yet</h3>
             <p className="mt-1 text-sm text-slate-500">
               {canPostAnnouncements
-                ? "Use the form above to post your first update."
+                ? "Use the composer above to post your first update."
                 : "Your club officers will post updates here."}
             </p>
             {canPostAnnouncements && (
               <ScrollToInputButton inputSelector='input[name="title"]' className="btn-secondary mt-4">
-                Write First Announcement
+                Write first announcement
               </ScrollToInputButton>
             )}
           </div>
