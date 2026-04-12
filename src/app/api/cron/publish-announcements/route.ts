@@ -18,29 +18,6 @@ function authorize(request: Request): boolean {
  * Vercel Cron (see vercel.json) or any scheduler hitting this route with CRON_SECRET.
  */
 export async function GET(request: Request) {
-  // #region agent log
-  fetch("http://127.0.0.1:7752/ingest/8564b646-700d-4bcb-a3b0-4286eed37fa8", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "86922c" },
-    body: JSON.stringify({
-      sessionId: "86922c",
-      runId: "pre-fix",
-      hypothesisId: "H3",
-      location: "publish-announcements/route.ts:GET",
-      message: "GET handler entered",
-      data: {
-        pathname: (() => {
-          try {
-            return new URL(request.url).pathname;
-          } catch {
-            return "invalid-url";
-          }
-        })(),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   if (!authorize(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
