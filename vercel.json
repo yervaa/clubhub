@@ -1,12 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/publish-announcements",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/event-reminders",
-      "schedule": "0 * * * *"
-    }
-  ]
+  "crons": []
 }
