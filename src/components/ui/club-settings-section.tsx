@@ -42,26 +42,24 @@ export function ClubSettingsSection({
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Settings</p>
           <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Roles &amp; permissions</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
+          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base text-slate-700">
             {isPresident
               ? "Control who can do what in your club. Create custom roles and fine-tune permissions for each one."
               : "See how roles and permissions are configured for this club."}
           </p>
 
-          <div className="mt-4 flex flex-wrap items-center gap-4 sm:mt-5 sm:gap-6 lg:mt-6">
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{roles.length}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Roles</p>
+          <div className="mt-4 grid grid-cols-3 gap-2.5 sm:mt-5 sm:gap-3 lg:mt-6">
+            <div className="rounded-lg border border-slate-200/90 bg-white/80 px-3 py-2.5">
+              <p className="text-xl font-bold text-slate-900 sm:text-2xl">{roles.length}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Roles</p>
             </div>
-            <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{customRoles.length}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Custom</p>
+            <div className="rounded-lg border border-slate-200/90 bg-white/80 px-3 py-2.5">
+              <p className="text-xl font-bold text-slate-900 sm:text-2xl">{customRoles.length}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Custom</p>
             </div>
-            <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{allPermissionKeys.length}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Permissions</p>
+            <div className="rounded-lg border border-slate-200/90 bg-white/80 px-3 py-2.5">
+              <p className="text-xl font-bold text-slate-900 sm:text-2xl">{allPermissionKeys.length}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Perms</p>
             </div>
           </div>
 
@@ -95,7 +93,7 @@ export function ClubSettingsSection({
       )}
 
       {/* Main editor area: role list (left) + editor (right) */}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,280px)_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_1fr] lg:gap-5">
 
         {/* ── Left: Role list ─────────────────────────────────────────────────── */}
         <aside className="flex flex-col gap-3">
@@ -208,7 +206,7 @@ function RoleListItem({ role, memberCount, isActive, href }: RoleListItemProps) 
     <Link
       href={href}
       aria-current={isActive ? "true" : undefined}
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+      className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
         isActive
           ? "bg-slate-900 text-white"
           : "text-slate-700 hover:bg-slate-50"

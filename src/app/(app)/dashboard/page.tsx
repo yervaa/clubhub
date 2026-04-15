@@ -176,8 +176,8 @@ export default async function DashboardPage() {
   const announcementMore = feedAfterImportant.slice(3, 8);
 
   return (
-    <section className="space-y-8 lg:space-y-10">
-      <header className="border-b border-slate-200/80 pb-6 sm:pb-8">
+    <section className="space-y-6 lg:space-y-8">
+      <header className="border-b border-slate-200/80 pb-4 sm:pb-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 max-w-2xl">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">
@@ -187,10 +187,7 @@ export default async function DashboardPage() {
               What&apos;s next on your calendar, open tasks, and updates from your clubs—without extra noise up front.
             </p>
           </div>
-          <nav
-            className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end sm:gap-2"
-            aria-label="Quick links"
-          >
+          <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end sm:gap-2" aria-label="Quick links">
             <Link
               href="/notifications"
               className="btn-secondary inline-flex min-h-11 items-center justify-center gap-2 text-center text-sm sm:min-h-0"
@@ -207,7 +204,7 @@ export default async function DashboardPage() {
             </Link>
             <Link
               href="/clubs/create"
-              className="col-span-2 flex min-h-10 items-center justify-center rounded-lg text-center text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 sm:col-span-1 sm:min-h-0 sm:px-3 sm:py-2"
+              className="col-span-2 hidden min-h-10 items-center justify-center rounded-lg text-center text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 sm:col-span-1 sm:inline-flex sm:min-h-0 sm:px-3 sm:py-2"
             >
               Start a club
             </Link>
@@ -341,7 +338,7 @@ export default async function DashboardPage() {
               {/* 3 — Notifications */}
               <Link
                 href="/notifications"
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-3.5 shadow-sm transition hover:border-slate-300 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:p-4"
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
                   <NotificationsBellIcon className="h-5 w-5" />

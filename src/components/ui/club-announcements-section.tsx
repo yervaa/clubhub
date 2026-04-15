@@ -120,7 +120,7 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
                   id="ann-schedule"
                   name="scheduled_for"
                   type="datetime-local"
-                  className="input-control max-w-md"
+                  className="input-control min-h-11 w-full sm:max-w-md"
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   Leave empty to post immediately. Scheduled posts stay hidden until they publish.
@@ -160,12 +160,12 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
                   type="file"
                   multiple
                   accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                  className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+                  className="block w-full text-sm text-slate-600 file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
                 />
                 <p className="mt-1 text-xs text-slate-500">Up to 5 files, 5 MB each — images or PDF.</p>
               </div>
 
-              <button type="submit" className="btn-primary">
+              <button type="submit" className="btn-primary w-full sm:w-auto">
                 Publish
               </button>
             </form>

@@ -26,14 +26,14 @@ export async function Navbar({ clubs = [] }: NavbarProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/90">
-      <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
+      <nav className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-2 px-2.5 sm:h-16 sm:gap-3 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           {user ? <MobileNavDrawer clubs={clubs} /> : null}
           <Link
             href={user ? "/dashboard" : "/"}
             className="flex min-w-0 items-center gap-2 text-slate-900 sm:gap-3"
           >
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-bold text-white">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white sm:h-9 sm:w-9 sm:rounded-xl sm:text-sm">
               CH
             </span>
             <span className="truncate text-base font-bold tracking-tight sm:text-lg">ClubHub</span>
@@ -52,16 +52,16 @@ export async function Navbar({ clubs = [] }: NavbarProps) {
                 <form action={logoutAction}>
                   <button
                     type="submit"
-                    className="min-h-10 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:min-h-0"
+                    className="min-h-10 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:min-h-0 sm:px-3"
                   >
-                    Logout
+                    Log out
                   </button>
                 </form>
               </li>
             </>
           ) : (
             <>
-              <li>
+              <li className="hidden sm:block">
                 <Link
                   href="/discover"
                   className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
@@ -72,13 +72,13 @@ export async function Navbar({ clubs = [] }: NavbarProps) {
               <li>
                 <Link
                   href="/login"
-                  className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                  className="inline-flex min-h-10 items-center rounded-md px-2.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:min-h-0 sm:px-3"
                 >
                   Log In
                 </Link>
               </li>
               <li>
-                <Link href="/signup" className="btn-primary px-4 py-2 text-sm">
+                <Link href="/signup" className="btn-primary min-h-10 px-3 py-2 text-sm sm:min-h-0 sm:px-4">
                   Sign Up
                 </Link>
               </li>

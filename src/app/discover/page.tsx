@@ -80,15 +80,15 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
-      <main id="main-content" className="page-shell space-y-6 sm:space-y-8">
-        <section className="rounded-2xl border border-slate-200/90 bg-white px-4 py-6 shadow-sm sm:px-6 sm:py-7">
+      <main id="main-content" className="page-shell space-y-5 sm:space-y-7">
+        <section className="rounded-2xl border border-slate-200/90 bg-white px-4 py-5 shadow-sm sm:px-6 sm:py-7">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Club Directory</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Discover clubs</h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:text-base">
             Browse active clubs and open each public page to learn more before you join.
           </p>
 
-          <form action="/discover" method="get" className="mt-5 flex flex-col gap-2.5 sm:flex-row" role="search">
+          <form action="/discover" method="get" className="mt-4 flex flex-col gap-2.5 sm:mt-5 sm:flex-row" role="search">
             <label htmlFor="discover-search" className="sr-only">
               Search clubs by name or description
             </label>
@@ -170,11 +170,11 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{summarizeDescription(club.description)}</p>
+                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">{summarizeDescription(club.description)}</p>
                     <div className="mt-4">
                       <Link
                         href={`/club/${club.joinCode}`}
-                        className="btn-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
+                        className="btn-primary inline-flex min-h-11 w-full items-center justify-center px-4 text-sm font-semibold sm:min-h-10 sm:w-auto"
                       >
                         Open club page
                       </Link>

@@ -587,45 +587,30 @@ export function ClubTasksSection({
         <div className="max-w-4xl">
           <p className="section-kicker text-slate-600">Tasks</p>
           <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Tasks</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
+          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base text-slate-700">
             {permissions.canCreate
               ? "Assign responsibilities, track progress, and keep club operations organized."
               : "View your assigned tasks and keep track of your responsibilities."}
           </p>
 
           {/* Stats row */}
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:gap-8 lg:mt-8">
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{total}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Total tasks</p>
+          <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-6 sm:grid-cols-4 lg:mt-8">
+            <div className="rounded-lg border border-slate-200/90 bg-white/85 px-3 py-2.5">
+              <p className="text-xl font-bold text-slate-900 sm:text-2xl">{total}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Total</p>
             </div>
-            {openCount > 0 && (
-              <>
-                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">{openCount}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Open</p>
-                </div>
-              </>
-            )}
-            {overdueCount > 0 && (
-              <>
-                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
-                <div>
-                  <p className="text-2xl font-bold text-red-600">{overdueCount}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-red-500">Overdue</p>
-                </div>
-              </>
-            )}
-            {myTasks.length > 0 && (
-              <>
-                <div className="hidden h-8 w-px bg-slate-200 sm:block" />
-                <div>
-                  <p className="text-2xl font-bold text-emerald-700">{myTasks.length}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-600">Mine</p>
-                </div>
-              </>
-            )}
+            <div className="rounded-lg border border-slate-200/90 bg-white/85 px-3 py-2.5">
+              <p className="text-xl font-bold text-slate-900 sm:text-2xl">{openCount}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Open</p>
+            </div>
+            <div className="rounded-lg border border-red-200/80 bg-red-50/70 px-3 py-2.5">
+              <p className="text-xl font-bold text-red-700 sm:text-2xl">{overdueCount}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-red-600">Overdue</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/70 px-3 py-2.5">
+              <p className="text-xl font-bold text-emerald-700 sm:text-2xl">{myTasks.length}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-emerald-600">Mine</p>
+            </div>
           </div>
 
           {permissions.canCreate && (
@@ -701,9 +686,7 @@ export function ClubTasksSection({
         <div className="section-card-header">
           <div>
             <p className="section-kicker">All Tasks</p>
-            <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">
-              {clubName} — Task Board
-            </h2>
+            <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900 sm:text-lg">{clubName} tasks</h2>
           </div>
           <span className="badge-soft">{filteredTasks.length}</span>
         </div>

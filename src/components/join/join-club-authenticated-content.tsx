@@ -20,8 +20,8 @@ export function JoinClubAuthenticatedContent({
   showAlreadyMemberInfo,
 }: JoinClubAuthenticatedContentProps) {
   return (
-    <section className="space-y-6">
-      <div className="card-surface max-w-2xl p-8">
+    <section className="space-y-5">
+      <div className="card-surface max-w-2xl p-5 sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Membership</p>
         <h1 className="section-title mt-2">Join a club</h1>
         <p className="section-subtitle">
@@ -108,7 +108,7 @@ export function JoinClubAuthenticatedContent({
           </div>
         ) : null}
 
-        <form action={joinClubAction} className="mt-7 space-y-4">
+        <form action={joinClubAction} className="mt-6 space-y-4">
           <div>
             <label htmlFor="join_code" className="mb-2 block text-sm font-semibold text-slate-900">
               Join code
@@ -120,7 +120,7 @@ export function JoinClubAuthenticatedContent({
               required
               maxLength={8}
               defaultValue={joinCode}
-              className="input-control text-center text-lg font-semibold uppercase tracking-wider"
+              className="input-control min-h-11 text-center text-lg font-semibold uppercase tracking-wider"
               placeholder="ABC12345"
               autoComplete="off"
             />
@@ -137,14 +137,14 @@ export function JoinClubAuthenticatedContent({
       </div>
 
       <div className="max-w-2xl">
-        <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-blue-50 to-slate-50 p-6">
+        <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-blue-50 to-slate-50 p-5 sm:p-6">
           <p className="font-semibold text-slate-900">Starting something new?</p>
           <p className="mt-2 text-sm text-slate-600">Create a club, share a join code or link, and invite your group.</p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/clubs/create" className="btn-secondary">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Link href="/clubs/create" className="btn-secondary w-full text-center sm:w-auto">
               Create a club
             </Link>
-            <Link href="/clubs" className="btn-secondary">
+            <Link href="/clubs" className="btn-secondary w-full text-center sm:w-auto">
               Your clubs
             </Link>
           </div>
