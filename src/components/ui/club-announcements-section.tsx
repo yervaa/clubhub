@@ -6,6 +6,8 @@ import { PollOptionFields } from "@/components/ui/poll-option-fields";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
 import { createAnnouncementAction } from "@/app/(app)/clubs/actions";
 import type { ClubDetail } from "@/lib/clubs/queries";
+import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
+import { PageIntro } from "@/components/ui/page-intro";
 
 type ClubAnnouncementsPermissions = {
   canPostAnnouncements: boolean;
@@ -48,36 +50,27 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
         label="Post announcement"
       />
 
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-amber-50/80 p-4 shadow-sm sm:p-5 lg:border-2 lg:p-6">
-        <div className="max-w-4xl">
-          <h1 className="section-title text-xl sm:text-2xl md:text-3xl">Announcements</h1>
-          <p className="section-subtitle mt-1.5 hidden max-w-2xl text-sm text-slate-600 sm:mt-2 sm:block sm:text-base">
-            {canPostAnnouncements
-              ? "Post updates, polls, and files — see read receipts when you have editor access."
-              : "Latest news and updates from your club."}
-          </p>
-
-          <p className="mt-3 text-xs font-medium leading-snug text-slate-600 sm:text-sm">
-            <span className="tabular-nums text-slate-800">{statsParts.join(" · ")}</span>
-          </p>
-        </div>
-      </header>
+      <PageIntro
+        title="Announcements"
+        description={
+          canPostAnnouncements
+            ? "Post updates, polls, and files while keeping the feed easy for members to scan."
+            : "Latest news and updates from your club."
+        }
+        actions={<span className="badge-soft tabular-nums">{statsParts.join(" · ")}</span>}
+      />
 
       {query.annSuccess ? <p className="alert-success">{query.annSuccess}</p> : null}
       {query.annError ? <p className="alert-error">{query.annError}</p> : null}
 
       {canPostAnnouncements && (
         <AnnouncementComposerCollapsible defaultOpen={count === 0}>
-          <section className="card-surface p-4 sm:p-6">
-            <div className="section-card-header">
-              <div>
-                <p className="section-kicker">Compose</p>
-                <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">New announcement</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Members are notified when the post goes live. Optional poll, attachments, or schedule below.
-                </p>
-              </div>
-            </div>
+          <CardSection className="sm:p-6">
+            <SectionHeader
+              kicker="Compose"
+              title="New announcement"
+              description="Members are notified when a post goes live. Polls, attachments, and scheduling are optional."
+            />
 
             <form action={createAnnouncementAction} className="mt-5 space-y-4">
               <input type="hidden" name="club_id" value={club.id} />
@@ -169,35 +162,27 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
                 Publish
               </button>
             </form>
-          </section>
+          </CardSection>
         </AnnouncementComposerCollapsible>
       )}
 
       {count === 0 ? (
-        <div className="card-surface p-10 text-center" id="announcements">
-          <div className="mx-auto max-w-xs">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-              <svg className="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
-                />
-              </svg>
-            </div>
-            <h3 className="mt-4 text-base font-semibold text-slate-900">No announcements yet</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {canPostAnnouncements
-                ? "Use the composer above to post your first update."
-                : "Your club officers will post updates here."}
-            </p>
-            {canPostAnnouncements && (
-              <ScrollToInputButton inputSelector='input[name="title"]' className="btn-secondary mt-4">
-                Write first announcement
-              </ScrollToInputButton>
-            )}
-          </div>
+        <div id="announcements">
+          <PageEmptyState
+            title="No announcements yet"
+            copy={
+              canPostAnnouncements
+                ? "Use the composer above to post the first update for this club."
+                : "Club officers will post updates here."
+            }
+            action={
+              canPostAnnouncements ? (
+                <ScrollToInputButton inputSelector='input[name="title"]' className="btn-secondary">
+                  Write first announcement
+                </ScrollToInputButton>
+              ) : null
+            }
+          />
         </div>
       ) : (
         <div className="space-y-4" id="announcements">
@@ -210,16 +195,12 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
           ) : null}
 
           {olderAnnouncements.length > 0 && (
-            <div className="card-surface p-4 sm:p-5">
-              <div className="section-card-header">
-                <div>
-                  <p className="section-kicker">History</p>
-                  <h2 className="mt-0.5 text-sm font-semibold tracking-tight text-slate-900 sm:mt-1 sm:text-base">
-                    Older posts
-                  </h2>
-                </div>
-                <span className="badge-soft">{olderAnnouncements.length}</span>
-              </div>
+            <CardSection>
+              <SectionHeader
+                kicker="History"
+                title="Older posts"
+                action={<span className="badge-soft">{olderAnnouncements.length}</span>}
+              />
               <div className="mt-3 divide-y divide-slate-100 sm:mt-4 sm:flex sm:flex-col sm:gap-3 sm:divide-y-0">
                 {olderAnnouncements.map((announcement) => (
                   <AnnouncementFeedItem
@@ -230,7 +211,7 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
                   />
                 ))}
               </div>
-            </div>
+            </CardSection>
           )}
         </div>
       )}

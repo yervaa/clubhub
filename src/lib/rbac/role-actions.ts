@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission, PermissionKey, PermissionDeniedError } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications/create-notification";
+import { createActivityEvent } from "@/lib/activity/create-activity-event";
 
 // ─── Shared result wrapper ────────────────────────────────────────────────────
 
@@ -456,6 +457,16 @@ export async function assignMemberRole(
       return { ok: false, error: insertErr.message };
     }
 
+    const activityEventId = await createActivityEvent({
+      type: "role.assigned",
+      actorId,
+      clubId,
+      entityId: null,
+      targetLabel: roleRow.name,
+      href: `/clubs/${clubId}/members`,
+      metadata: { target_user_id: targetUserId, role_id: roleId },
+    });
+
     // Notify the target member about their new role (non-fatal).
     await createNotification({
       userId: targetUserId,
@@ -464,6 +475,7 @@ export async function assignMemberRole(
       title: `You were assigned the ${roleRow.name} role`,
       body: "Your role in the club has been updated.",
       href: `/clubs/${clubId}`,
+      activityEventId,
     });
 
     return { ok: true, data: undefined };
@@ -515,6 +527,18 @@ export async function removeMemberRole(
       return { ok: false, error: deleteErr.message };
     }
 
+    const activityEventId = roleRow
+      ? await createActivityEvent({
+          type: "role.removed",
+          actorId,
+          clubId,
+          entityId: null,
+          targetLabel: roleRow.name,
+          href: `/clubs/${clubId}/members`,
+          metadata: { target_user_id: targetUserId, role_id: roleId },
+        })
+      : null;
+
     // Notify the target member that the role was removed (non-fatal).
     if (roleRow) {
       await createNotification({
@@ -524,6 +548,7 @@ export async function removeMemberRole(
         title: `Your ${roleRow.name} role was removed`,
         body: "Your role assignment in the club has changed.",
         href: `/clubs/${clubId}`,
+        activityEventId,
       });
     }
 

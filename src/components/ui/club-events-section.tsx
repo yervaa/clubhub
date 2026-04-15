@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createEventAction } from "@/app/(app)/clubs/actions";
 import { ClubEventCardFull } from "@/components/ui/club-event-card-full";
 import { ClubEventPastFoldable } from "@/components/ui/club-event-past-foldable";
+import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events";
 import {
@@ -129,13 +130,12 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
   ).length;
 
   const sectionShell = (id: string, title: string, subtitle: string, children: ReactNode) => (
-    <section id={id} className="scroll-mt-24 space-y-3 lg:space-y-4">
-      <div className="flex flex-col gap-0.5 border-b border-slate-200 pb-2 lg:gap-1 lg:pb-3">
-        <h2 className="text-base font-bold tracking-tight text-slate-900 lg:text-lg xl:text-xl">{title}</h2>
-        <p className="text-xs text-slate-600 lg:text-sm">{subtitle}</p>
-      </div>
-      {children}
-    </section>
+    <CardSection>
+      <section id={id} className="scroll-mt-24 space-y-3 lg:space-y-4">
+        <SectionHeader title={title} description={subtitle} />
+        {children}
+      </section>
+    </CardSection>
   );
 
   return (
@@ -158,7 +158,12 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
       ) : null}
 
       {canCreateEvents ? (
-        <form id="create-event" action={createEventAction} className="mt-4 space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+        <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 open:bg-slate-50/90">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden sm:px-5">
+            Event editor
+            <span className="ml-2 text-xs font-medium text-slate-500">Add or duplicate events</span>
+          </summary>
+          <form id="create-event" action={createEventAction} className="space-y-4 border-t border-slate-200 px-4 py-4 sm:px-5">
           <input type="hidden" name="club_id" value={club.id} />
           {duplicateEvent ? <input type="hidden" name="duplicate_event_id" value={duplicateEvent.id} /> : null}
           <div>
@@ -259,7 +264,8 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
           <button type="submit" className="btn-primary min-h-11 w-full sm:min-h-0 sm:w-auto">
             {duplicateEvent ? "Create duplicated event" : "Create event"}
           </button>
-        </form>
+          </form>
+        </details>
       ) : null}
 
       {club.events.length === 0 ? (
@@ -303,9 +309,21 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
             "Upcoming",
             "Events scheduled in the future — RSVP and prepare ahead of time.",
             upcomingFiltered.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600">
-                No upcoming events. {canCreateEvents ? "Schedule the next club touchpoint above." : "Check back when officers add the next date."}
-              </p>
+              <PageEmptyState
+                title="No upcoming events"
+                copy={canCreateEvents ? "Schedule the next club touchpoint above." : "Check back when officers add the next date."}
+                action={
+                  canCreateEvents ? (
+                    <ScrollToInputButton inputSelector='input[id="event_title"]' className="btn-primary">
+                      Create first event
+                    </ScrollToInputButton>
+                  ) : (
+                    <Link href={`/clubs/${club.id}/announcements`} className="btn-secondary">
+                      Check announcements
+                    </Link>
+                  )
+                }
+              />
             ) : (
               <div className="space-y-4">
                 {upcomingFiltered.map((event) => (
@@ -320,11 +338,23 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
             "Recently happened",
             `Ended in the last ${RECENTLY_HAPPENED_DAYS} days — finish attendance, reflections, and quick review while it is fresh.`,
             recentFiltered.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600">
-                {filterNeedsReview
-                  ? "No recent events match this filter."
-                  : "No events in the recent window. Past events move here right after they end."}
-              </p>
+              <PageEmptyState
+                title={filterNeedsReview ? "No recent events match this filter" : "No events in the recent window"}
+                copy={filterNeedsReview
+                  ? "Try clearing the needs-review filter."
+                  : "Past events move here right after they end."}
+                action={
+                  filterNeedsReview ? (
+                    <Link href={`/clubs/${club.id}/events#recent`} className="btn-secondary">
+                      Clear filter
+                    </Link>
+                  ) : (
+                    <Link href={`/clubs/${club.id}/events#upcoming`} className="btn-secondary">
+                      View upcoming events
+                    </Link>
+                  )
+                }
+              />
             ) : (
               <div className="space-y-4">
                 {recentFiltered.map((event) => {
@@ -362,9 +392,15 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
             "Past events",
             "Older completed events — expand a row for full detail, RSVP context, and officer tools.",
             pastFiltered.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600">
-                {filterNeedsReview ? "No older past events match this filter." : "No older events in this club yet."}
-              </p>
+              <PageEmptyState
+                title={filterNeedsReview ? "No older past events match this filter" : "No older events yet"}
+                copy={filterNeedsReview ? "Try clearing the needs-review filter." : "Completed events will appear here as your history grows."}
+                action={
+                  <Link href={`/clubs/${club.id}/events/history`} className="btn-secondary">
+                    Open event history
+                  </Link>
+                }
+              />
             ) : (
               <div className="space-y-3">
                 {pastFiltered.slice(0, 25).map((event) => (

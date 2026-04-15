@@ -88,6 +88,7 @@ export type ClubEvent = {
     no: number;
     maybe: number;
   };
+  goingMemberIds: string[];
   reflection: {
     whatWorked: string;
     whatDidnt: string;
@@ -441,6 +442,9 @@ function mapEventRowsToClubEvents(
       no: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "no").length,
       maybe: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "maybe").length,
     },
+    goingMemberIds: (rsvpData ?? [])
+      .filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "yes")
+      .map((rsvp) => rsvp.user_id),
     reflection: (() => {
       const reflection = (reflectionData ?? []).find((item) => item.event_id === event.id);
 

@@ -5,9 +5,12 @@ import {
   EventSummaryListLink,
   eventSoonBadge,
 } from "@/components/ui/event-summary";
+import { PageIntro } from "@/components/ui/page-intro";
 import { ClubJoinCodeRow } from "@/components/ui/club-join-code-row";
 import { DashboardPersistedDetails } from "@/components/ui/dashboard-persisted-details";
+import { ActivityFeed } from "@/components/ui/activity-feed";
 import { getDashboardData, type DashboardTaskPreview } from "@/lib/clubs/queries";
+import { getGlobalActivityFeed } from "@/lib/activity/queries";
 
 const LS_MORE_EVENTS = "clubhub:dash:more-events";
 const LS_MORE_ANNOUNCEMENTS = "clubhub:dash:more-announcements";
@@ -127,14 +130,17 @@ function NotificationsBellIcon({ className }: { className?: string }) {
 }
 
 export default async function DashboardPage() {
-  const {
-    clubs,
-    upcomingEvents,
-    recentAnnouncements,
-    needsAttentionAlerts,
-    myOpenTasks,
-    unreadNotificationCount,
-  } = await getDashboardData();
+  const [
+    {
+      clubs,
+      upcomingEvents,
+      recentAnnouncements,
+      needsAttentionAlerts,
+      myOpenTasks,
+      unreadNotificationCount,
+    },
+    activityItems,
+  ] = await Promise.all([getDashboardData(), getGlobalActivityFeed(12)]);
 
   const officerClubIds = new Set(clubs.filter((c) => c.role === "officer").map((c) => c.id));
   const leadershipAlerts = needsAttentionAlerts.filter((a) => officerClubIds.has(a.clubId));
@@ -177,17 +183,11 @@ export default async function DashboardPage() {
 
   return (
     <section className="space-y-6 lg:space-y-8">
-      <header className="border-b border-slate-200/80 pb-4 sm:pb-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 max-w-2xl">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">
-              Dashboard
-            </h1>
-            <p className="mt-2 hidden text-sm leading-relaxed text-slate-600 sm:block sm:text-base">
-              What&apos;s next on your calendar, open tasks, and updates from your clubs—without extra noise up front.
-            </p>
-          </div>
-          <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end sm:gap-2" aria-label="Quick links">
+      <PageIntro
+        title="Dashboard"
+        description="What is next on your calendar, open tasks, and updates from your clubs without extra noise up front."
+        actions={
+          <>
             <Link
               href="/notifications"
               className="btn-secondary inline-flex min-h-11 items-center justify-center gap-2 text-center text-sm sm:min-h-0"
@@ -204,13 +204,13 @@ export default async function DashboardPage() {
             </Link>
             <Link
               href="/clubs/create"
-              className="col-span-2 hidden min-h-10 items-center justify-center rounded-lg text-center text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 sm:col-span-1 sm:inline-flex sm:min-h-0 sm:px-3 sm:py-2"
+              className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-center text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:min-h-0"
             >
               Start a club
             </Link>
-          </nav>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {!hasClubs ? (
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 sm:p-8">
@@ -225,10 +225,27 @@ export default async function DashboardPage() {
             <Link href="/clubs/create" className="text-center text-sm font-medium text-slate-500 hover:text-slate-800 sm:px-4">
               Or start a new club →
             </Link>
+            <Link href="/discover" className="text-center text-sm font-medium text-slate-500 hover:text-slate-800 sm:px-4">
+              Browse clubs first →
+            </Link>
           </div>
         </div>
       ) : (
         <>
+          <ActivityFeed
+            items={activityItems.slice(0, 8)}
+            title="Recent activity"
+            description="Live updates from announcements, events, RSVPs, attendance, and role changes."
+            viewMoreHref="/activity"
+            variant="primary"
+            emptyHint="This feed comes alive when your clubs post announcements, schedule events, and log participation."
+            emptyAction={
+              <Link href="/clubs/join" className="btn-primary">
+                Join your first club
+              </Link>
+            }
+          />
+
           <section id="important-now" aria-labelledby="dash-priority-heading" className="space-y-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>

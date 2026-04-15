@@ -1,5 +1,5 @@
 import { PageLoadingSkeleton } from "@/components/ui/loading-skeletons";
 
-export default function ClubSectionLoading() {
+export default function ActivityLoading() {
   return <PageLoadingSkeleton withSidebarCards />;
 }

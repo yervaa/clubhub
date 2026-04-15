@@ -5,6 +5,8 @@ import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubEventPastFoldable } from "@/components/ui/club-event-past-foldable";
 import { getClubDetailForEventsForCurrentUser } from "@/lib/clubs/queries";
 import { partitionEventsByLifecycle } from "@/lib/clubs/event-lifecycle";
+import { PageIntro } from "@/components/ui/page-intro";
+import { PageEmptyState } from "@/components/ui/page-patterns";
 
 type PageProps = {
   params: Promise<{ clubId: string }>;
@@ -51,33 +53,34 @@ export default async function ClubEventHistoryPage({ params }: PageProps) {
 
   return (
     <section className="space-y-6">
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-indigo-50/40 p-5 sm:p-8">
-        <p className="section-kicker text-slate-600">Archive</p>
-        <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Event history</h1>
-        <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
-          Every completed event stays on the record. Expand a row for details, your RSVP, attendance tools, and reflections
-          (based on your permissions).
-        </p>
-        <div className="mt-5 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
-          <Link href={`/clubs/${clubId}/events`} className="btn-secondary w-full text-center text-sm sm:w-auto">
-            ← Back to events
-          </Link>
-          {userPermissions.has("insights.view") ? (
-            <Link href={`/clubs/${clubId}/insights`} className="btn-secondary w-full text-center text-sm sm:w-auto">
-              Club insights
+      <PageIntro
+        kicker="Archive"
+        title="Event history"
+        description="Every completed event stays on record. Expand rows for RSVP, attendance, and reflection details."
+        actions={
+          <>
+            <Link href={`/clubs/${clubId}/events`} className="btn-secondary">
+              Back to events
             </Link>
-          ) : null}
-        </div>
-      </header>
+            {userPermissions.has("insights.view") ? (
+              <Link href={`/clubs/${clubId}/insights`} className="btn-secondary">
+                Club insights
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       {past.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-10 text-center">
-          <p className="font-semibold text-slate-900">No past events yet</p>
-          <p className="mt-2 text-sm text-slate-600">When events end, they appear here for your club&apos;s timeline.</p>
-          <Link href={`/clubs/${clubId}/events`} className="btn-primary mt-6 inline-block">
-            Go to events
-          </Link>
-        </div>
+        <PageEmptyState
+          title="No past events yet"
+          copy="When events end, they appear here for your club timeline."
+          action={
+            <Link href={`/clubs/${clubId}/events`} className="btn-primary">
+              Go to events
+            </Link>
+          }
+        />
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-slate-600">

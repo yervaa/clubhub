@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ClubMember } from "@/lib/clubs/queries";
 import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
+import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
 import { formatVolunteerHoursAmount, VolunteerHoursPanel } from "@/components/ui/volunteer-hours-panel";
 
 type ClubVolunteerHoursOverviewProps = {
@@ -24,18 +25,19 @@ export function ClubVolunteerHoursOverview({ clubId, members, canManage }: ClubV
 
   return (
     <div className="space-y-4 lg:space-y-5">
-      <div className="card-surface flex flex-wrap items-baseline justify-between gap-3 border border-slate-200/90 p-4 sm:p-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Club total</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">{formatVolunteerHoursAmount(clubTotal)} h</p>
-        </div>
-        <p className="max-w-md text-sm text-slate-600">
-          Sum of all logged entries. Open a member to add, edit, or remove lines — same as from the roster profile.
-        </p>
-      </div>
+      <CardSection className="border border-slate-200/90">
+        <SectionHeader
+          kicker="Club total"
+          title={`${formatVolunteerHoursAmount(clubTotal)} h`}
+          description="Sum of all logged entries. Open a member to add, edit, or remove lines."
+        />
+      </CardSection>
 
-      <div className="card-surface overflow-hidden border border-slate-200/90 p-0">
-        <ul className="divide-y divide-slate-200">
+      <CardSection className="overflow-hidden border border-slate-200/90 p-0">
+        {sorted.length === 0 ? (
+          <PageEmptyState title="No members yet" copy="Member rows will appear here when the roster has members." />
+        ) : (
+          <ul className="divide-y divide-slate-200">
           {sorted.map((m) => {
             const expanded = openId === m.userId;
             return (
@@ -70,8 +72,9 @@ export function ClubVolunteerHoursOverview({ clubId, members, canManage }: ClubV
               </li>
             );
           })}
-        </ul>
-      </div>
+          </ul>
+        )}
+      </CardSection>
     </div>
   );
 }

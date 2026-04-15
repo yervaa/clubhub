@@ -65,6 +65,17 @@ export function ClubEventCardFull({
   const responsePercent = memberCount > 0 ? Math.min(100, Math.round((totalResponses / memberCount) * 100)) : 0;
   const goingPercent = memberCount > 0 ? Math.min(100, Math.round((event.rsvpCounts.yes / memberCount) * 100)) : 0;
   const goingLabel = event.rsvpCounts.yes === 1 ? "person going" : "people going";
+  const memberNameById = new Map(
+    club.members.map((member) => [
+      member.userId,
+      member.fullName?.trim() || member.email || "Member",
+    ]),
+  );
+  const goingNames = event.goingMemberIds
+    .map((memberId) => memberNameById.get(memberId))
+    .filter((name): name is string => Boolean(name))
+    .slice(0, 4);
+  const goingOverflow = Math.max(0, event.rsvpCounts.yes - goingNames.length);
   const eventRsvpSaved = query.rsvpSuccess && query.rsvpEventId === event.id;
   const eventAttendanceSaved = query.attendanceSuccess && query.attendanceEventId === event.id;
   const eventReflectionSaved = query.reflectionSuccess && query.reflectionEventId === event.id;
@@ -149,6 +160,20 @@ export function ClubEventCardFull({
                   recentlySaved={Boolean(eventRsvpSaved)}
                   embedded
                 />
+              </div>
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Engagement</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {event.rsvpCounts.yes} {goingLabel}
+                </p>
+                {goingNames.length > 0 ? (
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    Going: {goingNames.join(", ")}
+                    {goingOverflow > 0 ? ` +${goingOverflow} more` : ""}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-xs text-slate-500">No one has RSVP&apos;d yes yet.</p>
+                )}
               </div>
             </div>
           ) : null}

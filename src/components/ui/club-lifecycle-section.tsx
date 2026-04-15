@@ -8,6 +8,8 @@ import {
   leaveClubAction,
   updateClubJoinPolicyAction,
 } from "@/app/(app)/clubs/club-lifecycle-actions";
+import { CardSection } from "@/components/ui/page-patterns";
+import { PageIntro } from "@/components/ui/page-intro";
 
 type ClubLifecycleSectionProps = {
   clubId: string;
@@ -47,15 +49,11 @@ export function ClubLifecycleSection({
 
   return (
     <section className="space-y-4 lg:space-y-6">
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-rose-50/40 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
-        <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Settings</p>
-          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Club &amp; membership</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
-            Leave this club, or — if you are a President — archive or permanently delete it.
-          </p>
-        </div>
-      </header>
+      <PageIntro
+        kicker="Settings"
+        title="Club & membership"
+        description="Leave this club, or if you are a President, archive or permanently delete it."
+      />
 
       {query.success && (
         <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3.5 text-sm font-medium text-emerald-800">
@@ -76,7 +74,7 @@ export function ClubLifecycleSection({
       )}
 
       {isActiveClub && canManageJoinPolicy && (
-        <div className="surface-subcard border border-slate-200/90 p-4 sm:p-6">
+        <CardSection className="surface-subcard border border-slate-200/90 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-900">How people join</h2>
           <p className="mt-1 text-sm text-slate-600">
             Control whether the join code and invite link add members immediately or wait for officer approval.
@@ -123,11 +121,11 @@ export function ClubLifecycleSection({
               Save join policy
             </button>
           </form>
-        </div>
+        </CardSection>
       )}
 
       {/* Leave */}
-      <div className="surface-subcard border border-slate-200/90 p-4 sm:p-6">
+      <CardSection className="surface-subcard border border-slate-200/90 sm:p-6">
         <h2 className="text-lg font-semibold text-slate-900">Leave club</h2>
         <p className="mt-1 text-sm text-slate-600">
           Removes your membership. Historical records (such as RSVPs you submitted) stay with the club where they
@@ -210,7 +208,7 @@ export function ClubLifecycleSection({
             )}
           </>
         )}
-      </div>
+      </CardSection>
 
       {/* Archive */}
       {isActiveClub && canArchive && (

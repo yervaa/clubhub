@@ -5,6 +5,8 @@ import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubPageStickyActions } from "@/components/ui/club-page-sticky-actions";
 import { ClubEventsSection } from "@/components/ui/club-events-section";
 import { EventCalendarView } from "@/components/ui/event-calendar-view";
+import { PageIntro } from "@/components/ui/page-intro";
+import { CardSection, SectionHeader } from "@/components/ui/page-patterns";
 import { partitionEventsByLifecycle } from "@/lib/clubs/event-lifecycle";
 import { getClubDetailForEventsForCurrentUser } from "@/lib/clubs/queries";
 
@@ -93,97 +95,97 @@ export default async function ClubEventsPage({ params, searchParams }: ClubEvent
         label="Create event"
       />
 
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-blue-50/80 p-4 shadow-sm sm:p-5 lg:border-2 lg:p-6">
-        <div className="max-w-4xl">
-          <h1 className="section-title text-xl sm:text-2xl md:text-3xl">Events</h1>
-          <p className="section-subtitle mt-1.5 hidden max-w-2xl text-sm text-slate-600 sm:mt-2 sm:block sm:text-base">
-            {permissions.canCreateEvents
-              ? "RSVPs on the surface — attendance, reflections, and metrics stay under Organizer tools."
-              : "Upcoming events, your RSVPs, and what happened after each event."}
-          </p>
+      <PageIntro
+        title="Events"
+        description={
+          permissions.canCreateEvents
+            ? "RSVPs on the surface, while attendance and reflection controls stay in organizer tools."
+            : "Upcoming events, your RSVPs, and what happened after each event."
+        }
+      />
 
-          <p className="mt-3 text-xs font-medium leading-snug text-slate-600 sm:text-sm">
-            <span className="text-slate-800">{statsLine}</span>
-          </p>
+      <CardSection className="space-y-4">
+        <SectionHeader
+          kicker="View"
+          title="Event list controls"
+          description="Jump between sections, export calendar data, and switch list or calendar view."
+        />
+        <p className="text-sm font-medium text-slate-700">{statsLine}</p>
 
-          {viewMode === "list" ? (
-            <nav
-              className="mt-4 flex gap-2 overflow-x-auto pb-1 text-sm font-semibold [-ms-overflow-style:none] [scrollbar-width:none] sm:mt-5 sm:flex-wrap sm:overflow-visible lg:mt-6 [&::-webkit-scrollbar]:hidden"
-              aria-label="Event sections"
-            >
-              <a
-                href="#upcoming"
-                className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
-              >
-                Upcoming
-              </a>
-              <a
-                href="#recent"
-                className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
-              >
-                Recently happened
-              </a>
-              <a
-                href="#history"
-                className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
-              >
-                Past events
-              </a>
-              <Link
-                href={`/clubs/${clubId}/events/history`}
-                className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
-              >
-                Full history
-              </Link>
-              {permissions.canViewAggregatedStats ? (
-                <Link
-                  href={`/clubs/${clubId}/events?filter=needs-review#recent`}
-                  className="inline-flex shrink-0 min-h-10 items-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-2 text-amber-950 hover:bg-amber-100"
-                >
-                  Needs review
-                </Link>
-              ) : null}
-            </nav>
-          ) : null}
-
-          <div className="mt-4 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 lg:mt-6">
+        {viewMode === "list" ? (
+          <nav className="flex flex-wrap gap-2 text-sm font-semibold" aria-label="Event sections">
             <a
-              href={`/clubs/${clubId}/events/export`}
-              download
-              className="btn-secondary flex w-full items-center justify-center gap-1.5 px-4 py-2.5 text-sm sm:w-auto"
+              href="#upcoming"
+              className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Export .ics
+              Upcoming
             </a>
-            <div className="flex w-full rounded-lg border border-slate-200 bg-white p-0.5 sm:w-auto">
-              <a
-                href={`/clubs/${clubId}/events?view=list`}
-                className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition sm:flex-none sm:py-1.5 ${
-                  viewMode === "list" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"
-                }`}
+            <a
+              href="#recent"
+              className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
+            >
+              Recently happened
+            </a>
+            <a
+              href="#history"
+              className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
+            >
+              Past events
+            </a>
+            <Link
+              href={`/clubs/${clubId}/events/history`}
+              className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-slate-700 hover:border-slate-300"
+            >
+              Full history
+            </Link>
+            {permissions.canViewAggregatedStats ? (
+              <Link
+                href={`/clubs/${clubId}/events?filter=needs-review#recent`}
+                className="inline-flex min-h-10 items-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-2 text-amber-950 hover:bg-amber-100"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                </svg>
-                List
-              </a>
-              <a
-                href={`/clubs/${clubId}/events?view=calendar`}
-                className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition sm:flex-none sm:py-1.5 ${
-                  viewMode === "calendar" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Calendar
-              </a>
-            </div>
+                Needs review
+              </Link>
+            ) : null}
+          </nav>
+        ) : null}
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <a
+            href={`/clubs/${clubId}/events/export`}
+            download
+            className="btn-secondary flex w-full items-center justify-center gap-1.5 px-4 py-2.5 text-sm sm:w-auto"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export .ics
+          </a>
+          <div className="flex w-full rounded-lg border border-slate-200 bg-white p-0.5 sm:w-auto">
+            <a
+              href={`/clubs/${clubId}/events?view=list`}
+              className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition sm:flex-none sm:py-1.5 ${
+                viewMode === "list" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              List
+            </a>
+            <a
+              href={`/clubs/${clubId}/events?view=calendar`}
+              className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition sm:flex-none sm:py-1.5 ${
+                viewMode === "calendar" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Calendar
+            </a>
           </div>
         </div>
-      </header>
+      </CardSection>
 
       {/* Calendar view */}
       {viewMode === "calendar" && (

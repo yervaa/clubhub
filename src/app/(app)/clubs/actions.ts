@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { JOIN_REDIRECT_MESSAGES } from "@/lib/clubs/join-flow";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { createActivityEvent } from "@/lib/activity/create-activity-event";
 import { createBulkNotifications } from "@/lib/notifications/create-notification";
 import { getMemberManagementErrorMessage } from "@/lib/clubs/member-management-messages";
 import {
@@ -539,6 +540,18 @@ export async function createAnnouncementAction(formData: FormData) {
   }
 
   const announcementId = inserted.id;
+  const announcementActivityId = await createActivityEvent({
+    type: "announcement.created",
+    actorId: user.id,
+    clubId: parsed.data.clubId,
+    entityId: announcementId,
+    targetLabel: parsed.data.title,
+    href: `/clubs/${parsed.data.clubId}/announcements#announcement-${announcementId}`,
+    metadata: {
+      has_poll: Boolean(extras.data.pollQuestion),
+      scheduled: !extras.data.isPublished,
+    },
+  });
 
   if (attachmentFiles.length > 0) {
     const admin = createAdminClient();
@@ -594,7 +607,8 @@ export async function createAnnouncementAction(formData: FormData) {
               title: parsed.data.title,
               body: hasPoll ? "A new poll was posted in your club." : "A new announcement was posted in your club.",
               href,
-              metadata: { announcement_id: announcementId },
+              activityEventId: announcementActivityId,
+              metadata: { announcement_id: announcementId, activity_event_id: announcementActivityId },
             })),
           )
         : ({ ok: true } as const);
@@ -652,6 +666,13 @@ export async function updateMemberRoleAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/members?memberError=You+do+not+have+permission+to+update+member+roles.`);
   }
 
+  const { data: currentMembership } = await supabase
+    .from("club_members")
+    .select("role")
+    .eq("club_id", parsed.data.clubId)
+    .eq("user_id", parsed.data.userId)
+    .maybeSingle();
+
   const { data: status, error } = await supabase.rpc("update_club_member_role", {
     target_club_id: parsed.data.clubId,
     target_user_id: parsed.data.userId,
@@ -660,6 +681,18 @@ export async function updateMemberRoleAction(formData: FormData) {
 
   if (error || status !== "ok") {
     redirect(`/clubs/${parsed.data.clubId}/members?memberError=${encodeURIComponent(getMemberManagementErrorMessage(status ?? "unknown"))}`);
+  }
+
+  if (currentMembership?.role !== parsed.data.role) {
+    await createActivityEvent({
+      type: parsed.data.role === "officer" ? "role.assigned" : "role.removed",
+      actorId: user.id,
+      clubId: parsed.data.clubId,
+      entityId: null,
+      targetLabel: parsed.data.role === "officer" ? "Officer role" : "Officer role",
+      href: `/clubs/${parsed.data.clubId}/members`,
+      metadata: { target_user_id: parsed.data.userId, previous_role: currentMembership?.role ?? null },
+    });
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
@@ -830,19 +863,32 @@ export async function createEventAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+don't+have+permission+to+create+events.${duplicateQuery}#create-event`);
   }
 
-  const { error: insertError } = await supabase.from("events").insert({
-    club_id: parsed.data.clubId,
-    title: parsed.data.title,
-    description: parsed.data.description,
-    location: parsed.data.location,
-    event_type: parsed.data.eventType,
-    event_date: eventDate.toISOString(),
-    created_by: user.id,
-  });
+  const { data: insertedEvent, error: insertError } = await supabase
+    .from("events")
+    .insert({
+      club_id: parsed.data.clubId,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      location: parsed.data.location,
+      event_type: parsed.data.eventType,
+      event_date: eventDate.toISOString(),
+      created_by: user.id,
+    })
+    .select("id, title")
+    .maybeSingle();
 
-  if (insertError) {
+  if (insertError || !insertedEvent?.id) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+create+event.+Please+retry.${duplicateQuery}#create-event`);
   }
+
+  const eventActivityId = await createActivityEvent({
+    type: "event.created",
+    actorId: user.id,
+    clubId: parsed.data.clubId,
+    entityId: insertedEvent.id,
+    targetLabel: insertedEvent.title,
+    href: `/clubs/${parsed.data.clubId}/events#event-${insertedEvent.id}`,
+  });
 
   // Notify all other club members about the new event (non-fatal).
   const { data: otherMembers } = await supabase
@@ -861,6 +907,7 @@ export async function createEventAction(formData: FormData) {
         title: parsed.data.title,
         body: `New event on ${eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${parsed.data.location}`,
         href: `/clubs/${parsed.data.clubId}/events`,
+        activityEventId: eventActivityId,
       })),
     );
   }
@@ -920,7 +967,7 @@ export async function upsertRsvpAction(formData: FormData) {
 
   const { data: eventRow, error: eventError } = await supabase
     .from("events")
-    .select("id, club_id")
+    .select("id, club_id, title")
     .eq("id", parsed.data.eventId)
     .maybeSingle();
 
@@ -940,6 +987,16 @@ export async function upsertRsvpAction(formData: FormData) {
   if (upsertError) {
     redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=Unable+to+save+RSVP.+Please+retry.`);
   }
+
+  await createActivityEvent({
+    type: "rsvp.submitted",
+    actorId: user.id,
+    clubId: parsed.data.clubId,
+    entityId: parsed.data.eventId,
+    targetLabel: eventRow.title,
+    href: `/clubs/${parsed.data.clubId}/events#event-${parsed.data.eventId}`,
+    metadata: { status: parsed.data.status },
+  });
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   redirect(
@@ -1162,7 +1219,7 @@ export async function toggleAttendanceAction(formData: FormData) {
 
   const { data: eventRow, error: eventError } = await supabase
     .from("events")
-    .select("id, club_id")
+    .select("id, club_id, title")
     .eq("id", parsed.data.eventId)
     .maybeSingle();
 
@@ -1311,6 +1368,16 @@ export async function toggleAttendanceAction(formData: FormData) {
         clubId: parsed.data.clubId,
         eventId: parsed.data.eventId,
         targetUserId: parsed.data.userId,
+      });
+
+      await createActivityEvent({
+        type: "attendance.marked",
+        actorId: user.id,
+        clubId: parsed.data.clubId,
+        entityId: parsed.data.eventId,
+        targetLabel: eventRow.title,
+        href: `/clubs/${parsed.data.clubId}/events#event-${parsed.data.eventId}`,
+        metadata: { marked_user_id: parsed.data.userId },
       });
     }
   } else {

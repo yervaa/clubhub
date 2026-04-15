@@ -7,9 +7,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type NotificationType =
   | "announcement.posted"
+  | "announcement.created"
   | "announcement_created"
+  | "poll.created"
   | "poll_created"
   | "event.created"
+  | "rsvp.submitted"
+  | "attendance.marked"
   | "event_reminder"
   | "role.assigned"
   | "role.removed"
@@ -25,6 +29,7 @@ export type NotificationInput = {
   title: string;
   body: string;
   href?: string | null;
+  activityEventId?: string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -42,6 +47,7 @@ export async function createNotification(input: NotificationInput): Promise<void
     title: input.title,
     body: input.body,
     href: input.href ?? null,
+    activity_event_id: input.activityEventId ?? null,
     metadata: input.metadata ?? {},
   });
 
@@ -72,6 +78,7 @@ export async function createBulkNotifications(inputs: NotificationInput[]): Prom
     title: input.title,
     body: input.body,
     href: input.href ?? null,
+    activity_event_id: input.activityEventId ?? null,
     metadata: input.metadata ?? {},
   }));
 

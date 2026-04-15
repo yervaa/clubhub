@@ -57,7 +57,9 @@ export function DisclosurePanel({
           Hide
         </span>
       </summary>
-      <div className="disclosure-panel-body border-t border-slate-200/80 px-4 pb-4 pt-3">{children}</div>
+      <div className="disclosure-panel-body border-t border-slate-200/80">
+        <div className="disclosure-panel-body-inner px-4 pb-4 pt-3">{children}</div>
+      </div>
     </details>
   );
 }

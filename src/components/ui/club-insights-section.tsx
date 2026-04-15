@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ClubDetail } from "@/lib/clubs/queries";
 import { DisclosurePanel } from "@/components/ui/disclosure-panel";
+import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
+import { PageIntro } from "@/components/ui/page-intro";
 import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 import { computeClubInsights } from "@/lib/clubs/insights";
 import type { TrendDirection, EngagementTier } from "@/lib/clubs/insights";
@@ -129,20 +131,15 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
 
   return (
     <section id="club-insights" className="space-y-5 lg:space-y-8">
-      <header className="card-surface overflow-hidden border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/70 p-4 shadow-sm sm:p-6 lg:border lg:p-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
-            <div className="min-w-0 max-w-2xl">
-              <p className="section-kicker text-slate-600">Club analytics</p>
-              <h1 className="section-title mt-1 text-2xl tracking-tight text-slate-900 sm:text-3xl md:text-4xl">Insights</h1>
-              <p className="section-subtitle mt-2 text-sm leading-relaxed text-slate-600 sm:mt-3 sm:text-base">
-                A quick read on turnout, momentum, and where members cluster — so you can act, not just scroll numbers.
-              </p>
-            </div>
-          </div>
+      <PageIntro
+        kicker="Club analytics"
+        title="Insights"
+        description="A quick read on turnout, momentum, and member engagement so you can act, not just scroll numbers."
+      />
 
-          {hasData ? (
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 sm:mt-7">
+      <CardSection className="bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/70">
+        {hasData ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <SummaryMetricTile
                 emphasize
                 label="Average attendance"
@@ -180,58 +177,32 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
                   {trendNarrative(insights.trendDirection, insights.trendDelta)}
                 </p>
               </div>
-            </div>
-          ) : (
-            <div className="mt-5 rounded-xl border border-slate-200/80 bg-white/70 px-4 py-4 sm:mt-7 sm:px-5">
-              <p className="text-sm font-semibold text-slate-800">No tracked history yet</p>
-              <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                Once officers mark attendance on past events, this page fills in averages, trends, and member groupings automatically.
-              </p>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {!hasData ? (
-        <div className="card-surface px-5 py-12 text-center sm:px-8 sm:py-14">
-          <div className="mx-auto max-w-md">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 shadow-inner">
-              <svg className="h-7 w-7 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.75}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
-              </svg>
-            </div>
-            <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-900">Insights will appear here</h2>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              We need at least one past event with attendance marked. After that, you will see turnout trends, which event types land best, and how members group by engagement.
-            </p>
-            <p className="mt-6">
+          </div>
+        ) : (
+          <PageEmptyState
+            title="No tracked history yet"
+            copy="Mark attendance on at least one past event to unlock trends, engagement segments, and format comparisons."
+            action={
               <Link
-                href={`/clubs/${club.id}/events`}
+                href={`/clubs/${club.id}/events#recent`}
                 className="inline-flex min-h-11 items-center justify-center rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
               >
-                Go to events
+                Mark attendance
               </Link>
-            </p>
-          </div>
-        </div>
-      ) : (
+            }
+          />
+        )}
+      </CardSection>
+
+      {!hasData ? null : (
         <>
           {insights.highlights.length > 0 ? (
-            <div className="card-surface p-5 sm:p-6 lg:p-7">
-              <div className="flex flex-col gap-1 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="section-kicker">At a glance</p>
-                  <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">What to pay attention to</h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
-                    Plain-language takeaways from the same numbers below — read this first, then dig into charts if you need detail.
-                  </p>
-                </div>
-              </div>
+            <CardSection className="lg:p-7">
+              <SectionHeader
+                kicker="At a glance"
+                title="What to pay attention to"
+                description="Plain-language takeaways from the same numbers below."
+              />
               <ul className="mt-5 grid gap-3 sm:grid-cols-2">
                 {insights.highlights.map((text, i) => (
                   <li
@@ -247,7 +218,7 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
                   </li>
                 ))}
               </ul>
-            </div>
+            </CardSection>
           ) : null}
 
           {/* Attendance — primary chart surface */}

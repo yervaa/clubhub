@@ -7,6 +7,8 @@ import {
   transferPresidencyAction,
 } from "@/app/(app)/clubs/governance-actions";
 import { DisclosurePanel } from "@/components/ui/disclosure-panel";
+import { CardSection } from "@/components/ui/page-patterns";
+import { PageIntro } from "@/components/ui/page-intro";
 
 type GovernanceMember = {
   userId: string;
@@ -191,15 +193,14 @@ export function GovernanceSection({
   return (
     <section className="space-y-4 lg:space-y-6">
 
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-violet-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
-        <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Settings</p>
-          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Governance</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
-            The President holds full authority over <strong>{clubName}</strong>. This page manages who holds that authority and how it can be transferred.
-          </p>
+      <PageIntro
+        kicker="Settings"
+        title="Governance"
+        description={`Manage presidency for ${clubName}. This controls who holds full authority and how it transfers.`}
+      />
 
-          <div className="mt-4 flex flex-wrap items-center gap-4 sm:mt-5 sm:gap-6 lg:mt-6">
+      <CardSection className="bg-gradient-to-br from-slate-50 to-violet-50/50">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             <div>
               <p className="text-2xl font-bold text-slate-900">{presidents.length}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
@@ -221,8 +222,7 @@ export function GovernanceSection({
               You have read-only access. Only Presidents can manage Presidency.
             </div>
           )}
-        </div>
-      </header>
+      </CardSection>
 
       {/* Status banners */}
       {successMessage && (
@@ -273,7 +273,7 @@ export function GovernanceSection({
       )}
 
       {/* ── Protection model explanation ──────────────────────────────────────── */}
-      <div className="card-surface p-4 sm:p-6">
+      <CardSection className="sm:p-6">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">How It Works</p>
@@ -303,10 +303,10 @@ export function GovernanceSection({
             </li>
           ))}
         </ul>
-      </div>
+      </CardSection>
 
       {/* ── Current Presidents ────────────────────────────────────────────────── */}
-      <div className="card-surface p-4 sm:p-6">
+      <CardSection className="sm:p-6">
         <div className="section-card-header">
           <div>
             <p className="section-kicker">Authority</p>
@@ -417,7 +417,7 @@ export function GovernanceSection({
             })}
           </ul>
         )}
-      </div>
+      </CardSection>
 
       {/* ── Add Co-President ─────────────────────────────────────────────────── */}
       {isPresident && !isMigrationMissing && !clubArchived && (

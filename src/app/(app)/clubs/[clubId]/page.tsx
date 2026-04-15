@@ -3,12 +3,13 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubAttentionNeededSection } from "@/components/ui/club-attention-needed-section";
-import { ClubActivityFeed } from "@/components/ui/club-activity-feed";
-import type { ActivityFeedItem } from "@/components/ui/club-activity-feed";
-import { formatActivityTime } from "@/lib/clubs/format-activity-time";
+import { ActivityFeed } from "@/components/ui/activity-feed";
 import { EventMetaRow } from "@/components/ui/event-summary";
 import { getClubDetailForOverviewForCurrentUser } from "@/lib/clubs/queries";
 import { getMyClubTasks } from "@/lib/tasks/queries";
+import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
+import { PageIntro } from "@/components/ui/page-intro";
+import { getClubActivityFeed } from "@/lib/activity/queries";
 
 type ClubOverviewPageProps = {
   params: Promise<{ clubId: string }>;
@@ -21,10 +22,11 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [club, userPermissions, myTasks] = await Promise.all([
+  const [club, userPermissions, myTasks, activityItems] = await Promise.all([
     getClubDetailForOverviewForCurrentUser(clubId),
     getUserPermissions(user.id, clubId),
     getMyClubTasks(clubId, user.id),
+    getClubActivityFeed(clubId, 10),
   ]);
 
   if (!club) {
@@ -36,7 +38,6 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
   const canCreateEvents = userPermissions.has("events.create");
   const canPostAnnouncements = userPermissions.has("announcements.create");
   const canMarkAttendance = userPermissions.has("attendance.mark");
-  const canViewAudit = userPermissions.has("audit_logs.view");
   // Show management alerts when the user has at least one management-facing permission.
   const showManagementAlerts = canCreateEvents || canPostAnnouncements || canMarkAttendance;
 
@@ -46,142 +47,84 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
     .filter((event) => event.eventDateRaw.getTime() > now.getTime())
     .sort((a, b) => a.eventDateRaw.getTime() - b.eventDateRaw.getTime())[0] ?? null;
   const latestAnnouncement = club.announcements[0] ?? null;
-
-  // ── Build merged activity feed ─────────────────────────────────────────────
-  // Each source builds its own sort key inline — no parallel-index dependency.
-  type SortableItem = ActivityFeedItem & { _sortKey: string };
-
-  const hrefByKind: Record<typeof club.recentActivity[number]["kind"], string> = {
-    member_joined: `/clubs/${club.id}/members`,
-    announcement_posted: `/clubs/${club.id}/announcements`,
-    event_created: `/clubs/${club.id}/events`,
-    rsvp_updated: `/clubs/${club.id}/events`,
-    attendance_marked: `/clubs/${club.id}/events`,
-  };
-
-  const rpcItems: SortableItem[] = club.recentActivity.map((item) => ({
-    id: item.id,
-    type: item.kind,
-    message: item.message,
-    displayTime: formatActivityTime(item.createdAtIso),
-    href: hrefByKind[item.kind],
-    _sortKey: item.createdAtIso,
-  }));
-
-  // Reflections — visible if the user has reflections permission (RLS already
-  // controls whether reflection data was fetched; null reflections are filtered out).
-  const reflectionItems: SortableItem[] = club.events
-    .filter((e) => e.reflection !== null)
-    .map((e) => ({
-      id: `reflection-${e.id}`,
-      type: "reflection_added" as const,
-      message: `Officer reflection added for "${e.title}"`,
-      displayTime: formatActivityTime(e.reflection!.updatedAtIso),
-      href: `/clubs/${club.id}/events`,
-      _sortKey: e.reflection!.updatedAtIso,
-    }));
-
-  // Governance events from audit log — only fetched when the user has audit_logs.view.
-  let governanceItems: SortableItem[] = [];
-  if (canViewAudit) {
-    const governanceActions = ["role.assigned", "president.added", "president.removed", "presidency.transferred"] as const;
-    type GovernanceAction = typeof governanceActions[number];
-
-    const { data: auditRows } = await supabase
-      .from("club_audit_logs")
-      .select("id, actor_id, action, target_user_id, target_role_id, metadata, created_at")
-      .eq("club_id", clubId)
-      .in("action", [...governanceActions])
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if (auditRows && auditRows.length > 0) {
-      // Batch-fetch profile names for all actor + target IDs.
-      const profileIds = [
-        ...new Set([
-          ...auditRows.map((r) => r.actor_id),
-          ...auditRows.filter((r) => r.target_user_id).map((r) => r.target_user_id as string),
-        ]),
-      ];
-      const { data: profileRows } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", profileIds);
-
-      const nameById = new Map(
-        (profileRows ?? []).map((p) => [
-          p.id,
-          p.full_name?.trim() || "Someone",
-        ]),
-      );
-
-      const actionToType: Record<GovernanceAction, ActivityFeedItem["type"]> = {
-        "role.assigned": "role_assigned",
-        "president.added": "president_added",
-        "president.removed": "president_removed",
-        "presidency.transferred": "presidency_transferred",
-      };
-
-      type AuditRow = (typeof auditRows)[number];
-      governanceItems = auditRows
-        .filter((r): r is Omit<AuditRow, "action"> & { action: GovernanceAction } =>
-          (governanceActions as readonly string[]).includes(r.action as string),
-        )
-        .map((r) => {
-          const actor = nameById.get(r.actor_id) ?? "Someone";
-          const target = r.target_user_id ? (nameById.get(r.target_user_id) ?? "a member") : "a member";
-          const meta = (r.metadata ?? {}) as Record<string, unknown>;
-          const roleName = typeof meta.role_name === "string" ? meta.role_name : null;
-
-          let message: string;
-          switch (r.action) {
-            case "role.assigned":
-              message = roleName
-                ? `${actor} assigned the ${roleName} role to ${target}`
-                : `${actor} assigned a role to ${target}`;
-              break;
-            case "president.added":
-              message = `${actor} added ${target} as President`;
-              break;
-            case "president.removed":
-              message = `${actor} removed ${target} from Presidency`;
-              break;
-            case "presidency.transferred":
-              message = `${actor} transferred Presidency to ${target}`;
-              break;
-          }
-
-          return {
-            id: `audit-${r.id}`,
-            type: actionToType[r.action],
-            message,
-            displayTime: formatActivityTime(r.created_at),
-            href: `/clubs/${club.id}/settings/governance`,
-            _sortKey: r.created_at,
-          };
-        });
-    }
-  }
-
-  const activityItems: ActivityFeedItem[] = [...rpcItems, ...reflectionItems, ...governanceItems]
-    .sort((a, b) => b._sortKey.localeCompare(a._sortKey))
-    .slice(0, 8)
-    .map((entry) => {
-      const { _sortKey, ...item } = entry;
-      void _sortKey;
-      return item;
-    });
+  const hasClubDescription = club.description.trim().length > 0;
+  const onboardingSteps = [
+    {
+      id: "details",
+      title: "Complete club details",
+      description: "Add a clear description so new members know what your club is about.",
+      done: hasClubDescription,
+      href: `/clubs/${club.id}/settings/club`,
+      cta: "Edit details",
+    },
+    {
+      id: "members",
+      title: "Invite members",
+      description: "Bring in at least one more member so your club starts feeling social.",
+      done: memberCount > 1,
+      href: `/clubs/${club.id}/members#invite-members`,
+      cta: "Invite now",
+    },
+    {
+      id: "announcement",
+      title: "Post first announcement",
+      description: "Share one update so everyone sees the communication flow.",
+      done: club.announcements.length > 0,
+      href: `/clubs/${club.id}/announcements`,
+      cta: "Post update",
+    },
+    {
+      id: "event",
+      title: "Create first event",
+      description: "Schedule a meeting or activity to start RSVPs and engagement.",
+      done: club.events.length > 0,
+      href: `/clubs/${club.id}/events#create-event`,
+      cta: "Create event",
+    },
+    {
+      id: "attendance",
+      title: "Mark attendance",
+      description: "After your first event, mark attendance to unlock insights.",
+      done: club.totalTrackedEvents > 0,
+      href: `/clubs/${club.id}/events#recent`,
+      cta: "Mark attendance",
+    },
+  ];
+  const onboardingDone = onboardingSteps.filter((step) => step.done).length;
+  const onboardingPercent = Math.round((onboardingDone / onboardingSteps.length) * 100);
+  const showOnboardingChecklist = onboardingDone < onboardingSteps.length;
 
   return (
     <section className="space-y-5 lg:space-y-8">
-      {/* Hero — calmer on mobile, full treatment on lg+ */}
-      <header className="rounded-xl border border-slate-200/90 bg-gradient-to-br from-slate-50 to-blue-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8 lg:shadow-none">
-        <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Overview</p>
-          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">{club.name}</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">{club.description}</p>
+      <PageIntro
+        kicker="Overview"
+        title={club.name}
+        description={club.description}
+        actions={
+          canInviteMembers || canCreateEvents ? (
+            <>
+              {canInviteMembers ? (
+                <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-primary">
+                  Invite Members
+                </Link>
+              ) : null}
+              {canCreateEvents ? (
+                <Link href={`/clubs/${club.id}/events#create-event`} className="btn-secondary">
+                  Create Event
+                </Link>
+              ) : null}
+            </>
+          ) : undefined
+        }
+      />
 
-          <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:grid-cols-3 sm:gap-4 md:gap-6">
+      <CardSection className="bg-gradient-to-br from-slate-50 to-blue-50/40">
+        <SectionHeader
+          kicker="Snapshot"
+          title="Club status at a glance"
+          description="Members, your role, and activity state."
+        />
+        <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:grid-cols-3 sm:gap-4 md:gap-6">
             <div className="flex items-center gap-2 rounded-lg border border-white/60 bg-white/50 px-2 py-2 sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
                 <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -189,7 +132,7 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
                 </svg>
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Members</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Members</p>
                 <p className="text-lg font-bold tabular-nums text-slate-900 sm:text-xl">{memberCount}</p>
               </div>
             </div>
@@ -201,7 +144,7 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
                 </svg>
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Role</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Role</p>
                 <p className="truncate text-lg font-bold capitalize text-slate-900 sm:text-xl">{club.currentUserRole}</p>
               </div>
             </div>
@@ -213,54 +156,63 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
                 </svg>
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Status</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal">Status</p>
                 <p className="text-lg font-bold text-slate-900 sm:text-xl">
                   {club.events.length > 0 ? "Active" : "Starting"}
                 </p>
               </div>
             </div>
           </div>
+      </CardSection>
 
-          {(canInviteMembers || canCreateEvents) && (
-            <div className="mt-4 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3 lg:mt-8">
-              {canInviteMembers && (
-                <Link
-                  href={`/clubs/${club.id}/members#invite-members`}
-                  className="btn-primary w-full px-6 py-3 text-center text-base font-semibold sm:w-auto"
-                >
-                  Invite Members
-                </Link>
-              )}
-              {canCreateEvents && (
-                <Link
-                  href={`/clubs/${club.id}/events#create-event`}
-                  className="btn-secondary w-full px-6 py-3 text-center text-base font-semibold sm:w-auto"
-                >
-                  Create Event
-                </Link>
-              )}
-              {myTasks.length > 0 && (
-                <Link
-                  href={`/clubs/${club.id}/tasks`}
-                  className="btn-secondary w-full px-6 py-3 text-center text-base font-semibold sm:w-auto"
-                >
-                  View My Tasks ({myTasks.length})
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
-      </header>
+      {showOnboardingChecklist ? (
+        <CardSection>
+          <SectionHeader
+            kicker="Getting started"
+            title="Launch checklist"
+            description="Quick wins to make this club feel active for members immediately."
+            action={<span className="badge-soft">{onboardingDone}/{onboardingSteps.length} complete</span>}
+          />
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-[width] duration-300"
+              style={{ width: `${onboardingPercent}%` }}
+            />
+          </div>
+          <ul className="mt-4 space-y-2">
+            {onboardingSteps.map((step) => (
+              <li
+                key={step.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className={`text-sm font-semibold ${step.done ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                    {step.title}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-600">{step.description}</p>
+                </div>
+                {step.done ? (
+                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                    Done
+                  </span>
+                ) : (
+                  <Link href={step.href} className="btn-secondary shrink-0 text-xs">
+                    {step.cta}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </CardSection>
+      ) : null}
 
       {/* Important now — lighter tiles on mobile */}
-      <div className="card-surface p-4 shadow-sm sm:p-5 lg:p-6 lg:shadow-[var(--shadow-soft)]">
-        <div className="section-card-header">
-          <div>
-            <p className="section-kicker">Now</p>
-            <h2 className="mt-0.5 text-base font-semibold tracking-tight text-slate-900">What matters</h2>
-            <p className="mt-0.5 text-xs text-slate-600 sm:text-sm">Next event, news, your tasks, and a quick pulse.</p>
-          </div>
-        </div>
+      <CardSection className="shadow-sm lg:shadow-[var(--shadow-soft)]">
+        <SectionHeader
+          kicker="Now"
+          title="What matters"
+          description="Next event, latest announcement, task load, and quick health signals."
+        />
 
         <div className="mt-3 grid grid-cols-1 gap-2 sm:mt-4 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 lg:gap-4">
           <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-blue-500 sm:bg-white sm:p-4">
@@ -362,7 +314,34 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
             </div>
           </div>
         </div>
-      </div>
+      </CardSection>
+
+      <CardSection>
+        <SectionHeader
+          kicker="Tools"
+          title="Secondary workspace tools"
+          description="Power features stay available without crowding the main overview."
+        />
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <Link
+            href={`/clubs/${club.id}/tasks`}
+            className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-medium text-slate-800 transition hover:bg-slate-100"
+          >
+            Tasks {myTasks.length > 0 ? `(${myTasks.length} open)` : ""}
+          </Link>
+          <Link
+            href={`/clubs/${club.id}/members/volunteer-hours`}
+            className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-medium text-slate-800 transition hover:bg-slate-100"
+          >
+            Volunteer hours
+          </Link>
+        </div>
+        {myTasks.length === 0 ? (
+          <div className="mt-3">
+            <PageEmptyState title="No open tasks" copy="You can still open Tasks to create or review assignments." />
+          </div>
+        ) : null}
+      </CardSection>
 
       {/* Attention Needed — shown to users with management permissions */}
       {showManagementAlerts && (
@@ -370,7 +349,18 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
       )}
 
       {/* Recent Activity — visible to all members */}
-      <ClubActivityFeed items={activityItems} />
+      <ActivityFeed
+        items={activityItems.slice(0, 8)}
+        title="Recent activity"
+        description="Latest actions in this club."
+        viewMoreHref="/activity"
+        emptyHint="As members RSVP, officers post updates, and attendance gets marked, activity shows up here."
+        emptyAction={
+          <Link href={`/clubs/${club.id}/announcements`} className="btn-primary">
+            Post first update
+          </Link>
+        }
+      />
     </section>
   );
 }

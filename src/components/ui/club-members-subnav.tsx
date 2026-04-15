@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ResponsiveSubnav } from "@/components/ui/responsive-subnav";
 
 type ClubMembersSubnavProps = {
   clubId: string;
@@ -13,26 +13,12 @@ export function ClubMembersSubnav({ clubId }: ClubMembersSubnavProps) {
   const volunteerHref = `/clubs/${clubId}/members/volunteer-hours`;
   const isRoster = pathname === rosterHref;
   const isVolunteer = pathname.startsWith(volunteerHref);
-
-  const linkClass = (active: boolean) =>
-    `inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold transition sm:py-2 ${
-      active
-        ? "bg-slate-900 text-white shadow-sm"
-        : "border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
-    }`;
+  const items = [
+    { label: "Roster", href: rosterHref, active: isRoster },
+    { label: "Volunteer hours", href: volunteerHref, active: isVolunteer },
+  ];
 
   return (
-    <nav aria-label="Members sections" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-      <Link href={rosterHref} className={linkClass(isRoster)} aria-current={isRoster ? "page" : undefined}>
-        Roster
-      </Link>
-      <Link
-        href={volunteerHref}
-        className={linkClass(isVolunteer)}
-        aria-current={isVolunteer ? "page" : undefined}
-      >
-        Volunteer hours
-      </Link>
-    </nav>
+    <ResponsiveSubnav items={items} ariaLabel="Members sections" pickerLabel="Members section" />
   );
 }

@@ -179,6 +179,14 @@ a {
     transform var(--transition-base);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .card-surface:hover {
+    border-color: rgb(203 213 225 / 0.95);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-hover);
+  }
+}
+
 .empty-state {
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-lg);
@@ -329,6 +337,12 @@ a {
   gap: 1rem;
 }
 
+.list-stack > * {
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
 .action-link {
   display: inline-flex;
   align-items: center;
@@ -438,7 +452,8 @@ a {
 
 .btn-primary:active,
 .btn-secondary:active {
-  transform: translateY(0.5px) scale(0.99);
+  transform: translateY(0.5px) scale(0.985);
+  filter: saturate(0.95);
 }
 
 .btn-primary:focus-visible,
@@ -482,7 +497,8 @@ a {
 }
 
 .btn-danger:active {
-  transform: translateY(0.5px) scale(0.99);
+  transform: translateY(0.5px) scale(0.985);
+  filter: saturate(0.95);
 }
 
 .alert-success,
@@ -1109,7 +1125,8 @@ button.surface-subcard:active {
   outline: none;
   transition:
     background-color 160ms ease,
-    box-shadow 160ms ease;
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 @media (min-width: 640px) {
@@ -1120,10 +1137,140 @@ button.surface-subcard:active {
 
 .event-summary-list-link:hover {
   background: rgb(248 250 252 / 0.95);
+  transform: translateX(1px);
 }
 
 .event-summary-list-link:focus-visible {
   box-shadow: inset 0 0 0 2px rgb(59 130 246 / 0.45);
+}
+
+.disclosure-panel-summary {
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.disclosure-panel[open] .disclosure-panel-summary {
+  background: rgb(248 250 252 / 0.7);
+}
+
+.disclosure-panel-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 180ms ease;
+  opacity: 0.9;
+}
+
+.disclosure-panel[open] .disclosure-panel-body {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.disclosure-panel-body-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.activity-feed-item {
+  animation: activity-feed-enter 360ms ease both;
+  animation-delay: calc(var(--activity-index, 0) * 42ms);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.activity-feed-item--fresh {
+  animation:
+    activity-feed-enter 360ms ease both,
+    activity-feed-fresh 900ms ease-out both;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .activity-feed-item:hover {
+    border-color: rgb(191 219 254);
+    background-color: rgb(239 246 255 / 0.55);
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes activity-feed-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes activity-feed-fresh {
+  0% {
+    box-shadow: inset 0 0 0 999px rgb(219 234 254 / 0.4);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 rgb(219 234 254 / 0);
+  }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: rgb(226 232 240 / 0.72);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgb(148 163 184 / 0) 0%,
+    rgb(255 255 255 / 0.45) 45%,
+    rgb(148 163 184 / 0) 100%
+  );
+  animation: skeleton-shimmer 1.15s ease-in-out infinite;
+}
+
+.skeleton-text {
+  height: 0.8rem;
+  border-radius: 999px;
+}
+
+.skeleton-block {
+  border-radius: 1rem;
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-surface,
+  .surface-subcard,
+  .event-card,
+  .event-summary-list-link,
+  .activity-feed-item,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .disclosure-panel-body,
+  .disclosure-panel-summary {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .skeleton::after {
+    animation: none !important;
+  }
 }
 
 .event-meta-row {

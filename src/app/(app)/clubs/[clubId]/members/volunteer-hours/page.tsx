@@ -6,6 +6,7 @@ import { getMembersWithRoles } from "@/lib/rbac/role-actions";
 import { ClubVolunteerHoursOverview } from "@/components/ui/club-volunteer-hours-overview";
 import { getClubDetailForVolunteerHoursForCurrentUser } from "@/lib/clubs/queries";
 import { mergeClubRosterIdentities } from "@/lib/clubs/merge-club-roster-identities";
+import { PageIntro } from "@/components/ui/page-intro";
 
 export default async function ClubVolunteerHoursPage({ params }: { params: Promise<{ clubId: string }> }) {
   const { clubId } = await params;
@@ -32,24 +33,16 @@ export default async function ClubVolunteerHoursPage({ params }: { params: Promi
 
   return (
     <section className="space-y-4 lg:space-y-6">
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-emerald-50/50 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
-        <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Members</p>
-          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Volunteer hours</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base sm:text-lg text-slate-700">
-            See every member&apos;s club service total and open a row to review entries or log time
-            {canManageVolunteerHours ? "" : " (read-only for you)"}.
-          </p>
-          <div className="mt-4">
-            <Link
-              href={`/clubs/${clubId}/members`}
-              className="text-sm font-semibold text-emerald-800 underline-offset-2 hover:underline"
-            >
-              ← Back to roster
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PageIntro
+        kicker="Members"
+        title="Volunteer hours"
+        description={`See each member's service total and open a row to review entries or log time${canManageVolunteerHours ? "" : " (read-only for you)"}.`}
+        actions={
+          <Link href={`/clubs/${clubId}/members`} className="btn-secondary">
+            Back to roster
+          </Link>
+        }
+      />
 
       <ClubVolunteerHoursOverview clubId={clubId} members={clubForUi.members} canManage={canManageVolunteerHours} />
     </section>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { markMemberAlumniAction, removeMemberAction, updateMemberRoleAction } from "@/app/(app)/clubs/actions";
 import { ClubCommitteesPanel } from "@/components/ui/club-committees-panel";
 import { ClubTeamsPanel } from "@/components/ui/club-teams-panel";
@@ -12,6 +12,8 @@ import { MemberBulkActionsToolbar } from "@/components/ui/member-bulk-actions-to
 import { MemberImportPanel } from "@/components/ui/member-import-panel";
 import { ClubDuesTermEditDialog } from "@/components/ui/club-dues-term-edit-dialog";
 import { MemberProfileDialog } from "@/components/ui/member-profile-dialog";
+import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
+import { PageIntro } from "@/components/ui/page-intro";
 import { formatVolunteerHoursAmount } from "@/components/ui/volunteer-hours-panel";
 import type { ClubMembersPagePermissionGates } from "@/lib/clubs/member-management-access";
 import {
@@ -316,6 +318,7 @@ export function ClubMembersSection({
   const showBulkMemberChrome =
     !isArchived
     && (canManageMemberTags || canManageCommittees || canManageTeams || canRemoveMembers);
+  const showAdvancedMemberTools = canManageMemberDues || canManageCommittees || canManageTeams;
   const showInvite = canInviteMembers && !isArchived;
   const showManagement = hasAnyManagementPermission && !isArchived;
 
@@ -370,16 +373,14 @@ export function ClubMembersSection({
     canSeeInactiveEngagement,
   ]);
 
-  useEffect(() => {
+  const visibleBulkSelected = useMemo(() => {
     const visible = new Set(filteredMembers.map((m) => m.userId));
-    setBulkSelected((prev) => {
-      const next = new Set<string>();
-      for (const id of prev) {
-        if (visible.has(id)) next.add(id);
-      }
-      return next;
-    });
-  }, [filteredMembers]);
+    const next = new Set<string>();
+    for (const id of bulkSelected) {
+      if (visible.has(id)) next.add(id);
+    }
+    return next;
+  }, [bulkSelected, filteredMembers]);
 
   function clearRosterFilters() {
     setRosterSearch("");
@@ -405,18 +406,26 @@ export function ClubMembersSection({
   return (
     <section className="space-y-6">
 
-      {/* Page header */}
-      <header className="card-surface border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-indigo-50 p-5 sm:p-8">
-        <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">People</p>
-          <h1 className="section-title mt-2 text-2xl sm:mt-3 sm:text-3xl md:text-4xl">Members</h1>
-          <p className="section-subtitle mt-3 max-w-2xl text-base sm:mt-4 sm:text-lg text-slate-700">
-            {hasAnyManagementPermission
-              ? "Manage who is in this club, review attendance history, and invite new members."
-              : "See who is part of this club and how everyone is doing."}
-          </p>
+      <PageIntro
+        kicker="People"
+        title="Members"
+        description={
+          hasAnyManagementPermission
+            ? "Manage membership, review attendance history, and coordinate club participation."
+            : "See who is part of this club and how everyone is doing."
+        }
+        actions={
+          showInvite ? (
+            <a href="#invite-members" className="btn-primary">
+              Invite Members
+            </a>
+          ) : undefined
+        }
+      />
 
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
+      <CardSection className="bg-gradient-to-br from-slate-50 to-indigo-50/40">
+        <SectionHeader kicker="Snapshot" title="Membership overview" description="Active members, officers, and attendance context." />
+        <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
             <div>
               <p className="text-2xl font-bold text-slate-900">{memberCount}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
@@ -446,24 +455,12 @@ export function ClubMembersSection({
               </>
             )}
           </div>
-
-          {showInvite && (
-            <div className="mt-6 sm:mt-8">
-              <a
-                href="#invite-members"
-                className="btn-primary block w-full px-6 py-3 text-center text-base font-semibold sm:inline-block sm:w-auto"
-              >
-                Invite Members
-              </a>
-            </div>
-          )}
           {isArchived && (
             <p className="mt-6 text-sm font-medium text-amber-900">
               This club is archived — inviting new members is disabled.
             </p>
           )}
-        </div>
-      </header>
+      </CardSection>
 
       {/* Invite tools — requires members.invite permission */}
       {showInvite && (
@@ -480,11 +477,22 @@ export function ClubMembersSection({
         <ClubJoinRequestsPanel clubId={club.id} requests={pendingJoinRequests} />
       ) : null}
 
-      {canManageMemberDues ? (
-        <section
-          className="card-surface overflow-hidden border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/45 p-5 shadow-sm sm:p-6"
-          aria-labelledby="club-dues-summary-heading"
-        >
+      {showAdvancedMemberTools ? (
+        <details className="card-surface overflow-hidden p-0 open:shadow-md">
+          <summary className="section-card-header cursor-pointer list-none px-5 py-4 [&::-webkit-details-marker]:hidden">
+            <div>
+              <p className="section-kicker">Advanced</p>
+              <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Dues, committees, and teams</h2>
+              <p className="mt-1 text-xs text-slate-600 sm:text-sm">Expanded only when you need deeper management tools.</p>
+            </div>
+            <span className="badge-soft">Manage</span>
+          </summary>
+          <div className="space-y-4 border-t border-slate-100 px-4 py-4 sm:px-5">
+            {canManageMemberDues ? (
+              <section
+                className="card-surface overflow-hidden border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/45 p-5 shadow-sm sm:p-6"
+                aria-labelledby="club-dues-summary-heading"
+              >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1 space-y-3">
               <div>
@@ -622,7 +630,28 @@ export function ClubMembersSection({
               {isArchived ? "Term locked" : duesSettings ? "Edit club dues term" : "Set club dues term"}
             </button>
           </div>
-        </section>
+              </section>
+            ) : null}
+
+            {canManageCommittees ? (
+              <ClubCommitteesPanel
+                clubId={club.id}
+                committees={club.clubCommittees}
+                canManage={canManageCommittees}
+                isArchived={isArchived}
+              />
+            ) : null}
+
+            {canManageTeams ? (
+              <ClubTeamsPanel
+                clubId={club.id}
+                teams={club.clubTeams}
+                canManage={canManageTeams}
+                isArchived={isArchived}
+              />
+            ) : null}
+          </div>
+        </details>
       ) : null}
 
       {/* Getting started — management users only, hidden once all steps are done */}
@@ -635,33 +664,22 @@ export function ClubMembersSection({
         />
       )}
 
-      <ClubCommitteesPanel
-        clubId={club.id}
-        committees={club.clubCommittees}
-        canManage={canManageCommittees}
-        isArchived={isArchived}
-      />
-
-      <ClubTeamsPanel
-        clubId={club.id}
-        teams={club.clubTeams}
-        canManage={canManageTeams}
-        isArchived={isArchived}
-      />
-
       {/* Member roster */}
-      <div className="card-surface p-5 sm:p-6" id="members">
+      <CardSection className="sm:p-6" id="members">
         <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="min-w-0 flex-1">
-            <p className="section-kicker">Roster</p>
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h2 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">Member directory</h2>
-              <span className="badge-soft text-[11px]">
-                {hasActiveFilters
-                  ? `${filteredMembers.length} / ${rosterTotalCount} shown`
-                  : `${rosterTotalCount} total`}
-              </span>
-            </div>
+            <SectionHeader
+              kicker="Roster"
+              title="Member directory"
+              description="Open a member for full detail, including tags, committees, skills, availability, volunteer hours, and attendance."
+              action={
+                <span className="badge-soft text-[11px]">
+                  {hasActiveFilters
+                    ? `${filteredMembers.length} / ${rosterTotalCount} shown`
+                    : `${rosterTotalCount} total`}
+                </span>
+              }
+            />
             <p className="mt-2 text-sm text-slate-600">
               {memberCount} active
               {alumniCount > 0 ? ` · ${alumniCount} alumni` : ""} · {officerCount}{" "}
@@ -672,9 +690,6 @@ export function ClubMembersSection({
               likelyInactiveCount > 0
                 ? ` · ${likelyInactiveCount} likely inactive`
                 : null}
-            </p>
-            <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-              Open a member for full detail — tags, committees, skills, availability, volunteer hours, and attendance.
             </p>
           </div>
           {(canImportMemberList && !isArchived) || canExportMemberRoster ? (
@@ -884,7 +899,7 @@ export function ClubMembersSection({
             clubId={club.id}
             clubName={club.name}
             currentUserId={club.currentUserId}
-            selectedUserIds={Array.from(bulkSelected)}
+            selectedUserIds={Array.from(visibleBulkSelected)}
             onClearSelection={() => setBulkSelected(new Set())}
             canManageMemberTags={canManageMemberTags}
             canManageCommittees={canManageCommittees}
@@ -897,55 +912,44 @@ export function ClubMembersSection({
         ) : null}
 
         {rosterTotalCount === 0 ? (
-          <div className="mt-6 flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center">
-            <div
-              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400"
-              aria-hidden
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
-                />
-              </svg>
-            </div>
-            <p className="mt-4 font-semibold text-slate-900">No members yet</p>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">
-              {canInviteMembers
-                ? "Share your join code above to invite people."
-                : "You're the first one here."}
-            </p>
+          <div className="mt-6">
+            <PageEmptyState
+              title="No members yet"
+              copy={
+                canInviteMembers
+                  ? "Invite classmates to make this workspace collaborative. Your join code and invite tools are ready above."
+                  : "You are the first member. Ask an officer for an invite link or join code to bring more people in."
+              }
+              action={
+                canInviteMembers ? (
+                  <a href="#invite-members" className="btn-primary">
+                    Invite first members
+                  </a>
+                ) : null
+              }
+            />
           </div>
         ) : filteredMembers.length === 0 ? (
-          <div className="mt-6 flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center">
-            <div
-              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400"
-              aria-hidden
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-                />
-              </svg>
-            </div>
-            <p className="mt-4 font-semibold text-slate-900">No members match</p>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">
-              {engagementFilter === "likely_inactive" && canSeeInactiveEngagement
-                ? "No one is flagged as likely inactive right now, or another filter is hiding everyone."
-                : "Try a different search, adjust status or role, or clear filters."}
-            </p>
-            {hasActiveFilters ? (
-              <button
-                type="button"
-                onClick={clearRosterFilters}
-                className="btn-primary mt-5 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold"
-              >
-                Clear filters
-              </button>
-            ) : null}
+          <div className="mt-6">
+            <PageEmptyState
+              title="No members match current filters"
+              copy={
+                engagementFilter === "likely_inactive" && canSeeInactiveEngagement
+                  ? "No one is currently flagged as likely inactive, or another filter is hiding results."
+                  : "Try a different search term or adjust role/status filters."
+              }
+              action={
+                hasActiveFilters ? (
+                  <button
+                    type="button"
+                    onClick={clearRosterFilters}
+                    className="btn-primary"
+                  >
+                    Clear filters
+                  </button>
+                ) : null
+              }
+            />
           </div>
         ) : (
           <ul className="list-stack member-roster-list mt-4" aria-label="Club member roster">
@@ -980,7 +984,7 @@ export function ClubMembersSection({
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                          checked={bulkSelected.has(member.userId)}
+                          checked={visibleBulkSelected.has(member.userId)}
                           onChange={() => toggleBulkMember(member.userId)}
                           disabled={isCurrentUser}
                           title={isCurrentUser ? "You cannot bulk-change your own account from here." : undefined}
@@ -1210,7 +1214,7 @@ export function ClubMembersSection({
             })}
           </ul>
         )}
-      </div>
+      </CardSection>
 
       <MemberProfileDialog
         open={profileUserId !== null}

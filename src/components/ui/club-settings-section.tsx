@@ -3,6 +3,8 @@ import type { ClubRole, MemberWithRoles } from "@/lib/rbac/role-actions";
 import type { PermissionKey } from "@/lib/rbac/permissions";
 import { RolePermissionEditor } from "@/components/ui/role-permission-editor";
 import { CreateRolePanel } from "@/components/ui/create-role-panel";
+import { CardSection, PageEmptyState } from "@/components/ui/page-patterns";
+import { PageIntro } from "@/components/ui/page-intro";
 
 type ClubSettingsSectionProps = {
   clubId: string;
@@ -38,17 +40,18 @@ export function ClubSettingsSection({
   return (
     <section className="space-y-4 lg:space-y-6">
 
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-violet-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8">
-        <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Settings</p>
-          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Roles &amp; permissions</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base text-slate-700">
-            {isPresident
-              ? "Control who can do what in your club. Create custom roles and fine-tune permissions for each one."
-              : "See how roles and permissions are configured for this club."}
-          </p>
+      <PageIntro
+        kicker="Settings"
+        title="Roles & permissions"
+        description={
+          isPresident
+            ? "Control who can do what in your club. Create custom roles and fine-tune permissions."
+            : "See how roles and permissions are configured for this club."
+        }
+      />
 
-          <div className="mt-4 grid grid-cols-3 gap-2.5 sm:mt-5 sm:gap-3 lg:mt-6">
+      <CardSection className="bg-gradient-to-br from-slate-50 to-violet-50/50">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
             <div className="rounded-lg border border-slate-200/90 bg-white/80 px-3 py-2.5">
               <p className="text-xl font-bold text-slate-900 sm:text-2xl">{roles.length}</p>
               <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Roles</p>
@@ -71,8 +74,7 @@ export function ClubSettingsSection({
               You have read-only access. Only Presidents can edit roles and permissions.
             </div>
           )}
-        </div>
-      </header>
+      </CardSection>
 
       {/* Status banners */}
       {success && (
@@ -173,15 +175,7 @@ export function ClubSettingsSection({
               unassignedMembers={unassignedMembers}
             />
           ) : (
-            <div className="empty-state">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <p className="empty-state-title">No roles yet</p>
-              <p className="empty-state-copy">Select a role from the left to view or edit it.</p>
-            </div>
+            <PageEmptyState title="No roles yet" copy="Select a role from the left to view or edit it." />
           )}
         </div>
       </div>

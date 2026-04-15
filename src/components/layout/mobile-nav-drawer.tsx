@@ -4,15 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
+import { APP_PRIMARY_NAV, APP_SECONDARY_NAV } from "@/components/layout/navigation-config";
 import type { UserClub } from "@/lib/clubs/queries";
-
-const PRIMARY_LINKS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/notifications", label: "Notifications" },
-  { href: "/clubs/join", label: "Join Club" },
-] as const;
-
-const SECONDARY_LINKS = [{ href: "/clubs/create", label: "Start a club" }] as const;
+import { isPathActive } from "@/lib/routing/nav-active";
 
 type MobileNavDrawerProps = {
   clubs: UserClub[];
@@ -90,8 +84,8 @@ export function MobileNavDrawer({ clubs }: MobileNavDrawerProps) {
         <div className="flex-1 overflow-y-auto overscroll-y-contain px-3 py-4 [-webkit-overflow-scrolling:touch]">
           <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Navigate</p>
           <ul className="space-y-1" role="list">
-            {PRIMARY_LINKS.map((link) => {
-              const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
+            {APP_PRIMARY_NAV.map((link) => {
+              const active = isPathActive(pathname, link.href, link.match);
               return (
                 <li key={link.href}>
                   <Link
@@ -111,8 +105,8 @@ export function MobileNavDrawer({ clubs }: MobileNavDrawerProps) {
 
           <p className="mt-5 px-3 pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">More</p>
           <ul className="space-y-1" role="list">
-            {SECONDARY_LINKS.map((link) => {
-              const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
+            {APP_SECONDARY_NAV.map((link) => {
+              const active = isPathActive(pathname, link.href, link.match);
               return (
                 <li key={link.href}>
                   <Link

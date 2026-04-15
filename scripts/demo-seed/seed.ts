@@ -29,6 +29,35 @@ function daysAgoCreated(days: number): string {
   return d.toISOString();
 }
 
+type SeedActivityEventRow = {
+  type: "announcement.created" | "event.created" | "rsvp.submitted" | "attendance.marked" | "role.assigned";
+  actor_id: string;
+  club_id: string;
+  entity_id?: string | null;
+  target_label: string;
+  href?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+};
+
+async function insertSeedActivityEvents(
+  admin: SupabaseClient,
+  clubId: string,
+  rows: SeedActivityEventRow[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await admin.from("activity_events").insert(rows);
+  if (!error) return;
+
+  // Keep seed compatibility for environments that have not applied activity_events migration yet.
+  if (error.code === "42P01") {
+    console.warn(`[demo-seed] activity_events missing; skipping feed rows for ${clubId}`);
+    return;
+  }
+
+  throw error;
+}
+
 export async function createDemoAuthUsers(admin: SupabaseClient): Promise<UserIds> {
   const map: UserIds = new Map();
 
@@ -184,15 +213,18 @@ async function seedClubContent(
     },
   ];
 
-  const { error: annErr } = await admin.from("announcements").insert(
-    announcements.map((a) => ({
-      club_id: clubId,
-      title: a.title,
-      content: a.content,
-      created_by: presidentId,
-      created_at: daysAgoCreated(a.daysAgo),
-    })),
-  );
+  const { data: insertedAnnouncements, error: annErr } = await admin
+    .from("announcements")
+    .insert(
+      announcements.map((a) => ({
+        club_id: clubId,
+        title: a.title,
+        content: a.content,
+        created_by: presidentId,
+        created_at: daysAgoCreated(a.daysAgo),
+      })),
+    )
+    .select("id, title, created_at, created_by");
   if (annErr) throw annErr;
 
   const eventSpecs: Array<{
@@ -541,4 +573,76 @@ async function seedClubContent(
     });
     if (aud3) throw aud3;
   }
+
+  const eventTitleById = new Map(eventRows.map((event, index) => [event.id, eventSpecs[index]?.title ?? "Event"]));
+  const sampleRsvps = rsvpRows.slice(0, Math.min(24, rsvpRows.length));
+  const sampleAttendance = attendanceRows.slice(0, Math.min(18, attendanceRows.length));
+  const activityRows: SeedActivityEventRow[] = [];
+
+  for (const ann of insertedAnnouncements ?? []) {
+    activityRows.push({
+      type: "announcement.created",
+      actor_id: ann.created_by as string,
+      club_id: clubId,
+      entity_id: ann.id as string,
+      target_label: ann.title as string,
+      href: `/clubs/${clubId}/announcements#announcement-${ann.id as string}`,
+      metadata: { seeded: true },
+      created_at: ann.created_at as string,
+    });
+  }
+
+  for (const [index, event] of eventRows.entries()) {
+    activityRows.push({
+      type: "event.created",
+      actor_id: presidentId,
+      club_id: clubId,
+      entity_id: event.id,
+      target_label: eventSpecs[index]?.title ?? "Event",
+      href: `/clubs/${clubId}/events#event-${event.id}`,
+      metadata: { seeded: true },
+      created_at: daysAgoCreated(Math.max(1, 16 - index * 2)),
+    });
+  }
+
+  for (const rsvp of sampleRsvps) {
+    activityRows.push({
+      type: "rsvp.submitted",
+      actor_id: rsvp.user_id,
+      club_id: clubId,
+      entity_id: rsvp.event_id,
+      target_label: eventTitleById.get(rsvp.event_id) ?? "Event",
+      href: `/clubs/${clubId}/events#event-${rsvp.event_id}`,
+      metadata: { status: rsvp.status, seeded: true },
+      created_at: daysAgoCreated(9),
+    });
+  }
+
+  for (const attendance of sampleAttendance) {
+    activityRows.push({
+      type: "attendance.marked",
+      actor_id: attendance.marked_by,
+      club_id: clubId,
+      entity_id: attendance.event_id,
+      target_label: eventTitleById.get(attendance.event_id) ?? "Event",
+      href: `/clubs/${clubId}/events#event-${attendance.event_id}`,
+      metadata: { marked_user_id: attendance.user_id, seeded: true },
+      created_at: attendance.marked_at,
+    });
+  }
+
+  if (officerRoleRow?.id && officerUserIds[1]) {
+    activityRows.push({
+      type: "role.assigned",
+      actor_id: presidentId,
+      club_id: clubId,
+      entity_id: null,
+      target_label: "Officer",
+      href: `/clubs/${clubId}/members`,
+      metadata: { target_user_id: officerUserIds[1], role_id: officerRoleRow.id, seeded: true },
+      created_at: daysAgoCreated(18),
+    });
+  }
+
+  await insertSeedActivityEvents(admin, clubId, activityRows);
 }

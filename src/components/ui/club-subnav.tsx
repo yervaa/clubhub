@@ -5,27 +5,29 @@ import { usePathname, useRouter } from "next/navigation";
 
 type ClubSubnavProps = {
   clubId: string;
+  canViewSettings?: boolean;
 };
 
-const CLUB_TABS = [
+const CLUB_PRIMARY_TABS = [
   { label: "Overview", href: "" },
+  { label: "Announcements", href: "/announcements" },
   { label: "Events", href: "/events" },
   { label: "Members", href: "/members" },
-  { label: "Announcements", href: "/announcements" },
-  { label: "Tasks", href: "/tasks" },
   { label: "Insights", href: "/insights" },
-  { label: "Settings", href: "/settings" },
 ] as const;
 
-export function ClubSubnav({ clubId }: ClubSubnavProps) {
+export function ClubSubnav({ clubId, canViewSettings = false }: ClubSubnavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const basePath = `/clubs/${clubId}`;
+  const tabs = canViewSettings
+    ? [...CLUB_PRIMARY_TABS, { label: "Settings", href: "/settings" as const }]
+    : CLUB_PRIMARY_TABS;
 
   function activeHrefForPicker(): string {
-    for (const tab of CLUB_TABS) {
+    for (const tab of tabs) {
       const href = `${basePath}${tab.href}`;
-      if (tab.href === "/settings" || tab.href === "/tasks") {
+      if (tab.href === "/settings") {
         if (pathname.startsWith(href)) return href;
       } else if (pathname === href) {
         return href;
@@ -35,6 +37,7 @@ export function ClubSubnav({ clubId }: ClubSubnavProps) {
     if (pathname.startsWith(`${basePath}/members`)) return `${basePath}/members`;
     if (pathname.startsWith(`${basePath}/announcements`)) return `${basePath}/announcements`;
     if (pathname.startsWith(`${basePath}/insights`)) return `${basePath}/insights`;
+    if (pathname.startsWith(`${basePath}/settings`) && canViewSettings) return `${basePath}/settings`;
     return basePath;
   }
 
@@ -53,7 +56,7 @@ export function ClubSubnav({ clubId }: ClubSubnavProps) {
           onChange={(e) => router.push(e.target.value)}
           className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-3 pr-10 text-sm font-semibold text-slate-800 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
         >
-          {CLUB_TABS.map((tab) => {
+          {tabs.map((tab) => {
             const href = `${basePath}${tab.href}`;
             return (
               <option key={href} value={href}>
@@ -67,10 +70,10 @@ export function ClubSubnav({ clubId }: ClubSubnavProps) {
       {/* Desktop: horizontal tabs */}
       <div className="club-subnav hidden lg:block">
         <ul className="club-subnav-list" role="list">
-          {CLUB_TABS.map((tab) => {
+          {tabs.map((tab) => {
             const href = `${basePath}${tab.href}`;
             const isActive =
-              tab.href === "/settings" || tab.href === "/tasks"
+              tab.href === "/settings"
                 ? pathname.startsWith(href)
                 : tab.href === "/members"
                   ? pathname === href || pathname.startsWith(`${href}/`)
