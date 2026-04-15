@@ -10,6 +10,7 @@ import { ClubJoinRequestsPanel } from "@/components/ui/club-join-requests-panel"
 import { MemberInvite } from "@/components/ui/member-invite";
 import { MemberBulkActionsToolbar } from "@/components/ui/member-bulk-actions-toolbar";
 import { MemberImportPanel } from "@/components/ui/member-import-panel";
+import { ClubDuesTermEditDialog } from "@/components/ui/club-dues-term-edit-dialog";
 import { MemberProfileDialog } from "@/components/ui/member-profile-dialog";
 import { formatVolunteerHoursAmount } from "@/components/ui/volunteer-hours-panel";
 import type { ClubMembersPagePermissionGates } from "@/lib/clubs/member-management-access";
@@ -20,8 +21,10 @@ import {
 } from "@/lib/clubs/member-engagement-copy";
 import { formatMemberLastEngagementDisplay, MEMBER_INACTIVITY } from "@/lib/clubs/member-inactivity";
 import { computeParticipationScore, participationScoreBand } from "@/lib/clubs/participation-score";
+import { formatClubDuesDueDateLabel, formatClubDuesMoney, isUnpaidDuesPastDue } from "@/lib/clubs/dues-display";
 import type {
   ClubDetail,
+  ClubDuesSettings,
   ClubMember,
   ClubMemberAttendanceHistoryEntry,
   ClubMemberDuesRecord,
@@ -76,6 +79,50 @@ function duesRosterPillClasses(status: ClubMemberDuesRecord["status"]): { label:
         className: "border-slate-200 bg-slate-100 text-slate-700",
       };
   }
+}
+
+function duesRosterPillForMember(
+  record: ClubMemberDuesRecord,
+  duesSettings: ClubDuesSettings | null | undefined,
+): { label: string; className: string } {
+  if (
+    record.status === "unpaid"
+    && duesSettings?.dueDate
+    && isUnpaidDuesPastDue(record.status, duesSettings.dueDate)
+  ) {
+    return {
+      label: "Dues overdue",
+      className: "border-rose-300 bg-rose-100 text-rose-950 ring-1 ring-rose-200/90",
+    };
+  }
+  return duesRosterPillClasses(record.status);
+}
+
+function countDuesStatuses(duesByUserId: Record<string, ClubMemberDuesRecord>) {
+  let paid = 0;
+  let unpaid = 0;
+  let partial = 0;
+  let waivedOrExempt = 0;
+  for (const row of Object.values(duesByUserId)) {
+    switch (row.status) {
+      case "paid":
+        paid++;
+        break;
+      case "unpaid":
+        unpaid++;
+        break;
+      case "partial":
+        partial++;
+        break;
+      case "waived":
+      case "exempt":
+        waivedOrExempt++;
+        break;
+      default:
+        break;
+    }
+  }
+  return { paid, unpaid, partial, waivedOrExempt };
 }
 
 function memberMatchesStatusFilter(member: ClubMember, filter: RosterStatusFilter): boolean {
@@ -180,6 +227,8 @@ type ClubMembersSectionProps = {
   officerNotesByUserId?: Record<string, string>;
   /** Populated only for users who may manage dues; never sent to regular members. */
   duesByUserId?: Record<string, ClubMemberDuesRecord>;
+  /** Current club dues term; leadership-only. */
+  duesSettings?: ClubDuesSettings | null;
   /**
    * Per-member past attendance rows; members page only.
    * Server loads all members’ rows only when `canViewOthersMemberAttendanceHistory`; otherwise the viewer’s user id only.
@@ -196,6 +245,7 @@ export function ClubMembersSection({
   pendingJoinRequests = [],
   officerNotesByUserId,
   duesByUserId,
+  duesSettings = null,
   attendanceHistoryByUserId,
 }: ClubMembersSectionProps) {
   const [rosterSearch, setRosterSearch] = useState("");
@@ -204,6 +254,8 @@ export function ClubMembersSection({
   const [engagementFilter, setEngagementFilter] = useState<RosterEngagementFilter>("all");
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
+  const [duesTermEditOpen, setDuesTermEditOpen] = useState(false);
+  const [duesTermEditKey, setDuesTermEditKey] = useState(0);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(() => new Set());
 
   const activeMembers = club.members.filter((m) => m.membershipStatus === "active");
@@ -260,6 +312,13 @@ export function ClubMembersSection({
   const likelyInactiveCount = canSeeInactiveEngagement
     ? activeMembers.filter((m) => m.likelyInactive).length
     : 0;
+
+  const duesStatusCounts = useMemo(() => {
+    if (!canManageMemberDues || !duesByUserId) {
+      return { paid: 0, unpaid: 0, partial: 0, waivedOrExempt: 0 };
+    }
+    return countDuesStatuses(duesByUserId);
+  }, [canManageMemberDues, duesByUserId]);
 
   const filteredMembers = useMemo(() => {
     let list = club.members;
@@ -392,6 +451,61 @@ export function ClubMembersSection({
 
       {pendingJoinRequests.length > 0 ? (
         <ClubJoinRequestsPanel clubId={club.id} requests={pendingJoinRequests} />
+      ) : null}
+
+      {canManageMemberDues ? (
+        <section
+          className="card-surface border border-teal-100/90 bg-gradient-to-br from-teal-50/80 to-white p-4 shadow-sm sm:p-5"
+          aria-label="Club dues term and status counts"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="section-kicker text-teal-900/80">Dues</p>
+              <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Current term</h2>
+              {duesSettings ? (
+                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800">
+                  <span className="text-slate-900">{duesSettings.label}</span>
+                  <span className="text-slate-500"> · </span>
+                  {formatClubDuesMoney(duesSettings.amountCents, duesSettings.currency)}
+                  <span className="text-slate-500"> · Due </span>
+                  {formatClubDuesDueDateLabel(duesSettings.dueDate)}
+                </p>
+              ) : (
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  Set a label, amount, and due date so the roster and member profiles show the same term everyone is working
+                  toward.
+                </p>
+              )}
+              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-slate-600">
+                <li>
+                  Paid: <span className="text-emerald-800">{duesStatusCounts.paid}</span>
+                </li>
+                <li>
+                  Unpaid: <span className="text-rose-800">{duesStatusCounts.unpaid}</span>
+                </li>
+                <li>
+                  Partial: <span className="text-amber-900">{duesStatusCounts.partial}</span>
+                </li>
+                <li>
+                  Waived / exempt: <span className="text-slate-800">{duesStatusCounts.waivedOrExempt}</span>
+                </li>
+              </ul>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                Counts include only members with a dues status on file (open a profile to set paid, unpaid, and so on).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setDuesTermEditKey((k) => k + 1);
+                setDuesTermEditOpen(true);
+              }}
+              className="btn-secondary inline-flex min-h-10 shrink-0 items-center justify-center self-start px-4 py-2 text-sm font-semibold"
+            >
+              {duesSettings ? "Edit dues term" : "Set dues term"}
+            </button>
+          </div>
+        </section>
       ) : null}
 
       {/* Getting started — management users only, hidden once all steps are done */}
@@ -730,7 +844,7 @@ export function ClubMembersSection({
 
               const duesPill =
                 canManageMemberDues && duesByUserId?.[member.userId]
-                  ? duesRosterPillClasses(duesByUserId[member.userId].status)
+                  ? duesRosterPillForMember(duesByUserId[member.userId], duesSettings)
                   : null;
 
               const hasAffiliationChips =
@@ -1008,10 +1122,20 @@ export function ClubMembersSection({
         officerNotesByUserId={officerNotesByUserId}
         canManageMemberDues={canManageMemberDues}
         duesByUserId={duesByUserId}
+        duesSettings={duesSettings}
         attendanceHistoryByUserId={attendanceHistoryByUserId}
         canViewMemberContact={canViewMemberContact}
         canSeeInactiveEngagement={canSeeInactiveEngagement}
         canViewOthersMemberAttendanceHistory={canViewOthersMemberAttendanceHistory}
+      />
+
+      <ClubDuesTermEditDialog
+        key={duesTermEditKey}
+        open={duesTermEditOpen}
+        onClose={() => setDuesTermEditOpen(false)}
+        clubId={club.id}
+        isArchived={isArchived}
+        initial={duesSettings ?? null}
       />
 
     </section>

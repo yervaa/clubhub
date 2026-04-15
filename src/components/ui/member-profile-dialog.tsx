@@ -30,12 +30,14 @@ import {
   deleteClubMemberTagAction,
   removeClubMemberTagAction,
 } from "@/app/(app)/clubs/member-tag-actions";
+import { formatDuesTermSummaryLine } from "@/lib/clubs/dues-display";
 import type {
   ClubMember,
   ClubCommitteeSummary,
   ClubMemberAttendanceHistoryEntry,
   ClubMemberDuesRecord,
   ClubMemberTag,
+  ClubDuesSettings,
   ClubTeamSummary,
 } from "@/lib/clubs/queries";
 import { formatEventDateMedium, formatEventTimeShort, parseEventInstant } from "@/lib/events/format-event-display";
@@ -85,6 +87,8 @@ type MemberProfileDialogProps = {
   /** Leadership-only dues status; when false, section is hidden and no map is passed from the server. */
   canManageMemberDues: boolean;
   duesByUserId?: Record<string, ClubMemberDuesRecord>;
+  /** Club-wide dues term; leadership-only. */
+  duesSettings?: ClubDuesSettings | null;
   /**
    * Past events where this member was marked present; server may include only the viewer when they lack
    * `canViewOthersMemberAttendanceHistory`.
@@ -832,11 +836,13 @@ function MemberProfileDuesBlock({
   clubId,
   member,
   initialRecord,
+  duesTerm,
   canEdit,
 }: {
   clubId: string;
   member: ClubMember;
   initialRecord: ClubMemberDuesRecord | null;
+  duesTerm: ClubDuesSettings | null;
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -880,6 +886,12 @@ function MemberProfileDuesBlock({
       <p className="mt-1 text-xs leading-relaxed text-teal-950/85">
         Leadership-only — not shown on the public roster list to regular members or included in roster CSV export.
       </p>
+
+      {duesTerm ? (
+        <p className="mt-3 rounded-lg border border-teal-200/80 bg-white/90 px-3 py-2 text-sm font-medium text-slate-800">
+          <span className="text-teal-950">Term:</span> {formatDuesTermSummaryLine(duesTerm)}
+        </p>
+      ) : null}
 
       {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
 
@@ -1145,6 +1157,7 @@ export function MemberProfileDialog({
   officerNotesByUserId,
   canManageMemberDues,
   duesByUserId,
+  duesSettings = null,
   attendanceHistoryByUserId,
   canViewMemberContact,
   canSeeInactiveEngagement = false,
@@ -1465,6 +1478,7 @@ export function MemberProfileDialog({
               clubId={clubId}
               member={member}
               initialRecord={duesByUserId?.[member.userId] ?? null}
+              duesTerm={duesSettings ?? null}
               canEdit={!isArchived}
             />
           ) : null}

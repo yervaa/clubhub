@@ -562,6 +562,56 @@ export const clubMemberDuesSetSchema = z.object({
     .pipe(z.string().max(500, "Notes must be 500 characters or fewer.")),
 });
 
+const duesCurrencyNormalized = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => {
+    if (typeof v !== "string") return "USD";
+    const t = sanitizeInlineText(v).trim().toUpperCase();
+    return /^[A-Z]{3}$/.test(t) ? t : "USD";
+  });
+
+export const clubDuesSettingsUpsertSchema = z
+  .object({
+    clubId: uuidSchema,
+    label: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((v) => sanitizeInlineText(typeof v === "string" ? v : ""))
+      .pipe(z.string().min(1, "Label is required.").max(200, "Label must be 200 characters or fewer.")),
+    dueDate: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((v) => (typeof v === "string" ? v.trim() : ""))
+      .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid due date.")),
+    amount: z
+      .union([z.string(), z.number(), z.null(), z.undefined()])
+      .transform((v) => {
+        if (v == null) return "";
+        const raw = typeof v === "number" && Number.isFinite(v) ? String(v) : String(v);
+        return sanitizeInlineText(raw).replace(/[$,\s]/g, "");
+      })
+      .pipe(
+        z
+          .string()
+          .min(1, "Enter an amount.")
+          .regex(/^\d+(\.\d{1,2})?$/, "Use a number with up to two decimal places (e.g. 20 or 20.50)."),
+      )
+      .transform((s) => Math.round(parseFloat(s) * 100))
+      .pipe(
+        z
+          .number()
+          .int("Amount must be a whole number of cents.")
+          .min(0, "Amount cannot be negative.")
+          .max(99_999_999, "Amount is too large."),
+      ),
+    currency: duesCurrencyNormalized,
+  })
+  .transform((d) => ({
+    clubId: d.clubId,
+    label: d.label,
+    dueDate: d.dueDate,
+    amountCents: d.amount,
+    currency: d.currency,
+  }));
+
 const roleNameSchema = z
   .string()
   .transform(sanitizeInlineText)

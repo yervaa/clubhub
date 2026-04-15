@@ -11,6 +11,7 @@ import { ClubMembersSection } from "@/components/ui/club-members-section";
 import { mergeClubRosterIdentities } from "@/lib/clubs/merge-club-roster-identities";
 import {
   fetchClubAttendanceHistoryByUserMap,
+  fetchClubDuesSettings,
   fetchClubMemberDuesMap,
   fetchClubMemberOfficerNotesMap,
   getClubDetailForMembersRosterForCurrentUser,
@@ -76,9 +77,10 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
   const clubForUi =
     membersResult.ok ? mergeClubRosterIdentities(club, membersResult.data) : club;
 
-  const [officerNotesByUserId, duesByUserId, attendanceHistoryByUserId] = await Promise.all([
+  const [officerNotesByUserId, duesByUserId, duesSettings, attendanceHistoryByUserId] = await Promise.all([
     permissionGates.canManageOfficerNotes ? fetchClubMemberOfficerNotesMap(clubId) : Promise.resolve(undefined),
     permissionGates.canManageMemberDues ? fetchClubMemberDuesMap(clubId) : Promise.resolve(undefined),
+    permissionGates.canManageMemberDues ? fetchClubDuesSettings(clubId) : Promise.resolve(null),
     fetchClubAttendanceHistoryByUserMap(
       clubId,
       permissionGates.canViewOthersMemberAttendanceHistory
@@ -102,6 +104,7 @@ export default async function ClubMembersPage({ params, searchParams }: ClubMemb
       pendingJoinRequests={pendingJoinRequests}
       officerNotesByUserId={officerNotesByUserId}
       duesByUserId={duesByUserId}
+      duesSettings={duesSettings}
       attendanceHistoryByUserId={attendanceHistoryByUserId}
     />
   );

@@ -2870,6 +2870,61 @@ export type ClubMemberDuesRecord = {
   updatedAt: string | null;
 };
 
+/** Club-wide dues term (one row per club). Leadership-only via RLS. */
+export type ClubDuesSettings = {
+  clubId: string;
+  label: string;
+  amountCents: number;
+  /** `YYYY-MM-DD` from Postgres `date` */
+  dueDate: string;
+  currency: string;
+  updatedAt: string | null;
+};
+
+/**
+ * Leadership-only: current club dues term. RLS returns no row when unauthorized.
+ */
+export async function fetchClubDuesSettings(clubId: string): Promise<ClubDuesSettings | null> {
+  noStore();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("club_dues_settings")
+    .select("club_id, label, amount_cents, due_date, currency, updated_at")
+    .eq("club_id", clubId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const row = data as {
+    club_id: string;
+    label: string;
+    amount_cents: number;
+    due_date: string;
+    currency: string;
+    updated_at: string | null;
+  };
+
+  return {
+    clubId: row.club_id,
+    label: row.label ?? "",
+    amountCents: typeof row.amount_cents === "number" ? row.amount_cents : 0,
+    dueDate: typeof row.due_date === "string" ? row.due_date : String(row.due_date ?? ""),
+    currency: row.currency ?? "USD",
+    updatedAt: row.updated_at ?? null,
+  };
+}
+
 /**
  * Leadership-only: per-member dues status. RLS returns no rows when unauthorized — do not merge into `ClubMember` / roster export.
  */
