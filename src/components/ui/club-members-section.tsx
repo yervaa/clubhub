@@ -46,37 +46,38 @@ function hasRbacPresident(rbacRoles: MemberWithRoles["rbacRoles"]): boolean {
   return rbacRoles.some((r) => r.roleName === "President" && r.isSystem);
 }
 
+/** Labels align with member profile dues status options (Paid, Unpaid, …). */
 function duesRosterPillClasses(status: ClubMemberDuesRecord["status"]): { label: string; className: string } {
   switch (status) {
     case "paid":
       return {
-        label: "Dues paid",
-        className: "border-emerald-200 bg-emerald-50 text-emerald-900",
+        label: "Paid",
+        className: "border-emerald-200/90 bg-emerald-50 text-emerald-900",
       };
     case "unpaid":
       return {
-        label: "Dues unpaid",
-        className: "border-red-200 bg-red-50 text-red-900",
+        label: "Unpaid",
+        className: "border-amber-200/90 bg-amber-50 text-amber-950",
       };
     case "partial":
       return {
-        label: "Dues partial",
-        className: "border-amber-200 bg-amber-50 text-amber-900",
+        label: "Partial",
+        className: "border-sky-200/90 bg-sky-50 text-sky-950",
       };
     case "exempt":
       return {
-        label: "Dues exempt",
-        className: "border-slate-200 bg-slate-100 text-slate-700",
+        label: "Exempt",
+        className: "border-slate-200/90 bg-slate-100 text-slate-700",
       };
     case "waived":
       return {
-        label: "Dues waived",
-        className: "border-slate-200 bg-slate-100 text-slate-700",
+        label: "Waived",
+        className: "border-slate-200/90 bg-slate-100 text-slate-700",
       };
     default:
       return {
         label: "Dues",
-        className: "border-slate-200 bg-slate-100 text-slate-700",
+        className: "border-slate-200/90 bg-slate-100 text-slate-700",
       };
   }
 }
@@ -91,11 +92,27 @@ function duesRosterPillForMember(
     && isUnpaidDuesPastDue(record.status, duesSettings.dueDate)
   ) {
     return {
-      label: "Dues overdue",
-      className: "border-rose-300 bg-rose-100 text-rose-950 ring-1 ring-rose-200/90",
+      label: "Past due",
+      className:
+        "border-amber-300/90 bg-amber-100/95 text-amber-950 shadow-sm ring-1 ring-amber-200/70",
     };
   }
   return duesRosterPillClasses(record.status);
+}
+
+function duesRosterPillTitle(
+  record: ClubMemberDuesRecord,
+  duesSettings: ClubDuesSettings | null | undefined,
+): string {
+  const pill = duesRosterPillForMember(record, duesSettings);
+  if (
+    record.status === "unpaid"
+    && duesSettings?.dueDate
+    && isUnpaidDuesPastDue(record.status, duesSettings.dueDate)
+  ) {
+    return `Past due: still Unpaid after the term due date (${formatClubDuesDueDateLabel(duesSettings.dueDate)}). Leadership-only — open profile to update.`;
+  }
+  return `Leadership-only: ${pill.label}. Open profile to view or change.`;
 }
 
 function countDuesStatuses(duesByUserId: Record<string, ClubMemberDuesRecord>) {
@@ -320,6 +337,16 @@ export function ClubMembersSection({
     return countDuesStatuses(duesByUserId);
   }, [canManageMemberDues, duesByUserId]);
 
+  const activeMembersWithoutDuesStatus = useMemo(() => {
+    if (!canManageMemberDues || !duesByUserId) return 0;
+    return activeMembers.filter((m) => !duesByUserId[m.userId]).length;
+  }, [canManageMemberDues, duesByUserId, activeMembers]);
+
+  const duesStatusesOnFile = useMemo(() => {
+    if (!duesByUserId) return 0;
+    return Object.keys(duesByUserId).length;
+  }, [duesByUserId]);
+
   const filteredMembers = useMemo(() => {
     let list = club.members;
     if (statusFilter !== "all") {
@@ -455,44 +482,126 @@ export function ClubMembersSection({
 
       {canManageMemberDues ? (
         <section
-          className="card-surface border border-teal-100/90 bg-gradient-to-br from-teal-50/80 to-white p-4 shadow-sm sm:p-5"
-          aria-label="Club dues term and status counts"
+          className="card-surface overflow-hidden border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/45 p-5 shadow-sm sm:p-6"
+          aria-labelledby="club-dues-summary-heading"
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="section-kicker text-teal-900/80">Dues</p>
-              <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Current term</h2>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1 space-y-3">
+              <div>
+                <p className="section-kicker text-slate-600">Club dues</p>
+                <h2
+                  id="club-dues-summary-heading"
+                  className="mt-1 text-lg font-semibold tracking-tight text-slate-900"
+                >
+                  {duesSettings ? "This term" : isArchived ? "No term on file" : "Set a club-wide term"}
+                </h2>
+              </div>
+
               {duesSettings ? (
-                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800">
-                  <span className="text-slate-900">{duesSettings.label}</span>
-                  <span className="text-slate-500"> · </span>
-                  {formatClubDuesMoney(duesSettings.amountCents, duesSettings.currency)}
-                  <span className="text-slate-500"> · Due </span>
-                  {formatClubDuesDueDateLabel(duesSettings.dueDate)}
-                </p>
+                <>
+                  <div className="rounded-xl border border-slate-100/95 bg-white/85 px-4 py-3 shadow-inner sm:px-4 sm:py-3.5">
+                    <p
+                      className="text-base font-semibold leading-snug text-slate-900 sm:text-[1.05rem] line-clamp-3 break-words"
+                      title={duesSettings.label}
+                    >
+                      {duesSettings.label}
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                      <span className="font-medium text-slate-800 tabular-nums">
+                        {formatClubDuesMoney(duesSettings.amountCents, duesSettings.currency)}
+                      </span>
+                      <span className="text-slate-400"> · </span>
+                      Due{" "}
+                      <span className="font-medium text-slate-800">
+                        {formatClubDuesDueDateLabel(duesSettings.dueDate)}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2 text-center sm:text-left">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800/80">Paid</p>
+                      <p className="mt-0.5 text-lg font-bold tabular-nums text-emerald-950">{duesStatusCounts.paid}</p>
+                    </div>
+                    <div className="rounded-lg border border-amber-100/90 bg-amber-50/50 px-3 py-2 text-center sm:text-left">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-900/90">Unpaid</p>
+                      <p className="mt-0.5 text-lg font-bold tabular-nums text-amber-950">{duesStatusCounts.unpaid}</p>
+                    </div>
+                    <div className="rounded-lg border border-sky-100/90 bg-sky-50/60 px-3 py-2 text-center sm:text-left">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-sky-900/85">Partial</p>
+                      <p className="mt-0.5 text-lg font-bold tabular-nums text-sky-950">{duesStatusCounts.partial}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-center sm:text-left">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Waived / exempt</p>
+                      <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">
+                        {duesStatusCounts.waivedOrExempt}
+                      </p>
+                    </div>
+                  </div>
+
+                  {duesStatusesOnFile === 0 ? (
+                    <p className="text-xs leading-relaxed text-slate-600">
+                      No member statuses recorded yet — open a profile from the roster and choose{" "}
+                      <span className="font-medium text-slate-800">Paid</span>,{" "}
+                      <span className="font-medium text-slate-800">Unpaid</span>, or another option to populate these
+                      counts.
+                    </p>
+                  ) : (
+                    <p className="text-xs leading-relaxed text-slate-600">
+                      Counts only include members with a status saved on their profile (not the whole roster).
+                      {activeMembersWithoutDuesStatus > 0 ? (
+                        <>
+                          {" "}
+                          <span className="font-medium text-slate-800">
+                            {activeMembersWithoutDuesStatus} active{" "}
+                            {activeMembersWithoutDuesStatus === 1 ? "member has" : "members have"} no status yet.
+                          </span>
+                        </>
+                      ) : null}
+                    </p>
+                  )}
+
+                  <p className="text-[11px] leading-relaxed text-slate-500">
+                    Roster chips use <span className="font-medium text-slate-700">Past due</span> when someone is{" "}
+                    <span className="font-medium text-slate-700">Unpaid</span> and today is after the term due date.
+                  </p>
+                </>
+              ) : isArchived ? (
+                <div className="rounded-xl border border-dashed border-slate-200/95 bg-slate-50/60 px-4 py-4 sm:px-5">
+                  <p className="text-sm font-semibold text-slate-800">No club dues term on file</p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                    Archived clubs cannot add or change a dues term. Restore the club if you need to edit this.
+                  </p>
+                </div>
               ) : (
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  Set a label, amount, and due date so the roster and member profiles show the same term everyone is working
-                  toward.
-                </p>
+                <div className="rounded-xl border border-dashed border-slate-200/95 bg-white/70 px-4 py-4 sm:px-5">
+                  <div className="flex gap-3">
+                    <div
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"
+                      aria-hidden
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">No dues term yet</p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                        Add what you charge and when it is due. The same line appears on member profiles so everyone sees
+                        one source of truth.
+                      </p>
+                      <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-slate-600">
+                        <li>Use the button on the right to set the term.</li>
+                        <li>Open each member and set Paid, Unpaid, or another status as you collect money.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
               )}
-              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-slate-600">
-                <li>
-                  Paid: <span className="text-emerald-800">{duesStatusCounts.paid}</span>
-                </li>
-                <li>
-                  Unpaid: <span className="text-rose-800">{duesStatusCounts.unpaid}</span>
-                </li>
-                <li>
-                  Partial: <span className="text-amber-900">{duesStatusCounts.partial}</span>
-                </li>
-                <li>
-                  Waived / exempt: <span className="text-slate-800">{duesStatusCounts.waivedOrExempt}</span>
-                </li>
-              </ul>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                Counts include only members with a dues status on file (open a profile to set paid, unpaid, and so on).
-              </p>
             </div>
             <button
               type="button"
@@ -500,9 +609,17 @@ export function ClubMembersSection({
                 setDuesTermEditKey((k) => k + 1);
                 setDuesTermEditOpen(true);
               }}
-              className="btn-secondary inline-flex min-h-10 shrink-0 items-center justify-center self-start px-4 py-2 text-sm font-semibold"
+              disabled={isArchived}
+              title={
+                isArchived
+                  ? "Archived clubs cannot add or change the dues term."
+                  : duesSettings
+                    ? "Edit amount, due date, or label for this club."
+                    : "Set the amount and due date for this club."
+              }
+              className="btn-secondary inline-flex min-h-10 shrink-0 items-center justify-center self-start px-4 py-2.5 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60 sm:self-start"
             >
-              {duesSettings ? "Edit dues term" : "Set dues term"}
+              {isArchived ? "Term locked" : duesSettings ? "Edit club dues term" : "Set club dues term"}
             </button>
           </div>
         </section>
@@ -842,10 +959,9 @@ export function ClubMembersSection({
                 (r) => !(r.isSystem && (r.roleName === "Officer" || r.roleName === "Member")),
               );
 
-              const duesPill =
-                canManageMemberDues && duesByUserId?.[member.userId]
-                  ? duesRosterPillForMember(duesByUserId[member.userId], duesSettings)
-                  : null;
+              const duesRecord = canManageMemberDues ? duesByUserId?.[member.userId] : undefined;
+              const duesPill = duesRecord ? duesRosterPillForMember(duesRecord, duesSettings) : null;
+              const duesPillHint = duesRecord ? duesRosterPillTitle(duesRecord, duesSettings) : "";
 
               const hasAffiliationChips =
                 significantRbacRoles.length > 0
@@ -917,10 +1033,10 @@ export function ClubMembersSection({
                             ) : null}
                             {duesPill ? (
                               <span
-                                className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${duesPill.className}`}
-                                title="Visible only to leadership — open profile for details"
+                                className={`inline-flex max-w-full min-w-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${duesPill.className}`}
+                                title={duesPillHint}
                               >
-                                {duesPill.label}
+                                <span className="truncate">{duesPill.label}</span>
                               </span>
                             ) : null}
                             {canSeeInactiveEngagement && !isAlumni && member.likelyInactive ? (

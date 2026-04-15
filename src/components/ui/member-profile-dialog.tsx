@@ -30,7 +30,7 @@ import {
   deleteClubMemberTagAction,
   removeClubMemberTagAction,
 } from "@/app/(app)/clubs/member-tag-actions";
-import { formatDuesTermSummaryLine } from "@/lib/clubs/dues-display";
+import { formatDuesTermMoneyAndDue, isUnpaidDuesPastDue } from "@/lib/clubs/dues-display";
 import type {
   ClubMember,
   ClubCommitteeSummary,
@@ -846,6 +846,7 @@ function MemberProfileDuesBlock({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const pastDueHintId = useId();
   const [error, setError] = useState<string | null>(null);
   const [statusDraft, setStatusDraft] = useState<string>(initialRecord ? initialRecord.status : "unset");
   const [notesDraft, setNotesDraft] = useState(initialRecord?.notes ?? "");
@@ -880,30 +881,57 @@ function MemberProfileDuesBlock({
       ? new Date(initialRecord.updatedAt).toLocaleString()
       : null;
 
+  const statusForPastDueHint = canEdit ? statusDraft : (initialRecord?.status ?? "unset");
+  const showPastDueHint =
+    Boolean(duesTerm?.dueDate)
+    && statusForPastDueHint === "unpaid"
+    && isUnpaidDuesPastDue("unpaid", duesTerm?.dueDate);
+
+  const duesIntro = canEdit
+    ? "Leadership-only. Roster chips match the statuses below (Unpaid shows as Past due after the term due date). Not shown to regular members or in roster CSV export."
+    : "Leadership-only. Read-only while this club is archived. Not shown to regular members or in roster CSV export.";
+
   return (
     <section className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 sm:p-5">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-teal-950">Dues status</h3>
-      <p className="mt-1 text-xs leading-relaxed text-teal-950/85">
-        Leadership-only — not shown on the public roster list to regular members or included in roster CSV export.
-      </p>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-teal-950">Dues</h3>
+      <p className="mt-1 text-xs leading-relaxed text-teal-950/85">{duesIntro}</p>
 
       {duesTerm ? (
-        <p className="mt-3 rounded-lg border border-teal-200/80 bg-white/90 px-3 py-2 text-sm font-medium text-slate-800">
-          <span className="text-teal-950">Term:</span> {formatDuesTermSummaryLine(duesTerm)}
+        <div className="mt-3 rounded-xl border border-teal-200/80 bg-white/90 px-3 py-3 sm:px-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-teal-900/75">Club dues term</p>
+          <p className="mt-1.5 break-words text-sm font-semibold leading-snug text-slate-900" title={duesTerm.label}>
+            {duesTerm.label}
+          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{formatDuesTermMoneyAndDue(duesTerm)}</p>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-lg border border-dashed border-teal-200/70 bg-white/50 px-3 py-2 text-xs leading-relaxed text-teal-950/90">
+          No club-wide term on file — set it from the Members page (Club dues card) so amount and due date match the
+          summary there and on profiles.
         </p>
-      ) : null}
+      )}
 
       {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
+
+      {!canEdit && showPastDueHint ? (
+        <p
+          className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/90 px-2.5 py-2 text-xs leading-relaxed text-amber-950"
+          id={pastDueHintId}
+        >
+          <span className="font-semibold">Past due:</span> Unpaid after the term due date — same rule as the roster chip.
+        </p>
+      ) : null}
 
       {canEdit ? (
         <>
           <label htmlFor={`dues-status-${member.userId}`} className="mt-3 block text-xs font-semibold text-teal-950">
-            Status
+            Member status
           </label>
           <select
             id={`dues-status-${member.userId}`}
             value={statusDraft}
             onChange={(e) => setStatusDraft(e.target.value)}
+            aria-describedby={showPastDueHint ? pastDueHintId : undefined}
             className="mt-1.5 w-full rounded-lg border border-teal-200/90 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-200"
           >
             {DUES_STATUS_OPTIONS.map((o) => (
@@ -912,6 +940,15 @@ function MemberProfileDuesBlock({
               </option>
             ))}
           </select>
+          {showPastDueHint ? (
+            <p
+              className="mt-2 rounded-lg border border-amber-200/80 bg-amber-50/90 px-2.5 py-2 text-xs leading-relaxed text-amber-950"
+              id={pastDueHintId}
+            >
+              <span className="font-semibold">Past due:</span> still{" "}
+              <span className="font-medium">Unpaid</span> after the term due date — update when payment is received.
+            </p>
+          ) : null}
 
           <label htmlFor={`dues-notes-${member.userId}`} className="mt-3 block text-xs font-semibold text-teal-950">
             Notes (optional)

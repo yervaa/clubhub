@@ -23,6 +23,9 @@ export default async function Home() {
           One place to run your school clubs — announcements, events, and members in a clean workspace.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Link href="/discover" className="btn-secondary px-8 py-3 text-base">
+            Browse Clubs
+          </Link>
           <Link href="/signup" className="btn-primary px-8 py-3 text-base">
             Get Started
           </Link>

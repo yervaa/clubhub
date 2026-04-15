@@ -16,22 +16,28 @@ export function isUnpaidDuesPastDue(status: ClubMemberDuesStatus, dueDateYmd: st
 }
 
 export function formatClubDuesMoney(amountCents: number, currency: string): string {
+  if (!Number.isFinite(amountCents)) {
+    return "—";
+  }
+  const cents = Math.max(0, Math.round(amountCents));
   const code = currency.trim().toUpperCase() || "USD";
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: code,
-      minimumFractionDigits: amountCents % 100 === 0 ? 0 : 2,
+      minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
       maximumFractionDigits: 2,
-    }).format(amountCents / 100);
+    }).format(cents / 100);
   } catch {
-    return `${(amountCents / 100).toFixed(2)} ${code}`;
+    return `${(cents / 100).toFixed(2)} ${code}`;
   }
 }
 
 export function formatClubDuesDueDateLabel(dueDateYmd: string): string {
-  const [y, m, d] = dueDateYmd.split("-").map(Number);
-  if (!y || !m || !d) return dueDateYmd;
+  const raw = typeof dueDateYmd === "string" ? dueDateYmd.trim() : "";
+  if (!raw) return "—";
+  const [y, m, d] = raw.split("-").map(Number);
+  if (!y || !m || !d) return raw;
   const dt = new Date(y, m - 1, d);
   if (Number.isNaN(dt.getTime())) return dueDateYmd;
   return dt.toLocaleDateString(undefined, {
@@ -41,9 +47,14 @@ export function formatClubDuesDueDateLabel(dueDateYmd: string): string {
   });
 }
 
-/** One-line summary for profile: `Label · $20 · Due Sep 15, 2025` */
-export function formatDuesTermSummaryLine(settings: ClubDuesSettings): string {
+/** Money + due date only (for stacked layouts where the label is shown separately). */
+export function formatDuesTermMoneyAndDue(settings: ClubDuesSettings): string {
   const money = formatClubDuesMoney(settings.amountCents, settings.currency);
   const due = formatClubDuesDueDateLabel(settings.dueDate);
-  return `${settings.label} · ${money} · Due ${due}`;
+  return `${money} · Due ${due}`;
+}
+
+/** One-line summary: `Label · $20 · Due Sep 15, 2025` — use `title` for truncation in tight UI. */
+export function formatDuesTermSummaryLine(settings: ClubDuesSettings): string {
+  return `${settings.label} · ${formatDuesTermMoneyAndDue(settings)}`;
 }
