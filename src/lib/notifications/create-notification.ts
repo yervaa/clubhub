@@ -1,59 +1,107 @@
 import "server-only";
+
+import { sendTransactionalEmail } from "@/lib/email/send-transactional-email";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadResolvedPreferencesForUsers } from "@/lib/notifications/load-preferences";
+import type { ResolvedNotificationPreferences } from "@/lib/notifications/preference-model";
+import type { NotificationInput } from "@/lib/notifications/notification-types";
+import {
+  shouldReceiveInAppNotification,
+  shouldSendImmediateEmailNotification,
+} from "@/lib/notifications/preference-helpers";
+
+// Re-export for callers that import types from this module.
+export type { NotificationInput, NotificationType } from "@/lib/notifications/notification-types";
 
 // ─── Notification type catalog ────────────────────────────────────────────────
 // Keep these in sync with the type strings stored in the notifications table.
 // UI rendering (icons, copy) is derived from these keys in notification-bell.tsx.
 
-export type NotificationType =
-  | "announcement.posted"
-  | "announcement.created"
-  | "announcement_created"
-  | "poll.created"
-  | "poll_created"
-  | "event.created"
-  | "rsvp.submitted"
-  | "attendance.marked"
-  | "event_reminder"
-  | "role.assigned"
-  | "role.removed"
-  | "task.assigned"
-  | "task_assigned";
+async function loadEmailsForUsers(
+  admin: ReturnType<typeof createAdminClient>,
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (userIds.length === 0) return map;
+  const { data, error } = await admin.from("profiles").select("id, email").in("id", userIds);
+  if (error) {
+    console.error("[notifications] Failed to load profile emails:", error.message);
+    return map;
+  }
+  for (const row of data ?? []) {
+    const email = typeof row.email === "string" ? row.email.trim() : "";
+    if (email) map.set(row.id, email);
+  }
+  return map;
+}
 
-// ─── Input shape ──────────────────────────────────────────────────────────────
+function buildEmailText(input: NotificationInput): string {
+  const lines = [input.title, "", input.body];
+  if (input.href) {
+    lines.push("", input.href);
+  }
+  return lines.join("\n");
+}
 
-export type NotificationInput = {
-  userId: string;
-  clubId?: string | null;
-  type: NotificationType;
-  title: string;
-  body: string;
-  href?: string | null;
-  activityEventId?: string | null;
-  metadata?: Record<string, unknown>;
-};
+async function sendEmailsForNotifications(
+  admin: ReturnType<typeof createAdminClient>,
+  inputs: NotificationInput[],
+  prefsMap: Map<string, ResolvedNotificationPreferences>,
+): Promise<void> {
+  const now = new Date();
+  const needEmail = inputs.filter((input) => {
+    const prefs = prefsMap.get(input.userId);
+    if (!prefs) return false;
+    return shouldSendImmediateEmailNotification(prefs, input.type, now);
+  });
+  if (needEmail.length === 0) return;
+
+  const emailMap = await loadEmailsForUsers(
+    admin,
+    [...new Set(needEmail.map((i) => i.userId))],
+  );
+
+  for (const input of needEmail) {
+    const to = emailMap.get(input.userId);
+    if (!to) continue;
+    await sendTransactionalEmail({
+      to,
+      subject: input.title,
+      text: buildEmailText(input),
+    });
+  }
+}
 
 // ─── Write helpers ────────────────────────────────────────────────────────────
 // Both helpers use the admin client so writes bypass RLS.
 // Failures are non-fatal — we log but never block the triggering action.
+// In-app rows are only inserted when the user’s in-app preference for that category is on.
+// Email is sent when the email preference is on and the user is not in quiet hours
+// (otherwise suppressed; weekly digest can summarize if enabled).
 
 export async function createNotification(input: NotificationInput): Promise<void> {
   const admin = createAdminClient();
+  const prefsMap = await loadResolvedPreferencesForUsers(admin, [input.userId]);
+  const prefs = prefsMap.get(input.userId)!;
 
-  const { error } = await admin.from("notifications").insert({
-    user_id: input.userId,
-    club_id: input.clubId ?? null,
-    type: input.type,
-    title: input.title,
-    body: input.body,
-    href: input.href ?? null,
-    activity_event_id: input.activityEventId ?? null,
-    metadata: input.metadata ?? {},
-  });
+  if (shouldReceiveInAppNotification(prefs, input.type)) {
+    const { error } = await admin.from("notifications").insert({
+      user_id: input.userId,
+      club_id: input.clubId ?? null,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      href: input.href ?? null,
+      activity_event_id: input.activityEventId ?? null,
+      metadata: input.metadata ?? {},
+    });
 
-  if (error) {
-    console.error("[notifications] Failed to create notification:", input.type, error.message);
+    if (error) {
+      console.error("[notifications] Failed to create notification:", input.type, error.message);
+    }
   }
+
+  await sendEmailsForNotifications(admin, [input], prefsMap);
 }
 
 export type BulkNotificationResult = { ok: true } | { ok: false; message: string };
@@ -70,24 +118,35 @@ export async function createBulkNotifications(inputs: NotificationInput[]): Prom
   }
 
   const admin = createAdminClient();
+  const userIds = [...new Set(inputs.map((i) => i.userId))];
+  const prefsMap = await loadResolvedPreferencesForUsers(admin, userIds);
 
-  const rows = inputs.map((input) => ({
-    user_id: input.userId,
-    club_id: input.clubId ?? null,
-    type: input.type,
-    title: input.title,
-    body: input.body,
-    href: input.href ?? null,
-    activity_event_id: input.activityEventId ?? null,
-    metadata: input.metadata ?? {},
-  }));
+  const inAppRows = inputs.filter((input) => {
+    const prefs = prefsMap.get(input.userId)!;
+    return shouldReceiveInAppNotification(prefs, input.type);
+  });
 
-  const { error } = await admin.from("notifications").insert(rows);
+  if (inAppRows.length > 0) {
+    const rows = inAppRows.map((input) => ({
+      user_id: input.userId,
+      club_id: input.clubId ?? null,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      href: input.href ?? null,
+      activity_event_id: input.activityEventId ?? null,
+      metadata: input.metadata ?? {},
+    }));
 
-  if (error) {
-    console.error("[notifications] Failed to create bulk notifications:", inputs[0]?.type, error.message);
-    return { ok: false, message: error.message };
+    const { error } = await admin.from("notifications").insert(rows);
+
+    if (error) {
+      console.error("[notifications] Failed to create bulk notifications:", inputs[0]?.type, error.message);
+      return { ok: false, message: error.message };
+    }
   }
+
+  await sendEmailsForNotifications(admin, inputs, prefsMap);
 
   return { ok: true };
 }

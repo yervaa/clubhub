@@ -1,7 +1,12 @@
 import Link from "next/link";
+import { NotificationSettingsForm } from "@/components/ui/notification-settings-form";
 import { PageIntro } from "@/components/ui/page-intro";
 import { CardSection, SectionHeader } from "@/components/ui/page-patterns";
 import { getCurrentUserClubs } from "@/lib/clubs/queries";
+import {
+  NOTIFICATION_PREFERENCES_FORM_DEFAULTS,
+  type NotificationPreferencesRow,
+} from "@/lib/notifications/preference-model";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function SettingsPage() {
@@ -11,6 +16,19 @@ export default async function SettingsPage() {
   } = await supabase.auth.getUser();
 
   const manageableClubs = clubs.filter((club) => club.role === "officer");
+
+  let notificationDefaults: Omit<NotificationPreferencesRow, "user_id"> = NOTIFICATION_PREFERENCES_FORM_DEFAULTS;
+  if (user) {
+    const { data: prefRow } = await supabase
+      .from("notification_preferences")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (prefRow) {
+      const { user_id: _uid, ...rest } = prefRow as NotificationPreferencesRow;
+      notificationDefaults = rest;
+    }
+  }
 
   return (
     <section className="space-y-4 lg:space-y-6">
@@ -25,6 +43,21 @@ export default async function SettingsPage() {
         <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
           {user?.email ?? "Unknown account"}
         </p>
+      </CardSection>
+
+      <CardSection>
+        <SectionHeader
+          kicker="Notifications"
+          title="Alerts & email"
+          description="Choose how ClubHub reaches you. Quiet hours only affect immediate emails, not in-app notifications."
+        />
+        {user ? (
+          <div className="mt-4">
+            <NotificationSettingsForm defaults={notificationDefaults} />
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-600">Sign in to manage notification preferences.</p>
+        )}
       </CardSection>
 
       <CardSection>

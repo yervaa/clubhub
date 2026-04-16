@@ -284,6 +284,23 @@ export function eventLifecycleBadges(options: {
   return <>{chips}</>;
 }
 
+/** Event advisor workflow (organizers/advisors only — members do not receive non-approved rows from RLS). */
+export function eventApprovalStatusAside(approvalStatus: "approved" | "pending" | "rejected") {
+  if (approvalStatus === "approved") return null;
+  if (approvalStatus === "pending") {
+    return (
+      <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-900 ring-1 ring-violet-200/80">
+        Pending approval
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-900 ring-1 ring-rose-200/80">
+      Not approved
+    </span>
+  );
+}
+
 export function eventPastFoldableBadges(hasReflection: boolean) {
   return (
     <>

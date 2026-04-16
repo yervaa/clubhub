@@ -4,7 +4,7 @@ import { AttendanceChecklist } from "@/components/ui/attendance-checklist";
 import { DisclosurePanel } from "@/components/ui/disclosure-panel";
 import { EventRsvpControls } from "@/components/ui/event-rsvp-controls";
 import { EventManagementControls } from "@/components/ui/event-management-controls";
-import { EventSummaryBlock, eventLifecycleBadges } from "@/components/ui/event-summary";
+import { EventSummaryBlock, eventApprovalStatusAside, eventLifecycleBadges } from "@/components/ui/event-summary";
 import type { ClubDetail } from "@/lib/clubs/queries";
 
 export type ClubEventCardQuery = {
@@ -137,12 +137,17 @@ export function ClubEventCardFull({
             title={event.title}
             titleAs="h3"
             titleSize="panel"
-            titleAside={eventLifecycleBadges({
-              isPast,
-              isToday,
-              isComingSoon,
-              hasReflection: Boolean(event.reflection),
-            })}
+            titleAside={
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                {eventLifecycleBadges({
+                  isPast,
+                  isToday,
+                  isComingSoon,
+                  hasReflection: Boolean(event.reflection),
+                })}
+                {eventApprovalStatusAside(event.approvalStatus)}
+              </span>
+            }
             secondaryLine={event.eventType}
             at={event.eventDateRaw}
             location={event.location}
@@ -152,6 +157,12 @@ export function ClubEventCardFull({
           {event.seriesId ? (
             <p className="mt-2 text-xs font-medium text-indigo-700">
               Recurring series{event.seriesOccurrence ? ` · Occurrence ${event.seriesOccurrence}` : ""}
+            </p>
+          ) : null}
+          {event.approvalStatus === "rejected" && event.rejectionReason ? (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950">
+              <span className="font-semibold">Advisor note: </span>
+              {event.rejectionReason}
             </p>
           ) : null}
 

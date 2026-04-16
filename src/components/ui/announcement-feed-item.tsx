@@ -157,7 +157,13 @@ export function AnnouncementFeedItem({
                 {scheduledLabel}
               </span>
             ) : null}
-            {!announcement.isPublished ? (
+            {announcement.approvalStatus === "pending" ? (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-900">
+                Pending approval
+              </span>
+            ) : announcement.approvalStatus === "rejected" ? (
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-900">Not approved</span>
+            ) : !announcement.isPublished ? (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Draft</span>
             ) : (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Published</span>
@@ -171,6 +177,12 @@ export function AnnouncementFeedItem({
             <span className="text-slate-400">{announcement.createdAt}</span>
           </div>
           <h3 className={titleClass}>{announcement.title}</h3>
+          {announcement.approvalStatus === "rejected" && announcement.rejectionReason ? (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950">
+              <span className="font-semibold">Advisor note: </span>
+              {announcement.rejectionReason}
+            </p>
+          ) : null}
         </div>
       </div>
 

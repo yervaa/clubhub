@@ -12,8 +12,10 @@ import { assertClubActiveForMutations } from "@/lib/clubs/club-status";
 import { JOIN_REDIRECT_MESSAGES } from "@/lib/clubs/join-flow";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createActivityEvent } from "@/lib/activity/create-activity-event";
-import { createBulkNotifications } from "@/lib/notifications/create-notification";
 import { getMemberManagementErrorMessage } from "@/lib/clubs/member-management-messages";
+import { sendAnnouncementMemberBroadcast } from "@/lib/announcements/member-broadcast-notifications";
+import { notifyApproversAnnouncementSubmitted, notifyApproversEventSubmitted } from "@/lib/clubs/advisor-notify";
+import { notifyClubMembersOfPublishedEvent } from "@/lib/clubs/event-created-notify";
 import {
   announcementDeleteSchema,
   announcementCreateSchema,
@@ -587,59 +589,6 @@ async function enforcePinnedAnnouncementsLimit(
   return { ok: true as const };
 }
 
-async function sendAnnouncementPublishedNotifications(params: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  clubId: string;
-  actorId: string;
-  announcementId: string;
-  title: string;
-  hasPoll: boolean;
-  activityEventId: string | null;
-  isUrgent: boolean;
-}) {
-  const { supabase, clubId, actorId, announcementId, title, hasPoll, activityEventId, isUrgent } = params;
-  const { data: otherMembers } = await supabase
-    .from("club_members")
-    .select("user_id")
-    .eq("club_id", clubId)
-    .eq("membership_status", "active")
-    .neq("user_id", actorId);
-
-  const admin = createAdminClient();
-  const href = `/clubs/${clubId}/announcements#announcement-${announcementId}`;
-  const body = hasPoll
-    ? isUrgent
-      ? "Urgent poll: please review and vote."
-      : "A new poll was posted in your club."
-    : isUrgent
-      ? "Urgent club update posted."
-      : "A new announcement was posted in your club.";
-
-  const sent =
-    otherMembers && otherMembers.length > 0
-      ? await createBulkNotifications(
-          otherMembers.map((m) => ({
-            userId: m.user_id,
-            clubId,
-            type: hasPoll ? ("poll_created" as const) : ("announcement_created" as const),
-            title,
-            body,
-            href,
-            activityEventId: activityEventId ?? undefined,
-            metadata: { announcement_id: announcementId, activity_event_id: activityEventId },
-          })),
-        )
-      : ({ ok: true } as const);
-
-  if (sent.ok) {
-    await admin
-      .from("announcements")
-      .update({ member_broadcast_sent_at: new Date().toISOString() })
-      .eq("id", announcementId)
-      .is("member_broadcast_sent_at", null);
-  }
-}
-
 export async function createAnnouncementAction(formData: FormData) {
   const parsed = announcementCreateSchema.safeParse({
     clubId: formData.get("club_id"),
@@ -725,11 +674,46 @@ export async function createAnnouncementAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+permission+to+create+announcements.`);
   }
 
-  if (extras.data.isPinned) {
+  const { data: clubFlags } = await supabase
+    .from("clubs")
+    .select("require_announcement_approval")
+    .eq("id", parsed.data.clubId)
+    .maybeSingle();
+  const requireAnnouncementApproval = Boolean(clubFlags?.require_announcement_approval);
+
+  const submittedForReview =
+    requireAnnouncementApproval
+    && (extras.data.isPublished || Boolean(extras.data.scheduledForIso));
+
+  if (extras.data.isPinned && !submittedForReview) {
     const pinCheck = await enforcePinnedAnnouncementsLimit(supabase, parsed.data.clubId);
     if (!pinCheck.ok) {
       redirect(`/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(pinCheck.error)}`);
     }
+  }
+
+  let approvalStatus: "draft" | "pending" | "approved" = "draft";
+  let isPublishedRow = false;
+  let scheduledForRow = extras.data.scheduledForIso;
+  let isPinnedRow = submittedForReview ? false : extras.data.isPinned;
+
+  if (!requireAnnouncementApproval) {
+    if (!extras.data.isPublished && !extras.data.scheduledForIso) {
+      approvalStatus = "draft";
+      isPublishedRow = false;
+    } else if (extras.data.scheduledForIso) {
+      approvalStatus = "approved";
+      isPublishedRow = false;
+    } else {
+      approvalStatus = "approved";
+      isPublishedRow = true;
+    }
+  } else if (!extras.data.isPublished && !extras.data.scheduledForIso) {
+    approvalStatus = "draft";
+    isPublishedRow = false;
+  } else {
+    approvalStatus = "pending";
+    isPublishedRow = false;
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -741,11 +725,12 @@ export async function createAnnouncementAction(formData: FormData) {
       created_by: user.id,
       poll_question: extras.data.pollQuestion,
       poll_options: extras.data.pollOptions,
-      scheduled_for: extras.data.scheduledForIso,
-      is_published: extras.data.isPublished,
+      scheduled_for: scheduledForRow,
+      is_published: isPublishedRow,
+      approval_status: approvalStatus,
       is_urgent: extras.data.isUrgent,
-      is_pinned: extras.data.isPinned,
-      pinned_at: extras.data.isPinned ? new Date().toISOString() : null,
+      is_pinned: isPinnedRow,
+      pinned_at: isPinnedRow ? new Date().toISOString() : null,
     })
     .select("id")
     .maybeSingle();
@@ -756,7 +741,7 @@ export async function createAnnouncementAction(formData: FormData) {
 
   const announcementId = inserted.id;
   let announcementActivityId: string | null = null;
-  if (extras.data.isPublished) {
+  if (isPublishedRow && approvalStatus === "approved") {
     announcementActivityId = await createActivityEvent({
       type: "announcement.created",
       actorId: user.id,
@@ -766,7 +751,7 @@ export async function createAnnouncementAction(formData: FormData) {
       href: `/clubs/${parsed.data.clubId}/announcements#announcement-${announcementId}`,
       metadata: {
         has_poll: Boolean(extras.data.pollQuestion),
-        scheduled: !extras.data.isPublished,
+        scheduled: Boolean(scheduledForRow),
         urgent: extras.data.isUrgent,
       },
     });
@@ -805,8 +790,8 @@ export async function createAnnouncementAction(formData: FormData) {
     }
   }
 
-  if (extras.data.isPublished) {
-    await sendAnnouncementPublishedNotifications({
+  if (isPublishedRow && approvalStatus === "approved") {
+    await sendAnnouncementMemberBroadcast({
       supabase,
       clubId: parsed.data.clubId,
       actorId: user.id,
@@ -818,15 +803,29 @@ export async function createAnnouncementAction(formData: FormData) {
     });
   }
 
+  if (approvalStatus === "pending") {
+    await notifyApproversAnnouncementSubmitted({
+      clubId: parsed.data.clubId,
+      actorId: user.id,
+      announcementId,
+      title: parsed.data.title,
+    });
+  }
+
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   revalidatePath(`/clubs/${parsed.data.clubId}/announcements`);
   revalidatePath("/dashboard");
 
-  const successMsg = extras.data.isPublished
-    ? "Announcement posted."
-    : extras.data.scheduledForIso
-      ? "Announcement scheduled — members will be notified when it publishes."
-      : "Draft saved.";
+  let successMsg: string;
+  if (approvalStatus === "pending") {
+    successMsg = "Submitted for advisor approval.";
+  } else if (isPublishedRow) {
+    successMsg = "Announcement posted.";
+  } else if (scheduledForRow) {
+    successMsg = "Announcement scheduled — members will be notified when it publishes.";
+  } else {
+    successMsg = "Draft saved.";
+  }
   redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=${encodeURIComponent(successMsg)}`);
 }
 
@@ -866,7 +865,9 @@ export async function updateAnnouncementAction(formData: FormData) {
 
   const { data: existing, error: existingError } = await supabase
     .from("announcements")
-    .select("id, club_id, is_published, is_pinned, poll_question, member_broadcast_sent_at")
+    .select(
+      "id, club_id, is_published, is_pinned, poll_question, member_broadcast_sent_at, approval_status, scheduled_for",
+    )
     .eq("id", parsed.data.announcementId)
     .maybeSingle();
 
@@ -874,11 +875,20 @@ export async function updateAnnouncementAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Announcement+not+found+for+this+club.`);
   }
 
+  const { data: clubFlagsUp } = await supabase
+    .from("clubs")
+    .select("require_announcement_approval")
+    .eq("id", parsed.data.clubId)
+    .maybeSingle();
+  const requireAnnouncementApprovalUp = Boolean(clubFlagsUp?.require_announcement_approval);
+
   const intent = parseAnnouncementUpdateIntent(formData);
   const wantsUrgent = formData.get("is_urgent") === "on";
   const wantsPinned = formData.get("is_pinned") === "on";
 
-  const nextIsPublished =
+  const typedExisting = existing as typeof existing & { approval_status?: string | null };
+
+  let nextIsPublished =
     intent === "publish_now"
       ? true
       : intent === "save_draft"
@@ -886,7 +896,24 @@ export async function updateAnnouncementAction(formData: FormData) {
           ? true
           : false
         : existing.is_published;
-  const nextIsPinned = nextIsPublished ? wantsPinned : false;
+
+  let nextApprovalStatus = (typedExisting.approval_status ?? "approved") as "draft" | "pending" | "approved" | "rejected";
+  let submittedPending = false;
+
+  if (intent === "publish_now" && requireAnnouncementApprovalUp) {
+    nextIsPublished = false;
+    nextApprovalStatus = "pending";
+    submittedPending = true;
+  } else if (intent === "save_draft") {
+    nextApprovalStatus =
+      typedExisting.approval_status === "rejected" || typedExisting.approval_status === "pending"
+        ? "draft"
+        : (typedExisting.approval_status as "draft" | "pending" | "approved" | "rejected");
+  } else if (intent === "publish_now" && !requireAnnouncementApprovalUp) {
+    nextApprovalStatus = "approved";
+  }
+
+  const nextIsPinned = nextIsPublished && !submittedPending ? wantsPinned : false;
 
   if (nextIsPinned && (!existing.is_pinned || !existing.is_published)) {
     const pinCheck = await enforcePinnedAnnouncementsLimit(supabase, parsed.data.clubId, parsed.data.announcementId);
@@ -895,7 +922,9 @@ export async function updateAnnouncementAction(formData: FormData) {
     }
   }
 
-  const becomingPublished = !existing.is_published && nextIsPublished;
+  const becomingPublished =
+    !existing.is_published && nextIsPublished && nextApprovalStatus === "approved" && !requireAnnouncementApprovalUp;
+
   const nowIso = new Date().toISOString();
   const updatePayload: {
     title: string;
@@ -903,6 +932,8 @@ export async function updateAnnouncementAction(formData: FormData) {
     is_urgent: boolean;
     is_published: boolean;
     is_pinned: boolean;
+    approval_status?: string;
+    rejection_reason?: string | null;
     pinned_at?: string | null;
     scheduled_for?: string | null;
     member_broadcast_sent_at?: string | null;
@@ -911,9 +942,13 @@ export async function updateAnnouncementAction(formData: FormData) {
     content: parsed.data.content,
     is_urgent: wantsUrgent,
     is_published: nextIsPublished,
-    is_pinned: nextIsPinned,
+    is_pinned: submittedPending ? false : nextIsPinned,
+    approval_status: nextApprovalStatus,
   };
-  if (!nextIsPinned) {
+  if (submittedPending) {
+    updatePayload.rejection_reason = null;
+  }
+  if (!updatePayload.is_pinned) {
     updatePayload.pinned_at = null;
   } else if (!existing.is_pinned) {
     updatePayload.pinned_at = nowIso;
@@ -935,6 +970,15 @@ export async function updateAnnouncementAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Unable+to+update+announcement.+Please+retry.`);
   }
 
+  if (submittedPending) {
+    await notifyApproversAnnouncementSubmitted({
+      clubId: parsed.data.clubId,
+      actorId: user.id,
+      announcementId: parsed.data.announcementId,
+      title: parsed.data.title,
+    });
+  }
+
   if (becomingPublished) {
     const activityEventId = await createActivityEvent({
       type: "announcement.created",
@@ -950,7 +994,7 @@ export async function updateAnnouncementAction(formData: FormData) {
       },
     });
 
-    await sendAnnouncementPublishedNotifications({
+    await sendAnnouncementMemberBroadcast({
       supabase,
       clubId: parsed.data.clubId,
       actorId: user.id,
@@ -966,11 +1010,16 @@ export async function updateAnnouncementAction(formData: FormData) {
   revalidatePath(`/clubs/${parsed.data.clubId}/announcements`);
   revalidatePath("/dashboard");
 
-  const successMessage = becomingPublished
-    ? "Draft published."
-    : nextIsPublished
-      ? "Announcement updated."
-      : "Draft updated.";
+  let successMessage: string;
+  if (submittedPending) {
+    successMessage = "Submitted for advisor approval.";
+  } else if (becomingPublished) {
+    successMessage = "Draft published.";
+  } else if (nextIsPublished) {
+    successMessage = "Announcement updated.";
+  } else {
+    successMessage = "Draft updated.";
+  }
   redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=${encodeURIComponent(successMessage)}`);
 }
 
@@ -1289,6 +1338,14 @@ export async function createEventAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+don't+have+permission+to+create+events.${duplicateQuery}#create-event`);
   }
 
+  const { data: eventClubFlags } = await supabase
+    .from("clubs")
+    .select("require_event_approval")
+    .eq("id", parsed.data.clubId)
+    .maybeSingle();
+  const requireEventApproval = Boolean(eventClubFlags?.require_event_approval);
+  const initialApprovalStatus = requireEventApproval ? ("pending" as const) : ("approved" as const);
+
   let insertedEvent: { id: string; title: string } | null = null;
   let createdOccurrences = 1;
   if (!recurrenceSettings) {
@@ -1303,6 +1360,7 @@ export async function createEventAction(formData: FormData) {
         capacity: parsed.data.capacity,
         event_date: eventDate.toISOString(),
         created_by: user.id,
+        approval_status: initialApprovalStatus,
       })
       .select("id, title")
       .maybeSingle();
@@ -1372,6 +1430,7 @@ export async function createEventAction(formData: FormData) {
       created_by: user.id,
       series_id: seriesRow.id,
       series_occurrence: idx + 1,
+      approval_status: initialApprovalStatus,
     }));
 
     const { data: createdEvents, error: recurringInsertError } = await supabase
@@ -1394,46 +1453,36 @@ export async function createEventAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+create+event.+Please+retry.${duplicateQuery}#create-event`);
   }
 
-  const eventActivityId = await createActivityEvent({
-    type: "event.created",
-    actorId: user.id,
-    clubId: parsed.data.clubId,
-    entityId: insertedEvent.id,
-    targetLabel: insertedEvent.title,
-    href: `/clubs/${parsed.data.clubId}/events#event-${insertedEvent.id}`,
-  });
-
-  // Notify all other club members about the new event (non-fatal).
-  const { data: otherMembers } = await supabase
-    .from("club_members")
-    .select("user_id")
-    .eq("club_id", parsed.data.clubId)
-    .eq("membership_status", "active")
-    .neq("user_id", user.id);
-
-  if (otherMembers && otherMembers.length > 0) {
-    await createBulkNotifications(
-      otherMembers.map((m) => ({
-        userId: m.user_id,
-        clubId: parsed.data.clubId,
-        type: "event.created" as const,
-        title: parsed.data.title,
-        body:
-          createdOccurrences > 1
-            ? `New recurring series (${createdOccurrences} events) starts ${eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${parsed.data.location}`
-            : `New event on ${eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${parsed.data.location}`,
-        href: `/clubs/${parsed.data.clubId}/events`,
-        activityEventId: eventActivityId,
-      })),
-    );
+  if (requireEventApproval) {
+    await notifyApproversEventSubmitted({
+      clubId: parsed.data.clubId,
+      actorId: user.id,
+      eventId: insertedEvent.id,
+      title: insertedEvent.title,
+    });
+  } else {
+    await notifyClubMembersOfPublishedEvent({
+      supabase,
+      clubId: parsed.data.clubId,
+      excludeNotifyUserId: user.id,
+      eventId: insertedEvent.id,
+      title: insertedEvent.title,
+      eventDate,
+      location: parsed.data.location,
+      occurrenceCount: createdOccurrences,
+      actorId: user.id,
+    });
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
-  redirect(
-    `/clubs/${parsed.data.clubId}/events?eventSuccess=${encodeURIComponent(
-      createdOccurrences > 1 ? `Recurring series created (${createdOccurrences} events).` : "Event created.",
-    )}.#events`,
-  );
+  const successMsg = requireEventApproval
+    ? createdOccurrences > 1
+      ? `Recurring series submitted (${createdOccurrences} events) for advisor approval.`
+      : "Event submitted for advisor approval."
+    : createdOccurrences > 1
+      ? `Recurring series created (${createdOccurrences} events).`
+      : "Event created.";
+  redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=${encodeURIComponent(successMsg)}.#events`);
 }
 
 export async function updateEventAction(formData: FormData) {
@@ -1498,7 +1547,7 @@ export async function updateEventAction(formData: FormData) {
 
   const { data: existingEvent, error: existingEventError } = await supabase
     .from("events")
-    .select("id, club_id, event_date, capacity")
+    .select("id, club_id, event_date, capacity, approval_status, title")
     .eq("id", parsed.data.eventId)
     .maybeSingle();
 
@@ -1514,21 +1563,56 @@ export async function updateEventAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=Event+date+must+be+in+the+future.#event-${parsed.data.eventId}`);
   }
 
-  const { error: updateError } = await supabase
-    .from("events")
-    .update({
-      title: parsed.data.title,
-      description: parsed.data.description,
-      location: parsed.data.location,
-      event_type: parsed.data.eventType,
-      capacity: parsed.data.capacity,
-      event_date: eventDate.toISOString(),
-    })
-    .eq("id", parsed.data.eventId)
-    .eq("club_id", parsed.data.clubId);
+  const { data: updateClubFlags } = await supabase
+    .from("clubs")
+    .select("require_event_approval")
+    .eq("id", parsed.data.clubId)
+    .maybeSingle();
+  const requireEventApprovalUpdate = Boolean(updateClubFlags?.require_event_approval);
+  const prevApproval = (existingEvent as { approval_status?: string }).approval_status ?? "approved";
+  let notifyApproversForEvent = false;
+
+  const baseUpdate: {
+    title: string;
+    description: string;
+    location: string;
+    event_type: string;
+    capacity: number | null;
+    event_date: string;
+    approval_status?: string;
+    rejection_reason?: null;
+    approved_at?: null;
+    approved_by?: null;
+  } = {
+    title: parsed.data.title,
+    description: parsed.data.description,
+    location: parsed.data.location,
+    event_type: parsed.data.eventType,
+    capacity: parsed.data.capacity,
+    event_date: eventDate.toISOString(),
+  };
+
+  if (requireEventApprovalUpdate && (prevApproval === "approved" || prevApproval === "rejected")) {
+    baseUpdate.approval_status = "pending";
+    baseUpdate.rejection_reason = null;
+    baseUpdate.approved_at = null;
+    baseUpdate.approved_by = null;
+    notifyApproversForEvent = true;
+  }
+
+  const { error: updateError } = await supabase.from("events").update(baseUpdate).eq("id", parsed.data.eventId).eq("club_id", parsed.data.clubId);
 
   if (updateError) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+update+event.+Please+retry.#event-${parsed.data.eventId}`);
+  }
+
+  if (notifyApproversForEvent) {
+    await notifyApproversEventSubmitted({
+      clubId: parsed.data.clubId,
+      actorId: user.id,
+      eventId: parsed.data.eventId,
+      title: parsed.data.title,
+    });
   }
 
   const previousCapacity = existingEvent.capacity;
@@ -1544,7 +1628,8 @@ export async function updateEventAction(formData: FormData) {
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   revalidatePath(`/clubs/${parsed.data.clubId}/events`);
   revalidatePath(`/clubs/${parsed.data.clubId}/events/history`);
-  redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=Event+updated.#event-${parsed.data.eventId}`);
+  const successMsg = notifyApproversForEvent ? "Updates submitted for advisor approval." : "Event updated.";
+  redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=${encodeURIComponent(successMsg)}#event-${parsed.data.eventId}`);
 }
 
 export async function deleteEventAction(formData: FormData) {

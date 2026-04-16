@@ -56,6 +56,7 @@ export const getPublicClubPageByJoinCode = cache(async (rawJoinCode: string): Pr
       .from("events")
       .select("id, title, location, event_date, event_type")
       .eq("club_id", club.id)
+      .eq("approval_status", "approved")
       .gte("event_date", nowIso)
       .order("event_date", { ascending: true })
       .limit(8);

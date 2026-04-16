@@ -9,6 +9,7 @@ import {
   buildLastEngagementByUserMs,
   computeLikelyInactiveMember,
 } from "@/lib/clubs/member-inactivity";
+import { buildRecentActivityByUserId, PARTICIPATION_ACTIVITY_WINDOW_DAYS } from "@/lib/clubs/recent-activity";
 import { compareAvailabilitySlots, normalizeAvailabilityTime } from "@/lib/clubs/member-availability-display";
 
 export type UserClub = {
@@ -39,6 +40,8 @@ export type ClubAnnouncement = {
   isPinned: boolean;
   pinnedAt: string | null;
   isUrgent: boolean;
+  approvalStatus: "draft" | "pending" | "approved" | "rejected";
+  rejectionReason: string | null;
   /** Populated on the announcements tab (aggregated RPCs). */
   readCount?: number;
   totalMembers?: number;
@@ -60,9 +63,14 @@ type AnnouncementSelectRow = {
   is_pinned?: boolean | null;
   pinned_at?: string | null;
   is_urgent?: boolean | null;
+  approval_status?: string | null;
+  rejection_reason?: string | null;
 };
 
 function mapAnnouncementRow(row: AnnouncementSelectRow): ClubAnnouncement {
+  const ar = row.approval_status;
+  const approvalStatus: ClubAnnouncement["approvalStatus"] =
+    ar === "draft" || ar === "pending" || ar === "rejected" ? ar : "approved";
   return {
     id: row.id,
     title: row.title,
@@ -76,6 +84,8 @@ function mapAnnouncementRow(row: AnnouncementSelectRow): ClubAnnouncement {
     isPinned: row.is_pinned ?? false,
     pinnedAt: row.pinned_at ?? null,
     isUrgent: row.is_urgent ?? false,
+    approvalStatus,
+    rejectionReason: row.rejection_reason?.trim() ? row.rejection_reason : null,
   };
 }
 
@@ -99,6 +109,9 @@ export type ClubEvent = {
   eventDateRaw: Date;
   seriesId: string | null;
   seriesOccurrence: number | null;
+  /** When the club uses advisor approval; members only see `approved`. */
+  approvalStatus: "approved" | "pending" | "rejected";
+  rejectionReason: string | null;
   userRsvpStatus: EventRsvpStatus | null;
   /** One-based position in the waitlist for current user when applicable. */
   userWaitlistPosition: number | null;
@@ -198,6 +211,15 @@ export type ClubMember = {
   engagementSignalWeak: boolean;
   /** Derived hint: low recent participation (not a membership status). */
   likelyInactive: boolean;
+  /**
+   * Rolling-window activity points: +3 per event attended, +1 per RSVP “yes”
+   * (see `PARTICIPATION_ACTIVITY_WINDOW_DAYS` in `recent-activity.ts`).
+   */
+  recentActivityPoints: number;
+  /** Latest marked attendance or RSVP time in that window; null if none. */
+  lastActivityAt: string | null;
+  /** No attendance and no RSVP in the window (active members; grace for new joins). */
+  isInactive: boolean;
   /** Sum of logged volunteer hours in this club. */
   volunteerHoursTotal: number;
   /** Newest-first entries (same club). */
@@ -434,6 +456,8 @@ type ClubEventRow = {
   capacity?: number | null;
   series_id?: string | null;
   series_occurrence?: number | null;
+  approval_status?: string | null;
+  rejection_reason?: string | null;
 };
 
 function mapEventRowsToClubEvents(
@@ -495,6 +519,11 @@ function mapEventRowsToClubEvents(
       eventDateRaw: new Date(event.event_date),
       seriesId: event.series_id ?? null,
       seriesOccurrence: event.series_occurrence ?? null,
+      approvalStatus:
+        event.approval_status === "pending" || event.approval_status === "rejected"
+          ? event.approval_status
+          : "approved",
+      rejectionReason: event.rejection_reason?.trim() ? event.rejection_reason : null,
       userRsvpStatus,
       userWaitlistPosition:
         userRsvpStatus === "waitlist" ? (waitlistPositionByEventAndUser.get(`${event.id}:${userId}`) ?? null) : null,
@@ -553,6 +582,9 @@ function buildLightMembersForEventUi(
       lastEngagementAt: null,
       engagementSignalWeak: true,
       likelyInactive: false,
+      recentActivityPoints: 0,
+      lastActivityAt: null,
+      isInactive: false,
       volunteerHoursTotal: 0,
       volunteerHourEntries: [],
       skillInterestEntries: [],
@@ -601,6 +633,9 @@ function buildMembersWithAttendanceInsightsOnly(
       lastEngagementAt: engagement.lastEngagementAt,
       engagementSignalWeak: engagement.engagementSignalWeak,
       likelyInactive: engagement.likelyInactive,
+      recentActivityPoints: 0,
+      lastActivityAt: null,
+      isInactive: false,
       volunteerHoursTotal: 0,
       volunteerHourEntries: [],
       skillInterestEntries: [],
@@ -634,6 +669,9 @@ function buildMembersVolunteerOnly(
       lastEngagementAt: null,
       engagementSignalWeak: true,
       likelyInactive: false,
+      recentActivityPoints: 0,
+      lastActivityAt: null,
+      isInactive: false,
       volunteerHoursTotal: volunteerTotalByUser.get(member.user_id) ?? 0,
       volunteerHourEntries: volunteerEntriesByUser.get(member.user_id) ?? [],
       skillInterestEntries: [],
@@ -1080,7 +1118,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     supabase
       .from("announcements")
       .select(
-        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent",
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent, approval_status, rejection_reason",
       )
       .eq("club_id", clubId)
       .order("is_pinned", { ascending: false })
@@ -1091,14 +1129,18 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     Promise.all([
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
+        .select(
+          "id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence, approval_status, rejection_reason",
+        )
         .eq("club_id", clubId)
         .gte("event_date", nowIso)
         .order("event_date", { ascending: true })
         .limit(100),
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
+        .select(
+          "id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence, approval_status, rejection_reason",
+        )
         .eq("club_id", clubId)
         .lt("event_date", nowIso)
         .order("event_date", { ascending: false })
@@ -1415,6 +1457,9 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
       lastEngagementAt: engagement.lastEngagementAt,
       engagementSignalWeak: engagement.engagementSignalWeak,
       likelyInactive: engagement.likelyInactive,
+      recentActivityPoints: 0,
+      lastActivityAt: null,
+      isInactive: false,
       volunteerHoursTotal: volunteerTotalByUser.get(member.user_id) ?? 0,
       volunteerHourEntries: volunteerEntriesByUser.get(member.user_id) ?? [],
       skillInterestEntries: skillInterestByUser.get(member.user_id) ?? [],
@@ -1562,7 +1607,7 @@ export async function getClubDetailForAnnouncementsForCurrentUser(clubId: string
     supabase
       .from("announcements")
       .select(
-        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent",
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent, approval_status, rejection_reason",
       )
       .eq("club_id", clubId)
       .order("is_pinned", { ascending: false })
@@ -1742,14 +1787,18 @@ export async function getClubDetailForEventsForCurrentUser(clubId: string): Prom
     Promise.all([
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
+        .select(
+          "id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence, approval_status, rejection_reason",
+        )
         .eq("club_id", clubId)
         .gte("event_date", nowIso)
         .order("event_date", { ascending: true })
         .limit(100),
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
+        .select(
+          "id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence, approval_status, rejection_reason",
+        )
         .eq("club_id", clubId)
         .lt("event_date", nowIso)
         .order("event_date", { ascending: false })
@@ -1889,7 +1938,7 @@ export async function getClubDetailForOverviewForCurrentUser(clubId: string): Pr
     supabase
       .from("announcements")
       .select(
-        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent",
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent, approval_status, rejection_reason",
       )
       .eq("club_id", clubId)
       .order("is_pinned", { ascending: false })
@@ -1900,14 +1949,18 @@ export async function getClubDetailForOverviewForCurrentUser(clubId: string): Pr
     Promise.all([
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
+        .select(
+          "id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence, approval_status, rejection_reason",
+        )
         .eq("club_id", clubId)
         .gte("event_date", nowIso)
         .order("event_date", { ascending: true })
         .limit(100),
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
+        .select(
+          "id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence, approval_status, rejection_reason",
+        )
         .eq("club_id", clubId)
         .lt("event_date", nowIso)
         .order("event_date", { ascending: false })
@@ -2133,14 +2186,18 @@ export async function getClubDetailForInsightsForCurrentUser(clubId: string): Pr
     Promise.all([
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
+        .select(
+          "id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence, approval_status, rejection_reason",
+        )
         .eq("club_id", clubId)
         .gte("event_date", nowIso)
         .order("event_date", { ascending: true })
         .limit(100),
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
+        .select(
+          "id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence, approval_status, rejection_reason",
+        )
         .eq("club_id", clubId)
         .lt("event_date", nowIso)
         .order("event_date", { ascending: false })
@@ -2432,6 +2489,58 @@ function membersRosterProfileLog(
   console.log(`[clubhub:members-roster-profile] ${parts.join(" ")}`);
 }
 
+const SUPABASE_IN_CHUNK = 100;
+
+function chunkIds<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
+}
+
+async function fetchEventAttendanceRowsForParticipationWindow(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventIds: string[],
+): Promise<{ event_id: string; user_id: string; marked_at: string }[]> {
+  if (eventIds.length === 0) return [];
+  const out: { event_id: string; user_id: string; marked_at: string }[] = [];
+  for (const batch of chunkIds(eventIds, SUPABASE_IN_CHUNK)) {
+    const { data, error } = await supabase
+      .from("event_attendance")
+      .select("event_id, user_id, marked_at")
+      .in("event_id", batch);
+    if (error) {
+      console.error("[clubhub] participation attendance batch:", error.message);
+      continue;
+    }
+    out.push(...((data ?? []) as { event_id: string; user_id: string; marked_at: string }[]));
+  }
+  return out;
+}
+
+async function fetchRsvpsInParticipationWindow(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventIds: string[],
+  windowStartIso: string,
+): Promise<{ event_id: string; user_id: string; status: string; created_at: string }[]> {
+  if (eventIds.length === 0) return [];
+  const out: { event_id: string; user_id: string; status: string; created_at: string }[] = [];
+  for (const batch of chunkIds(eventIds, SUPABASE_IN_CHUNK)) {
+    const { data, error } = await supabase
+      .from("rsvps")
+      .select("event_id, user_id, status, created_at")
+      .in("event_id", batch)
+      .gte("created_at", windowStartIso);
+    if (error) {
+      console.error("[clubhub] participation rsvp batch:", error.message);
+      continue;
+    }
+    out.push(...((data ?? []) as { event_id: string; user_id: string; status: string; created_at: string }[]));
+  }
+  return out;
+}
+
 /**
  * Members tab: full per-member roster graph (tags, committees, teams, volunteer, skills, availability,
  * attendance, engagement) without loading announcement bodies, activity RPC, full event cards, reflections,
@@ -2472,6 +2581,11 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
 
   const now = new Date();
   const nowIso = now.toISOString();
+  const participationWindowStart = new Date(now);
+  participationWindowStart.setDate(
+    participationWindowStart.getDate() - PARTICIPATION_ACTIVITY_WINDOW_DAYS,
+  );
+  const participationWindowStartIso = participationWindowStart.toISOString();
 
   t = membersRosterProfileNow();
   const [
@@ -2484,6 +2598,8 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
     eventsCountRes,
     upcomingPastSlimRes,
     pastEventsIdsRes,
+    pastEventsInParticipationWindowRes,
+    allClubEventIdsRes,
   ] = await Promise.all([
     supabase
       .from("club_members")
@@ -2516,9 +2632,16 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
         .limit(150),
     ]),
     supabase.from("events").select("id").eq("club_id", clubId).lt("event_date", nowIso),
+    supabase
+      .from("events")
+      .select("id")
+      .eq("club_id", clubId)
+      .gte("event_date", participationWindowStartIso)
+      .lte("event_date", nowIso),
+    supabase.from("events").select("id").eq("club_id", clubId),
   ]);
 
-  membersRosterProfileLog("wave1_parallel_9", t, {
+  membersRosterProfileLog("wave1_parallel_11", t, {
     clubId,
     memberBaseN: memberBaseRes.data?.length ?? 0,
     memberViewRpcN: ((membersDataRes.data ?? []) as unknown[]).length,
@@ -2526,6 +2649,8 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
     committeeN: committeeRes.data?.length ?? 0,
     teamN: teamRes.data?.length ?? 0,
     pastEventIdsN: pastEventsIdsRes.data?.length ?? 0,
+    pastParticipationEventN: pastEventsInParticipationWindowRes.data?.length ?? 0,
+    allClubEventN: allClubEventIdsRes.data?.length ?? 0,
   });
 
   const memberBaseData = memberBaseRes.data;
@@ -2566,6 +2691,18 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
   const engagementEventIds = engagementEventMetas.map((e) => e.id);
   const pastEventIds = (pastEventsData ?? []).map((event) => event.id);
 
+  const pastParticipationEventIds = (pastEventsInParticipationWindowRes.data ?? []).map((e) => e.id);
+  const allClubEventIds = (allClubEventIdsRes.data ?? []).map((e) => e.id);
+  const participationAttendancePromise = fetchEventAttendanceRowsForParticipationWindow(
+    supabase,
+    pastParticipationEventIds,
+  );
+  const participationRsvpPromise = fetchRsvpsInParticipationWindow(
+    supabase,
+    allClubEventIds,
+    participationWindowStartIso,
+  );
+
   const emptyRsvp = {
     data: [] as {
       event_id: string;
@@ -2578,7 +2715,15 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
   t = membersRosterProfileNow();
   const [
     [{ data: assignRows }, { data: committeeMemberRows }, { data: teamMemberRows }],
-    [rsvpRes, pastAttendanceRes, volunteerHoursFetch, skillInterestFetch, availabilityFetch],
+    [
+      rsvpRes,
+      pastAttendanceRes,
+      volunteerHoursFetch,
+      skillInterestFetch,
+      availabilityFetch,
+      participationAttendanceData,
+      participationRsvpData,
+    ],
   ] = await Promise.all([
     Promise.all([
       tagIdsForClub.length === 0 || tagDefError
@@ -2617,6 +2762,8 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
         .from("club_member_availability_slots")
         .select("id, user_id, day_of_week, time_start, time_end, created_at")
         .eq("club_id", clubId),
+      participationAttendancePromise,
+      participationRsvpPromise,
     ]),
   ]);
 
@@ -2778,6 +2925,30 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
     volunteerRowN: volunteerRowsRaw.length,
     skillInterestN: skillInterestRowsRaw.length,
     availabilityUserN: availabilityByUser.size,
+    participationAttN: participationAttendanceData.length,
+    participationRsvpN: participationRsvpData.length,
+  });
+
+  const memberUserIds = ((memberBaseData ?? []) as ClubMemberBaseRow[]).map((m) => m.user_id);
+  const membershipForActivityByUserId = new Map<
+    string,
+    { membershipStatus: "active" | "alumni"; joinedAtIso: string | null }
+  >();
+  for (const member of (memberBaseData ?? []) as ClubMemberBaseRow[]) {
+    const detail = memberViewById.get(member.user_id);
+    const ms = detail?.membership_status ?? member.membership_status;
+    membershipForActivityByUserId.set(member.user_id, {
+      membershipStatus: ms === "alumni" ? "alumni" : "active",
+      joinedAtIso: member.joined_at ?? null,
+    });
+  }
+
+  const recentActivityByUserId = buildRecentActivityByUserId({
+    memberUserIds,
+    membershipByUserId: membershipForActivityByUserId,
+    attendanceRows: participationAttendanceData,
+    rsvpRows: participationRsvpData,
+    now,
   });
 
   const buildMembersAt = membersRosterProfileNow();
@@ -2796,6 +2967,11 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
       now,
     });
 
+    const ra = recentActivityByUserId.get(member.user_id);
+    const recentActivityPoints = ra?.recentActivityPoints ?? 0;
+    const lastActivityAt = ra?.lastActivityAt ?? null;
+    const isInactive = ra?.isInactive ?? false;
+
     return {
       userId: member.user_id,
       fullName: detail?.full_name ?? null,
@@ -2812,6 +2988,9 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
       lastEngagementAt: engagement.lastEngagementAt,
       engagementSignalWeak: engagement.engagementSignalWeak,
       likelyInactive: engagement.likelyInactive,
+      recentActivityPoints,
+      lastActivityAt,
+      isInactive,
       volunteerHoursTotal: volunteerTotalByUser.get(member.user_id) ?? 0,
       volunteerHourEntries: volunteerEntriesByUser.get(member.user_id) ?? [],
       skillInterestEntries: skillInterestByUser.get(member.user_id) ?? [],

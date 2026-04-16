@@ -23,6 +23,10 @@ import {
   trackedAttendanceEmptyCopy,
 } from "@/lib/clubs/member-engagement-copy";
 import { formatMemberLastEngagementDisplay, MEMBER_INACTIVITY } from "@/lib/clubs/member-inactivity";
+import {
+  PARTICIPATION_ACTIVITY_WINDOW_DAYS,
+  recentActivityPointsTitle,
+} from "@/lib/clubs/recent-activity";
 import { computeParticipationScore, participationScoreBand } from "@/lib/clubs/participation-score";
 import { formatClubDuesDueDateLabel, formatClubDuesMoney, isUnpaidDuesPastDue } from "@/lib/clubs/dues-display";
 import type {
@@ -44,6 +48,16 @@ type RosterStatusFilter = "all" | "active" | "alumni";
 
 /** Engagement hint filter (leadership / insights only). */
 type RosterEngagementFilter = "all" | "likely_inactive";
+
+/** Recent RSVP/attendance window (see `recent-activity.ts`). */
+type RosterActivityLevelFilter = "all" | "engaged" | "low_activity";
+
+type RosterSortKey =
+  | "name_asc"
+  | "activity_desc"
+  | "activity_asc"
+  | "last_activity_desc"
+  | "last_activity_asc";
 
 function hasRbacPresident(rbacRoles: MemberWithRoles["rbacRoles"]): boolean {
   return rbacRoles.some((r) => r.roleName === "President" && r.isSystem);
@@ -204,6 +218,49 @@ function memberMatchesEngagementFilter(
   return Boolean(member.likelyInactive);
 }
 
+function memberMatchesActivityLevelFilter(
+  member: ClubMember,
+  filter: RosterActivityLevelFilter,
+): boolean {
+  if (filter === "all") return true;
+  if (member.membershipStatus === "alumni") {
+    return filter !== "low_activity";
+  }
+  if (filter === "engaged") return !member.isInactive;
+  if (filter === "low_activity") return member.isInactive;
+  return true;
+}
+
+function compareRosterMembers(a: ClubMember, b: ClubMember, sortKey: RosterSortKey): number {
+  const nameCmp = getMemberRosterDisplayName(a).localeCompare(getMemberRosterDisplayName(b));
+  switch (sortKey) {
+    case "name_asc":
+      return nameCmp;
+    case "activity_desc": {
+      const d = (b.recentActivityPoints ?? 0) - (a.recentActivityPoints ?? 0);
+      return d !== 0 ? d : nameCmp;
+    }
+    case "activity_asc": {
+      const d = (a.recentActivityPoints ?? 0) - (b.recentActivityPoints ?? 0);
+      return d !== 0 ? d : nameCmp;
+    }
+    case "last_activity_desc": {
+      const ta = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : Number.NEGATIVE_INFINITY;
+      const tb = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : Number.NEGATIVE_INFINITY;
+      const d = tb - ta;
+      return d !== 0 ? d : nameCmp;
+    }
+    case "last_activity_asc": {
+      const ta = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : Number.POSITIVE_INFINITY;
+      const tb = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : Number.POSITIVE_INFINITY;
+      const d = ta - tb;
+      return d !== 0 ? d : nameCmp;
+    }
+    default:
+      return nameCmp;
+  }
+}
+
 function rosterParticipationPill(member: ClubMember) {
   const { score, attendanceSignalLimited } = computeParticipationScore({
     attendanceRate: member.attendanceRate,
@@ -224,6 +281,18 @@ function rosterParticipationPill(member: ClubMember) {
       title={participationScoreCompactTitle({ score, attendanceSignalLimited })}
     >
       Score {score}
+    </span>
+  );
+}
+
+function rosterActivityPointsPill(member: ClubMember) {
+  const pts = member.recentActivityPoints ?? 0;
+  return (
+    <span
+      className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-950"
+      title={recentActivityPointsTitle(pts)}
+    >
+      Activity {pts}
     </span>
   );
 }
@@ -272,6 +341,8 @@ export function ClubMembersSection({
   const [roleFilter, setRoleFilter] = useState<RosterRoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<RosterStatusFilter>("all");
   const [engagementFilter, setEngagementFilter] = useState<RosterEngagementFilter>("all");
+  const [activityLevelFilter, setActivityLevelFilter] = useState<RosterActivityLevelFilter>("all");
+  const [rosterSortKey, setRosterSortKey] = useState<RosterSortKey>("name_asc");
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
   const [duesTermEditOpen, setDuesTermEditOpen] = useState(false);
@@ -328,6 +399,8 @@ export function ClubMembersSection({
     Boolean(rosterQuery)
     || roleFilter !== "all"
     || statusFilter !== "all"
+    || activityLevelFilter !== "all"
+    || rosterSortKey !== "name_asc"
     || (canSeeInactiveEngagement && engagementFilter !== "all");
 
   const likelyInactiveCount = canSeeInactiveEngagement
@@ -362,8 +435,12 @@ export function ClubMembersSection({
       );
     }
     list = list.filter((m) => memberMatchesEngagementFilter(m, engagementFilter, canSeeInactiveEngagement));
-    if (!rosterQuery) return list;
-    return list.filter((m) => memberMatchesRosterSearch(m, rbacByUser[m.userId] ?? [], rosterQuery));
+    list = list.filter((m) => memberMatchesActivityLevelFilter(m, activityLevelFilter));
+    if (rosterQuery) {
+      list = list.filter((m) => memberMatchesRosterSearch(m, rbacByUser[m.userId] ?? [], rosterQuery));
+    }
+    const sorted = [...list].sort((a, b) => compareRosterMembers(a, b, rosterSortKey));
+    return sorted;
   }, [
     club.members,
     rbacByUser,
@@ -371,6 +448,8 @@ export function ClubMembersSection({
     roleFilter,
     statusFilter,
     engagementFilter,
+    activityLevelFilter,
+    rosterSortKey,
     canSeeInactiveEngagement,
   ]);
 
@@ -388,6 +467,8 @@ export function ClubMembersSection({
     setRoleFilter("all");
     setStatusFilter("all");
     setEngagementFilter("all");
+    setActivityLevelFilter("all");
+    setRosterSortKey("name_asc");
   }
 
   function selectAllVisibleMembers() {
@@ -803,6 +884,40 @@ export function ClubMembersSection({
                       <option value="member">Member</option>
                     </select>
                   </div>
+                  <div className="w-full sm:min-w-[200px]">
+                    <label htmlFor="roster-activity-filter" className="mb-1 block text-xs font-semibold text-slate-600">
+                      Activity
+                    </label>
+                    <select
+                      id="roster-activity-filter"
+                      value={activityLevelFilter}
+                      onChange={(e) => setActivityLevelFilter(e.target.value as RosterActivityLevelFilter)}
+                      className="input-control min-h-11 w-full text-sm sm:min-h-10"
+                      aria-label="Filter by recent RSVP and attendance activity"
+                    >
+                      <option value="all">All</option>
+                      <option value="engaged">Engaged</option>
+                      <option value="low_activity">Low activity</option>
+                    </select>
+                  </div>
+                  <div className="w-full sm:min-w-[220px]">
+                    <label htmlFor="roster-sort" className="mb-1 block text-xs font-semibold text-slate-600">
+                      Sort
+                    </label>
+                    <select
+                      id="roster-sort"
+                      value={rosterSortKey}
+                      onChange={(e) => setRosterSortKey(e.target.value as RosterSortKey)}
+                      className="input-control min-h-11 w-full text-sm sm:min-h-10"
+                      aria-label="Sort roster"
+                    >
+                      <option value="name_asc">Name (A–Z)</option>
+                      <option value="activity_desc">Activity score (high → low)</option>
+                      <option value="activity_asc">Activity score (low → high)</option>
+                      <option value="last_activity_desc">Last activity (recent first)</option>
+                      <option value="last_activity_asc">Last activity (oldest first)</option>
+                    </select>
+                  </div>
                   {canSeeInactiveEngagement ? (
                     <div className="w-full sm:min-w-[200px]">
                       <label htmlFor="roster-engagement-filter" className="mb-1 block text-xs font-semibold text-slate-600">
@@ -963,7 +1078,11 @@ export function ClubMembersSection({
               copy={
                 engagementFilter === "likely_inactive" && canSeeInactiveEngagement
                   ? "No one is currently flagged as likely inactive, or another filter is hiding results."
-                  : "Try a different search term or adjust role/status filters."
+                  : activityLevelFilter === "low_activity"
+                    ? "No members match low activity for this filter set, or another filter is hiding results."
+                    : activityLevelFilter === "engaged"
+                      ? "No members match engaged activity for this filter set, or another filter is hiding results."
+                      : "Try a different search term or adjust filters."
               }
               action={
                 hasActiveFilters ? (
@@ -1068,6 +1187,14 @@ export function ClubMembersSection({
                                 title={duesPillHint}
                               >
                                 <span className="truncate">{duesPill.label}</span>
+                              </span>
+                            ) : null}
+                            {!isAlumni && member.isInactive ? (
+                              <span
+                                className="inline-flex max-w-full items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-900"
+                                title={`No RSVP and no attendance in the last ${PARTICIPATION_ACTIVITY_WINDOW_DAYS} days (after a short grace period for new members). For outreach only.`}
+                              >
+                                Low activity
                               </span>
                             ) : null}
                             {canSeeInactiveEngagement && !isAlumni && member.likelyInactive ? (
@@ -1181,6 +1308,8 @@ export function ClubMembersSection({
                         </div>
                         <span className="hidden h-3 w-px bg-slate-200 sm:block" aria-hidden />
                         <div className="flex flex-wrap items-center gap-2">
+                          {rosterActivityPointsPill(member)}
+                          <span className="text-xs text-slate-400">·</span>
                           {rosterParticipationPill(member)}
                           <span className="text-xs text-slate-400">·</span>
                           <span className="text-xs font-medium text-slate-700">

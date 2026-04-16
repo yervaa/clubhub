@@ -31,7 +31,11 @@ export default async function ClubSettingsLifecyclePage({ params, searchParams }
   if (!membership) notFound();
 
   const [clubResult, presidencyCheck, permissions] = await Promise.all([
-    supabase.from("clubs").select("name, status, require_join_approval").eq("id", clubId).maybeSingle(),
+    supabase
+      .from("clubs")
+      .select("name, status, require_join_approval, require_event_approval, require_announcement_approval")
+      .eq("id", clubId)
+      .maybeSingle(),
     isClubPresident(user.id, clubId),
     getUserPermissions(user.id, clubId),
   ]);
@@ -81,6 +85,9 @@ export default async function ClubSettingsLifecyclePage({ params, searchParams }
       query={query}
       requireJoinApproval={Boolean(clubResult.data.require_join_approval)}
       canManageJoinPolicy={canManageJoinPolicy}
+      requireEventApproval={Boolean(clubResult.data.require_event_approval)}
+      requireAnnouncementApproval={Boolean(clubResult.data.require_announcement_approval)}
+      canManageAdvisorPolicy={canManageJoinPolicy}
     />
   );
 }

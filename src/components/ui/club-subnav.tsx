@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 type ClubSubnavProps = {
   clubId: string;
   canViewSettings?: boolean;
+  /** Shows Advisor tab for event/announcement approvers. */
+  canAccessAdvisor?: boolean;
 };
 
 const CLUB_PRIMARY_TABS = [
@@ -16,18 +18,23 @@ const CLUB_PRIMARY_TABS = [
   { label: "Insights", href: "/insights" },
 ] as const;
 
-export function ClubSubnav({ clubId, canViewSettings = false }: ClubSubnavProps) {
+export function ClubSubnav({ clubId, canViewSettings = false, canAccessAdvisor = false }: ClubSubnavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const basePath = `/clubs/${clubId}`;
-  const tabs = canViewSettings
-    ? [...CLUB_PRIMARY_TABS, { label: "Settings", href: "/settings" as const }]
-    : CLUB_PRIMARY_TABS;
+  const advisorTab = { label: "Advisor", href: "/advisor" as const };
+  const tabs = [
+    ...CLUB_PRIMARY_TABS,
+    ...(canAccessAdvisor ? [advisorTab] : []),
+    ...(canViewSettings ? [{ label: "Settings", href: "/settings" as const }] : []),
+  ];
 
   function activeHrefForPicker(): string {
     for (const tab of tabs) {
       const href = `${basePath}${tab.href}`;
       if (tab.href === "/settings") {
+        if (pathname.startsWith(href)) return href;
+      } else if (tab.href === "/advisor") {
         if (pathname.startsWith(href)) return href;
       } else if (pathname === href) {
         return href;
@@ -37,6 +44,7 @@ export function ClubSubnav({ clubId, canViewSettings = false }: ClubSubnavProps)
     if (pathname.startsWith(`${basePath}/members`)) return `${basePath}/members`;
     if (pathname.startsWith(`${basePath}/announcements`)) return `${basePath}/announcements`;
     if (pathname.startsWith(`${basePath}/insights`)) return `${basePath}/insights`;
+    if (pathname.startsWith(`${basePath}/advisor`)) return `${basePath}/advisor`;
     if (pathname.startsWith(`${basePath}/settings`) && canViewSettings) return `${basePath}/settings`;
     return basePath;
   }
@@ -75,9 +83,11 @@ export function ClubSubnav({ clubId, canViewSettings = false }: ClubSubnavProps)
             const isActive =
               tab.href === "/settings"
                 ? pathname.startsWith(href)
-                : tab.href === "/members"
+                : tab.href === "/advisor"
                   ? pathname === href || pathname.startsWith(`${href}/`)
-                  : pathname === href;
+                  : tab.href === "/members"
+                    ? pathname === href || pathname.startsWith(`${href}/`)
+                    : pathname === href;
 
             return (
               <li key={href}>

@@ -85,6 +85,7 @@ export async function publishDueScheduledAnnouncements(): Promise<{ published: n
     .from("announcements")
     .select("id, club_id, title, created_by, poll_question, is_urgent")
     .eq("is_published", false)
+    .eq("approval_status", "approved")
     .not("scheduled_for", "is", null)
     .lte("scheduled_for", t);
 
@@ -125,6 +126,7 @@ export async function publishDueScheduledAnnouncements(): Promise<{ published: n
       .from("announcements")
       .select(pendingSelect)
       .eq("is_published", true)
+      .eq("approval_status", "approved")
       .is("member_broadcast_sent_at", null);
 
   const [{ data: pendingScheduled }, { data: pendingImmediate }] = await Promise.all([

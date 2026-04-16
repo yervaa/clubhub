@@ -6,6 +6,7 @@ import {
   archiveClubAction,
   deleteClubAction,
   leaveClubAction,
+  updateClubAdvisorApprovalPolicyAction,
   updateClubJoinPolicyAction,
 } from "@/app/(app)/clubs/club-lifecycle-actions";
 import { CardSection } from "@/components/ui/page-patterns";
@@ -25,6 +26,9 @@ type ClubLifecycleSectionProps = {
   };
   requireJoinApproval: boolean;
   canManageJoinPolicy: boolean;
+  requireEventApproval: boolean;
+  requireAnnouncementApproval: boolean;
+  canManageAdvisorPolicy: boolean;
 };
 
 export function ClubLifecycleSection({
@@ -38,6 +42,9 @@ export function ClubLifecycleSection({
   query,
   requireJoinApproval,
   canManageJoinPolicy,
+  requireEventApproval,
+  requireAnnouncementApproval,
+  canManageAdvisorPolicy,
 }: ClubLifecycleSectionProps) {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -71,6 +78,90 @@ export function ClubLifecycleSection({
           This club is <strong>archived</strong>. It stays in the database for history, but operational actions are
           disabled. You can still leave or delete the club if you have permission.
         </div>
+      )}
+
+      {isActiveClub && canManageAdvisorPolicy && (
+        <CardSection className="surface-subcard border border-slate-200/90 sm:p-6">
+          <h2 className="text-lg font-semibold text-slate-900">Advisor approvals</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            When enabled, organizers submit new events or published announcements for advisor review before members see
+            them. Assign the Advisor role (Settings → Roles) with approve permissions.
+          </p>
+          <form action={updateClubAdvisorApprovalPolicyAction} className="mt-4 space-y-4">
+            <input type="hidden" name="club_id" value={clubId} />
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-semibold text-slate-800">Events</legend>
+              <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 bg-white p-4 has-[:checked]:border-violet-400 has-[:checked]:ring-2 has-[:checked]:ring-violet-100">
+                <input
+                  type="radio"
+                  name="require_event_approval"
+                  value="false"
+                  defaultChecked={!requireEventApproval}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-semibold text-slate-900">Off</span>
+                  <span className="mt-1 block text-sm text-slate-600">New events are visible to members as today.</span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 bg-white p-4 has-[:checked]:border-violet-400 has-[:checked]:ring-2 has-[:checked]:ring-violet-100">
+                <input
+                  type="radio"
+                  name="require_event_approval"
+                  value="true"
+                  defaultChecked={requireEventApproval}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-semibold text-slate-900">Required</span>
+                  <span className="mt-1 block text-sm text-slate-600">
+                    New and re-submitted events need an advisor approval before members see them.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-semibold text-slate-800">Announcements</legend>
+              <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 bg-white p-4 has-[:checked]:border-violet-400 has-[:checked]:ring-2 has-[:checked]:ring-violet-100">
+                <input
+                  type="radio"
+                  name="require_announcement_approval"
+                  value="false"
+                  defaultChecked={!requireAnnouncementApproval}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-semibold text-slate-900">Off</span>
+                  <span className="mt-1 block text-sm text-slate-600">
+                    Publish and schedule behave as without review (drafts stay drafts).
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 bg-white p-4 has-[:checked]:border-violet-400 has-[:checked]:ring-2 has-[:checked]:ring-violet-100">
+                <input
+                  type="radio"
+                  name="require_announcement_approval"
+                  value="true"
+                  defaultChecked={requireAnnouncementApproval}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-semibold text-slate-900">Required</span>
+                  <span className="mt-1 block text-sm text-slate-600">
+                    Publishing or scheduling submits for advisor approval before members are notified.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+            <button
+              suppressHydrationWarning
+              type="submit"
+              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+            >
+              Save approval settings
+            </button>
+          </form>
+        </CardSection>
       )}
 
       {isActiveClub && canManageJoinPolicy && (

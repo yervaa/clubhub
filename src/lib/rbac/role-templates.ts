@@ -141,6 +141,8 @@ export const ROLE_TEMPLATES: Record<RoleTemplateKey, RoleTemplate> = {
       "insights.view",
       "insights.export",
       "audit_logs.view",
+      "events.approve",
+      "announcements.approve",
     ],
   },
 

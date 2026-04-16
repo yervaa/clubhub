@@ -175,6 +175,11 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
     description: "Remove announcements from the club.",
     category: "Announcements",
   },
+  "announcements.approve": {
+    label: "Approve Announcements",
+    description: "Approve or reject announcements before members can see them.",
+    category: "Announcements",
+  },
   // Events
   "events.create": {
     label: "Create Events",
@@ -189,6 +194,11 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
   "events.delete": {
     label: "Delete Events",
     description: "Remove events from the club calendar.",
+    category: "Events",
+  },
+  "events.approve": {
+    label: "Approve Events",
+    description: "Approve or reject events before they appear for members.",
     category: "Events",
   },
   // Attendance

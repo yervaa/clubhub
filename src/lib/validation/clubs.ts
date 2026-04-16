@@ -888,6 +888,28 @@ export const joinRequestDecisionSchema = z.object({
   requestId: uuidSchema,
 });
 
+const advisorReasonSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => {
+    if (v == null || typeof v !== "string") return null;
+    const t = v.trim();
+    if (!t) return null;
+    return sanitizeInlineText(t).slice(0, 500);
+  });
+
+/** Approve/reject advisor flows (`entityId` is `event_id` or `announcement_id` depending on action). */
+export const advisorDecisionSchema = z.object({
+  clubId: uuidSchema,
+  entityId: uuidSchema,
+  reason: advisorReasonSchema,
+});
+
+export const clubAdvisorApprovalPolicySchema = z.object({
+  clubId: uuidSchema,
+  requireEventApproval: z.enum(["true", "false"]),
+  requireAnnouncementApproval: z.enum(["true", "false"]),
+});
+
 export const archiveClubSchema = z.object({
   clubId: uuidSchema,
 });

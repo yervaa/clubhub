@@ -36,10 +36,12 @@ export type PermissionKey =
   | "announcements.create"
   | "announcements.edit"
   | "announcements.delete"
+  | "announcements.approve"
   // Events
   | "events.create"
   | "events.edit"
   | "events.delete"
+  | "events.approve"
   // Attendance
   | "attendance.mark"
   | "attendance.edit"

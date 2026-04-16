@@ -163,6 +163,7 @@ export async function dispatchEventReminders(): Promise<{ notified: number }> {
   const { data: events, error: evErr } = await admin
     .from("events")
     .select("id, club_id, title, event_date")
+    .eq("approval_status", "approved")
     .gte("event_date", windowStart)
     .lte("event_date", windowEnd);
 
@@ -190,7 +191,8 @@ export async function dispatchEventReminders(): Promise<{ notified: number }> {
     const { data: eventRows } = await admin
       .from("events")
       .select("id, club_id, title, event_date")
-      .in("id", eventIds);
+      .in("id", eventIds)
+      .eq("approval_status", "approved");
 
     const evMap = new Map((eventRows ?? []).map((e) => [e.id, e]));
 

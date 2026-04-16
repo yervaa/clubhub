@@ -20,6 +20,8 @@ export default async function ClubLayout({ children, params }: ClubLayoutProps) 
     userPermissions.has("club.manage_settings") ||
     userPermissions.has("roles.create") ||
     userPermissions.has("roles.edit");
+  const canAccessAdvisor =
+    userPermissions.has("events.approve") || userPermissions.has("announcements.approve");
 
   return (
     <section className="space-y-4 lg:space-y-6">
@@ -47,7 +49,7 @@ export default async function ClubLayout({ children, params }: ClubLayoutProps) 
           </p>
         </div>
       )}
-      <ClubSubnav clubId={clubId} canViewSettings={canViewSettings} />
+      <ClubSubnav clubId={clubId} canViewSettings={canViewSettings} canAccessAdvisor={canAccessAdvisor} />
       {children}
     </section>
   );
