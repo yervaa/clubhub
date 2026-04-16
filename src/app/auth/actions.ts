@@ -58,10 +58,12 @@ export async function loginAction(formData: FormData) {
   const nextPath = getSafeNextPath(
     typeof rawNext === "string" ? rawNext : null,
   );
+  const rawEmail = formData.get("email");
+  const rawPassword = formData.get("password");
 
   const parsed = loginSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
+    email: rawEmail,
+    password: rawPassword,
   });
 
   if (!parsed.success) {

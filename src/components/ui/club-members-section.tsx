@@ -14,6 +14,7 @@ import { ClubDuesTermEditDialog } from "@/components/ui/club-dues-term-edit-dial
 import { MemberProfileDialog } from "@/components/ui/member-profile-dialog";
 import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
 import { PageIntro } from "@/components/ui/page-intro";
+import { ActionFeedbackBanner } from "@/components/ui/action-feedback-banner";
 import { formatVolunteerHoursAmount } from "@/components/ui/volunteer-hours-panel";
 import type { ClubMembersPagePermissionGates } from "@/lib/clubs/member-management-access";
 import {
@@ -891,8 +892,34 @@ export function ClubMembersSection({
           </p>
         ) : null}
 
-        {query.memberSuccess ? <p className="alert-success mt-4">{query.memberSuccess}</p> : null}
-        {query.memberError ? <p className="alert-error mt-3">{query.memberError}</p> : null}
+        {query.memberSuccess ? (
+          <ActionFeedbackBanner
+            variant="success"
+            title="Member update complete"
+            message={query.memberSuccess}
+            className="mt-4"
+            actions={
+              <>
+                {canInviteMembers ? (
+                  <a href="#invite-members" className="btn-secondary text-xs">
+                    Invite more members
+                  </a>
+                ) : null}
+                <Link href={`/clubs/${club.id}/announcements#post-announcement`} className="btn-secondary text-xs">
+                  Post welcome update
+                </Link>
+              </>
+            }
+          />
+        ) : null}
+        {query.memberError ? (
+          <ActionFeedbackBanner
+            variant="error"
+            title="Could not complete member update"
+            message={query.memberError}
+            className="mt-3"
+          />
+        ) : null}
 
         {showBulkMemberChrome ? (
           <MemberBulkActionsToolbar

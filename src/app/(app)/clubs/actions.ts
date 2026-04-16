@@ -43,6 +43,10 @@ function logClubCreateError(stage: string, details: Record<string, unknown>) {
   console.error(`[club-create:${stage}]`, details);
 }
 
+function logClubCreateFunnel(event: string, details: Record<string, unknown>) {
+  console.info(`[analytics:club-create:${event}]`, details);
+}
+
 function logJoinClub(step: string, details: Record<string, unknown>) {
   console.info(`[club-join:${step}]`, details);
 }
@@ -134,12 +138,30 @@ async function ensureCreatorOfficerMembership(supabase: Awaited<ReturnType<typeo
 }
 
 export async function createClubAction(formData: FormData) {
+  const rawNameValue = formData.get("name");
+  const rawTaglineValue = formData.get("tagline");
+  const rawName = typeof rawNameValue === "string" ? rawNameValue : "";
+  const rawTagline = typeof rawTaglineValue === "string" ? rawTaglineValue : "";
+  const description = rawTagline.trim().length > 0 ? rawTagline : "A student club on ClubHub.";
+
+  logClubCreateFunnel("submit", {
+    hasName: rawName.trim().length > 0,
+    hasTagline: rawTagline.trim().length > 0,
+    nameLength: rawName.length,
+    taglineLength: rawTagline.length,
+  });
+
   const parsed = clubCreateSchema.safeParse({
-    name: formData.get("name"),
-    description: formData.get("description"),
+    name: rawName,
+    description,
   });
 
   if (!parsed.success) {
+    logClubCreateFunnel("validation_failed", {
+      issue: getSafeValidationErrorMessage(parsed),
+      hasName: rawName.trim().length > 0,
+      hasTagline: rawTagline.trim().length > 0,
+    });
     redirect(`/clubs/create?error=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
   }
 
@@ -152,11 +174,21 @@ export async function createClubAction(formData: FormData) {
     redirect("/login");
   }
 
+  logClubCreateFunnel("validated", {
+    userId: user.id,
+    usedFallbackDescription: rawTagline.trim().length === 0,
+    normalizedNameLength: parsed.data.name.length,
+    normalizedDescriptionLength: parsed.data.description.length,
+  });
+
   const rateLimit = await enforceRateLimit({
     policy: "clubCreate",
     userId: user.id,
   });
   if (!rateLimit.success) {
+    logClubCreateFunnel("rate_limited", {
+      userId: user.id,
+    });
     redirect(`/clubs/create?error=${encodeURIComponent(getRateLimitErrorMessage())}`);
   }
 
@@ -168,6 +200,10 @@ export async function createClubAction(formData: FormData) {
       code: profileError.code,
       message: profileError.message,
       details: profileError.details,
+    });
+    logClubCreateFunnel("profile_upsert_failed", {
+      userId: user.id,
+      code: profileError.code,
     });
     redirect("/clubs/create?error=Unable+to+prepare+your+profile.+Please+retry.");
   }
@@ -204,6 +240,10 @@ export async function createClubAction(formData: FormData) {
   }
 
   if (!created) {
+    logClubCreateFunnel("join_code_generation_failed", {
+      userId: user.id,
+      clubId,
+    });
     redirect("/clubs/create?error=Could+not+generate+a+join+code.+Please+retry.");
   }
 
@@ -214,13 +254,24 @@ export async function createClubAction(formData: FormData) {
       userId: user.id,
       clubId,
     });
+    logClubCreateFunnel("creator_membership_verify_failed", {
+      userId: user.id,
+      clubId,
+    });
     redirect("/clubs/create?error=Club+created+but+officer+membership+verification+failed.+Apply+the+latest+database+migration.");
   }
+
+  logClubCreateFunnel("success", {
+    userId: user.id,
+    clubId,
+    repairedCreatorMembership: membershipCheck.repaired,
+    usedFallbackDescription: rawTagline.trim().length === 0,
+  });
 
   revalidatePath("/dashboard");
   revalidatePath("/clubs");
   revalidatePath(`/clubs/${clubId}`);
-  redirect("/clubs?success=Club+created+successfully.");
+  redirect(`/clubs/${clubId}?setupSuccess=1`);
 }
 
 export async function joinClubAction(formData: FormData) {
@@ -802,13 +853,22 @@ export async function createEventAction(formData: FormData) {
   const duplicateEventIdRaw = formData.get("duplicate_event_id");
   const duplicateEventId = typeof duplicateEventIdRaw === "string" ? duplicateEventIdRaw : "";
   const duplicateQuery = duplicateEventId ? `&duplicateEventId=${encodeURIComponent(duplicateEventId)}` : "";
+  const rawDescriptionValue = formData.get("description");
+  const rawLocationValue = formData.get("location");
+  const rawEventTypeValue = formData.get("event_type");
+  const rawDescription = typeof rawDescriptionValue === "string" ? rawDescriptionValue : "";
+  const rawLocation = typeof rawLocationValue === "string" ? rawLocationValue : "";
+  const rawEventType = typeof rawEventTypeValue === "string" ? rawEventTypeValue : "";
+  const normalizedDescription = rawDescription.trim().length > 0 ? rawDescription : "Club event.";
+  const normalizedLocation = rawLocation.trim().length > 0 ? rawLocation : "TBD";
+  const normalizedEventType = rawEventType.trim().length > 0 ? rawEventType : "Meeting";
 
   const parsed = eventCreateSchema.safeParse({
     clubId: formData.get("club_id"),
     title: formData.get("title"),
-    description: formData.get("description"),
-    location: formData.get("location"),
-    eventType: formData.get("event_type"),
+    description: normalizedDescription,
+    location: normalizedLocation,
+    eventType: normalizedEventType,
     eventDate: formData.get("event_date"),
   });
 

@@ -5,6 +5,8 @@ import { ClubEventCardFull } from "@/components/ui/club-event-card-full";
 import { ClubEventPastFoldable } from "@/components/ui/club-event-past-foldable";
 import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
 import { ScrollToInputButton } from "@/components/ui/scroll-to-input-button";
+import { ActionFeedbackBanner } from "@/components/ui/action-feedback-banner";
+import { FormDraftPersistence } from "@/components/ui/form-draft-persistence";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events";
 import {
   eventNeedsOfficerReview,
@@ -140,8 +142,32 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
 
   return (
     <div id="events">
-      {query.eventSuccess ? <p className="alert-success mt-4">{query.eventSuccess}</p> : null}
-      {query.eventError ? <p className="alert-error mt-3">{query.eventError}</p> : null}
+      {query.eventSuccess ? (
+        <ActionFeedbackBanner
+          variant="success"
+          title="Event published"
+          message={query.eventSuccess}
+          className="mt-4"
+          actions={
+            <>
+              <a href="#upcoming" className="btn-secondary text-xs">
+                View upcoming events
+              </a>
+              <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-secondary text-xs">
+                Invite members
+              </Link>
+            </>
+          }
+        />
+      ) : null}
+      {query.eventError ? (
+        <ActionFeedbackBanner
+          variant="error"
+          title="Event not created"
+          message={`${query.eventError} Your draft stays saved so you can fix this and retry.`}
+          className="mt-3"
+        />
+      ) : null}
       {query.rsvpSuccess ? <p className="alert-success mt-3">{query.rsvpSuccess}</p> : null}
       {query.rsvpError ? <p className="alert-error mt-3">{query.rsvpError}</p> : null}
       {query.attendanceSuccess ? <p className="alert-success mt-3">{query.attendanceSuccess}</p> : null}
@@ -160,110 +186,142 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
       {canCreateEvents ? (
         <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 open:bg-slate-50/90">
           <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden sm:px-5">
-            Event editor
-            <span className="ml-2 text-xs font-medium text-slate-500">Add or duplicate events</span>
+            Quick create event
+            <span className="ml-2 text-xs font-medium text-slate-500">Title + date first, details optional</span>
           </summary>
           <form id="create-event" action={createEventAction} className="space-y-4 border-t border-slate-200 px-4 py-4 sm:px-5">
-          <input type="hidden" name="club_id" value={club.id} />
-          {duplicateEvent ? <input type="hidden" name="duplicate_event_id" value={duplicateEvent.id} /> : null}
-          <div>
-            <p className="text-sm font-semibold text-slate-900">
-              {duplicateEvent ? "Create a duplicated draft" : "Schedule a new event"}
-            </p>
-            <p className="mt-1 text-sm text-slate-600">
-              {duplicateEvent
-                ? "Title, description, location, and event type were copied from an existing event. Choose a new date and time before creating."
-                : "Create a clear event card members can respond to quickly."}
-            </p>
-          </div>
-          {duplicateEvent ? (
-            <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Duplicating: {duplicateEvent.title}</p>
-                  <p className="mt-1 text-sm text-slate-600">This draft starts from the selected event, but the new event date must be chosen again.</p>
-                </div>
-                <Link
-                  href={`/clubs/${club.id}/events`}
-                  className="btn-secondary flex min-h-11 w-full items-center justify-center whitespace-nowrap text-xs sm:min-h-0 sm:w-auto"
-                >
-                  Clear draft
-                </Link>
-              </div>
-            </div>
-          ) : null}
-          <div>
-            <label htmlFor="event_title" className="mb-1.5 block text-sm font-medium text-slate-700">
-              Title
-            </label>
-            <input
-              id="event_title"
-              name="title"
-              type="text"
-              required
-              defaultValue={duplicateEvent?.title ?? ""}
-              className="input-control min-h-11 sm:min-h-0"
-              placeholder="Event title"
-            />
-          </div>
-          <div>
-            <label htmlFor="event_type" className="mb-1.5 block text-sm font-medium text-slate-700">
-              Event type
-            </label>
-            <select
-              id="event_type"
-              name="event_type"
-              required
-              defaultValue={duplicateEvent?.eventType ?? "Meeting"}
-              className="input-control min-h-11 sm:min-h-0"
-            >
-              {EVENT_TYPE_OPTIONS.map((eventType) => (
-                <option key={eventType} value={eventType}>
-                  {eventType}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="event_description" className="mb-1.5 block text-sm font-medium text-slate-700">
-              Description
-            </label>
-            <textarea
-              id="event_description"
-              name="description"
-              rows={3}
-              required
-              defaultValue={duplicateEvent?.description ?? ""}
-              className="textarea-control min-h-[5.5rem] text-base sm:text-sm"
-              placeholder="Describe the event..."
-            />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+            <input type="hidden" name="club_id" value={club.id} />
+            {duplicateEvent ? <input type="hidden" name="duplicate_event_id" value={duplicateEvent.id} /> : null}
+
             <div>
-              <label htmlFor="event_location" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Location
+              <p className="text-sm font-semibold text-slate-900">
+                {duplicateEvent ? "Create a duplicated draft" : "Schedule a new event"}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {duplicateEvent
+                  ? "The basic details are prefilled from the event you selected. Pick the new date and publish."
+                  : "Fast path: add a title and date. You can add location, type, and description only if needed."}
+              </p>
+            </div>
+
+            {duplicateEvent ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Duplicating: {duplicateEvent.title}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Choose a fresh date and publish. Advanced details can be adjusted below.
+                    </p>
+                  </div>
+                  <Link
+                    href={`/clubs/${club.id}/events`}
+                    className="btn-secondary flex min-h-11 w-full items-center justify-center whitespace-nowrap text-xs sm:min-h-0 sm:w-auto"
+                  >
+                    Clear draft
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+
+            <div>
+              <label htmlFor="event_title" className="mb-1.5 block text-sm font-medium text-slate-700">
+                Event title *
               </label>
               <input
-                id="event_location"
-                name="location"
+                id="event_title"
+                name="title"
                 type="text"
                 required
-                defaultValue={duplicateEvent?.location ?? ""}
+                minLength={3}
+                maxLength={160}
+                defaultValue={duplicateEvent?.title ?? ""}
                 className="input-control min-h-11 sm:min-h-0"
-                placeholder="Room 204"
+                placeholder="e.g. Weekly planning meeting"
+                aria-describedby="event-title-hint"
               />
+              <p id="event-title-hint" className="mt-1 text-xs text-slate-500">
+                Use a specific title members can recognize quickly.
+              </p>
             </div>
+
             <div>
               <label htmlFor="event_date" className="mb-1.5 block text-sm font-medium text-slate-700">
-                {duplicateEvent ? "New event date" : "Event date"}
+                Event date & time *
               </label>
               <input id="event_date" name="event_date" type="datetime-local" required className="input-control" />
-              {duplicateEvent ? <p className="mt-1 text-xs text-slate-500">Choose a fresh date and time for the duplicated event.</p> : null}
+              <p className="mt-1 text-xs text-slate-500">
+                {duplicateEvent
+                  ? "Choose a new date and time for this duplicate."
+                  : "Members can RSVP as soon as this is published."}
+              </p>
             </div>
-          </div>
-          <button type="submit" className="btn-primary min-h-11 w-full sm:min-h-0 sm:w-auto">
-            {duplicateEvent ? "Create duplicated event" : "Create event"}
-          </button>
+
+            <details className="rounded-xl border border-slate-200 bg-white/80">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+                Optional details
+                <span className="ml-2 text-xs font-medium text-slate-500">Type, location, and description</span>
+              </summary>
+              <div className="space-y-4 border-t border-slate-200 px-4 py-4">
+                <div>
+                  <label htmlFor="event_type" className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Event type
+                  </label>
+                  <select
+                    id="event_type"
+                    name="event_type"
+                    defaultValue={duplicateEvent?.eventType ?? "Meeting"}
+                    className="input-control min-h-11 sm:min-h-0"
+                  >
+                    {EVENT_TYPE_OPTIONS.map((eventType) => (
+                      <option key={eventType} value={eventType}>
+                        {eventType}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="event_location" className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Location
+                  </label>
+                  <input
+                    id="event_location"
+                    name="location"
+                    type="text"
+                    defaultValue={duplicateEvent?.location ?? ""}
+                    className="input-control min-h-11 sm:min-h-0"
+                    placeholder="Leave blank to use TBD"
+                    maxLength={160}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="event_description" className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Description
+                  </label>
+                  <textarea
+                    id="event_description"
+                    name="description"
+                    rows={3}
+                    defaultValue={duplicateEvent?.description ?? ""}
+                    className="textarea-control min-h-[5.5rem] text-base sm:text-sm"
+                    placeholder="Optional context for members"
+                    maxLength={2000}
+                  />
+                </div>
+              </div>
+            </details>
+
+            <FormDraftPersistence
+              formId="create-event"
+              storageKey={`clubhub:draft:event:${club.id}`}
+              fields={["title", "event_date", "event_type", "location", "description"]}
+              successSignal={query.eventSuccess}
+            />
+
+            <button type="submit" className="btn-primary min-h-11 w-full sm:min-h-0 sm:w-auto">
+              {duplicateEvent ? "Publish duplicated event" : "Publish event"}
+            </button>
           </form>
         </details>
       ) : null}

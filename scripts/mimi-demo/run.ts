@@ -76,7 +76,7 @@ type ClubPlan = {
 };
 
 const MIMI_EMAIL = (process.env.MIMI_DEMO_EMAIL ?? "mimi.demo@clubhub.app").trim().toLowerCase();
-const MIMI_PASSWORD = (process.env.MIMI_DEMO_PASSWORD ?? "MimiClubHub!2026").trim();
+const MIMI_PASSWORD = (process.env.MIMI_DEMO_PASSWORD ?? "DemoClubHub!2026").trim();
 const SUPPORTING_PASSWORD = (process.env.MIMI_DEMO_SUPPORT_PASSWORD ?? "ClubHubDemo!2026").trim();
 
 const PEOPLE: Person[] = [

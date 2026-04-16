@@ -42,6 +42,6 @@ ALLOW_DEMO_SEED=true DEMO_SEED_TARGET_OK=true npm run seed:mimi-demo
 Defaults (override with env vars):
 
 - `MIMI_DEMO_EMAIL=mimi.demo@clubhub.app`
-- `MIMI_DEMO_PASSWORD=MimiClubHub!2026`
+- `MIMI_DEMO_PASSWORD=DemoClubHub!2026`
 - Supporting demo users password: `MIMI_DEMO_SUPPORT_PASSWORD=ClubHubDemo!2026`
 

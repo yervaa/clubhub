@@ -10,23 +10,39 @@ import { getMyClubTasks } from "@/lib/tasks/queries";
 import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
 import { PageIntro } from "@/components/ui/page-intro";
 import { getClubActivityFeed } from "@/lib/activity/queries";
+import { ActionFeedbackBanner } from "@/components/ui/action-feedback-banner";
 
 type ClubOverviewPageProps = {
   params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ setupSuccess?: string }>;
 };
 
-export default async function ClubOverviewPage({ params }: ClubOverviewPageProps) {
+type SetupStep = {
+  id: string;
+  phase: "activation" | "optimization";
+  title: string;
+  description: string;
+  done: boolean;
+  href: string;
+  cta: string;
+  optional?: boolean;
+};
+
+export default async function ClubOverviewPage({ params, searchParams }: ClubOverviewPageProps) {
   const { clubId } = await params;
+  const query = await searchParams;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [club, userPermissions, myTasks, activityItems] = await Promise.all([
+  const [club, userPermissions, myTasks, activityItems, roleRowsResult, memberRoleRowsResult] = await Promise.all([
     getClubDetailForOverviewForCurrentUser(clubId),
     getUserPermissions(user.id, clubId),
     getMyClubTasks(clubId, user.id),
     getClubActivityFeed(clubId, 10),
+    supabase.from("club_roles").select("id, name, is_system").eq("club_id", clubId),
+    supabase.from("member_roles").select("role_id").eq("club_id", clubId),
   ]);
 
   if (!club) {
@@ -47,52 +63,137 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
     .filter((event) => event.eventDateRaw.getTime() > now.getTime())
     .sort((a, b) => a.eventDateRaw.getTime() - b.eventDateRaw.getTime())[0] ?? null;
   const latestAnnouncement = club.announcements[0] ?? null;
-  const hasClubDescription = club.description.trim().length > 0;
-  const onboardingSteps = [
+  const hasClubDescription = club.description.trim().length > 0 && club.description !== "A student club on ClubHub.";
+  const hasMeetingDetails = club.events.some(
+    (event) => event.location.trim().length > 0 && event.location.trim().toLowerCase() !== "tbd",
+  );
+  const hasInterestsConfigured =
+    club.memberTagDefinitions.length > 0
+    || club.members.some((member) => member.skillInterestEntries.some((entry) => entry.kind === "interest"));
+  const roleRows = (roleRowsResult.data ?? []) as Array<{ id: string; name: string; is_system: boolean }>;
+  const memberRoleRows = (memberRoleRowsResult.data ?? []) as Array<{ role_id: string }>;
+  const rolesById = new Map(roleRows.map((role) => [role.id, role]));
+  const hasLeadershipRolesAssigned = memberRoleRows.some((assignment) => {
+    const role = rolesById.get(assignment.role_id);
+    if (!role) return false;
+    return role.name.trim().toLowerCase() !== "president";
+  });
+  const hasAdvisorAssigned = memberRoleRows.some((assignment) => {
+    const role = rolesById.get(assignment.role_id);
+    if (!role) return false;
+    return role.name.trim().toLowerCase() === "advisor";
+  });
+
+  const setupSteps: SetupStep[] = [
     {
-      id: "details",
-      title: "Complete club details",
-      description: "Add a clear description so new members know what your club is about.",
-      done: hasClubDescription,
-      href: `/clubs/${club.id}/settings/club`,
-      cta: "Edit details",
-    },
-    {
-      id: "members",
-      title: "Invite members",
-      description: "Bring in at least one more member so your club starts feeling social.",
+      id: "invite-members",
+      phase: "activation",
+      title: "Invite your first members",
+      description: "Bring in your first members so the club immediately feels real and social.",
       done: memberCount > 1,
       href: `/clubs/${club.id}/members#invite-members`,
-      cta: "Invite now",
+      cta: "Invite members",
     },
     {
-      id: "announcement",
-      title: "Post first announcement",
-      description: "Share one update so everyone sees the communication flow.",
-      done: club.announcements.length > 0,
-      href: `/clubs/${club.id}/announcements`,
-      cta: "Post update",
-    },
-    {
-      id: "event",
-      title: "Create first event",
-      description: "Schedule a meeting or activity to start RSVPs and engagement.",
+      id: "create-event",
+      phase: "activation",
+      title: "Create your first event",
+      description: "Schedule your first meeting to kick off RSVPs and momentum.",
       done: club.events.length > 0,
       href: `/clubs/${club.id}/events#create-event`,
       cta: "Create event",
     },
     {
-      id: "attendance",
-      title: "Mark attendance",
-      description: "After your first event, mark attendance to unlock insights.",
-      done: club.totalTrackedEvents > 0,
-      href: `/clubs/${club.id}/events#recent`,
-      cta: "Mark attendance",
+      id: "post-announcement",
+      phase: "activation",
+      title: "Post your first announcement",
+      description: "Share a welcome update so members know what happens next.",
+      done: club.announcements.length > 0,
+      href: `/clubs/${club.id}/announcements#post-announcement`,
+      cta: "Post announcement",
+    },
+    {
+      id: "meeting-info",
+      phase: "optimization",
+      title: "Set meeting time and location",
+      description: "Add reliable meeting details so members know when and where to show up.",
+      done: hasMeetingDetails,
+      href: `/clubs/${club.id}/events#create-event`,
+      cta: "Set meeting info",
+    },
+    {
+      id: "join-policy",
+      phase: "optimization",
+      title: "Define how members can join",
+      description: `Join mode is currently ${club.requireJoinApproval ? "approval required" : "open via join code"}.`,
+      done: typeof club.requireJoinApproval === "boolean",
+      href: `/clubs/${club.id}/settings/club`,
+      cta: "Review join policy",
+    },
+    {
+      id: "description",
+      phase: "optimization",
+      title: "Add club purpose and description",
+      description: "Write a clear summary so students understand your club at a glance.",
+      done: hasClubDescription,
+      href: `/clubs/${club.id}/settings/club`,
+      cta: "Edit description",
+    },
+    {
+      id: "tags",
+      phase: "optimization",
+      title: "Add interests and tags",
+      description: "Label interests or tags to better organize and match members.",
+      done: hasInterestsConfigured,
+      href: `/clubs/${club.id}/members`,
+      cta: "Manage tags",
+    },
+    {
+      id: "leadership-roles",
+      phase: "optimization",
+      title: "Assign leadership roles",
+      description: "Delegate responsibilities by assigning at least one non-president role.",
+      done: hasLeadershipRolesAssigned,
+      href: `/clubs/${club.id}/settings`,
+      cta: "Assign roles",
+    },
+    {
+      id: "advisor",
+      phase: "optimization",
+      title: "Add a faculty advisor",
+      description: "Assign an advisor role once your faculty advisor joins your roster.",
+      done: hasAdvisorAssigned,
+      href: `/clubs/${club.id}/settings`,
+      cta: "Set advisor",
+      optional: true,
     },
   ];
-  const onboardingDone = onboardingSteps.filter((step) => step.done).length;
-  const onboardingPercent = Math.round((onboardingDone / onboardingSteps.length) * 100);
-  const showOnboardingChecklist = onboardingDone < onboardingSteps.length;
+  const activationSteps = setupSteps.filter((step) => step.phase === "activation");
+  const optimizationSteps = setupSteps.filter((step) => step.phase === "optimization");
+  const coreSetupSteps = setupSteps.filter((step) => !step.optional);
+  const setupDone = coreSetupSteps.filter((step) => step.done).length;
+  const setupPercent = coreSetupSteps.length > 0 ? Math.round((setupDone / coreSetupSteps.length) * 100) : 0;
+  const showSetupChecklist = query.setupSuccess || setupDone < coreSetupSteps.length;
+  const nextRecommendedStep = setupSteps.find((step) => !step.done);
+
+  if (query.setupSuccess) {
+    console.info("[analytics:club-onboarding:landing]", {
+      clubId: club.id,
+      userId: user.id,
+      setupDone,
+      setupTrackableTotal: coreSetupSteps.length,
+      setupPercent,
+      activationDone: activationSteps.filter((step) => step.done).length,
+      activationTotal: activationSteps.length,
+      optimizationDone: optimizationSteps.filter((step) => step.done).length,
+      optimizationTotal: optimizationSteps.length,
+      memberCount,
+      announcementsCount: club.announcements.length,
+      eventsCount: club.events.length,
+      requireJoinApproval: club.requireJoinApproval,
+      stepStatus: Object.fromEntries(setupSteps.map((step) => [step.id, step.done])),
+    });
+  }
 
   return (
     <section className="space-y-5 lg:space-y-8">
@@ -117,6 +218,33 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
           ) : undefined
         }
       />
+
+      {query.setupSuccess ? (
+        <ActionFeedbackBanner
+          variant="success"
+          title="Club created successfully"
+          message="Next step: complete your setup checklist so students can find, join, and understand your club quickly."
+          actions={
+            <>
+              {canInviteMembers ? (
+                <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-primary text-xs">
+                  Invite members
+                </Link>
+              ) : null}
+              {canPostAnnouncements ? (
+                <Link href={`/clubs/${club.id}/announcements#post-announcement`} className="btn-secondary text-xs">
+                  Post announcement
+                </Link>
+              ) : null}
+              {canCreateEvents ? (
+                <Link href={`/clubs/${club.id}/events#create-event`} className="btn-secondary text-xs">
+                  Create event
+                </Link>
+              ) : null}
+            </>
+          }
+        />
+      ) : null}
 
       <CardSection className="bg-gradient-to-br from-slate-50 to-blue-50/40">
         <SectionHeader
@@ -165,44 +293,104 @@ export default async function ClubOverviewPage({ params }: ClubOverviewPageProps
           </div>
       </CardSection>
 
-      {showOnboardingChecklist ? (
+      {showSetupChecklist ? (
         <CardSection>
           <SectionHeader
             kicker="Getting started"
-            title="Launch checklist"
-            description="Quick wins to make this club feel active for members immediately."
-            action={<span className="badge-soft">{onboardingDone}/{onboardingSteps.length} complete</span>}
+            title="Set up your club"
+            description="Complete these steps to get your club running smoothly."
+            action={<span className="badge-soft">{setupDone}/{coreSetupSteps.length} complete</span>}
           />
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-[width] duration-300"
-              style={{ width: `${onboardingPercent}%` }}
+              style={{ width: `${setupPercent}%` }}
             />
           </div>
-          <ul className="mt-4 space-y-2">
-            {onboardingSteps.map((step) => (
-              <li
-                key={step.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5"
-              >
-                <div className="min-w-0">
-                  <p className={`text-sm font-semibold ${step.done ? "text-slate-500 line-through" : "text-slate-900"}`}>
-                    {step.title}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-600">{step.description}</p>
-                </div>
-                {step.done ? (
-                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                    Done
-                  </span>
-                ) : (
-                  <Link href={step.href} className="btn-secondary shrink-0 text-xs">
-                    {step.cta}
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
+          <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/40 p-3 sm:p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-violet-700">Phase 1 - Activation</p>
+            <p className="mt-1 text-sm text-slate-700">Most important first: activate your club with members, events, and communication.</p>
+            <ul className="mt-3 space-y-2">
+              {activationSteps.map((step) => {
+                const isNext = nextRecommendedStep?.id === step.id;
+                return (
+                  <li
+                    key={step.id}
+                    className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                      isNext ? "border-violet-300 bg-white" : "border-slate-200 bg-white/90"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold ${step.done ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                        {step.title}
+                        {isNext && !step.done ? (
+                          <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700">
+                            Next
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-600">{step.description}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {step.done ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Done</span>
+                      ) : null}
+                      <Link href={step.href} className={step.done ? "btn-secondary text-xs" : "btn-primary text-xs"}>
+                        {step.done ? "Review" : step.cta}
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+              <span>Phase 2 - Optimization (optional depth)</span>
+              <span className="text-xs font-medium text-slate-500">Skip for now</span>
+            </summary>
+            <div className="border-t border-slate-200 px-3 py-3 sm:px-4">
+              <ul className="space-y-2">
+                {optimizationSteps.map((step) => {
+                  const isNext = nextRecommendedStep?.id === step.id;
+                  return (
+                    <li
+                      key={step.id}
+                      className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                        isNext ? "border-blue-300 bg-white" : "border-slate-200 bg-white/80"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold ${step.done ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                          {step.title}
+                          {step.optional ? (
+                            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                              Optional
+                            </span>
+                          ) : null}
+                          {isNext && !step.done ? (
+                            <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                              Next
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-600">{step.description}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {step.done ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Done</span>
+                        ) : null}
+                        <Link href={step.href} className="btn-secondary text-xs">
+                          {step.done ? "Edit" : step.cta}
+                        </Link>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </details>
         </CardSection>
       ) : null}
 
