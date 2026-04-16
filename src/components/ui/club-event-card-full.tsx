@@ -3,6 +3,7 @@ import { saveEventReflectionAction } from "@/app/(app)/clubs/actions";
 import { AttendanceChecklist } from "@/components/ui/attendance-checklist";
 import { DisclosurePanel } from "@/components/ui/disclosure-panel";
 import { EventRsvpControls } from "@/components/ui/event-rsvp-controls";
+import { EventManagementControls } from "@/components/ui/event-management-controls";
 import { EventSummaryBlock, eventLifecycleBadges } from "@/components/ui/event-summary";
 import type { ClubDetail } from "@/lib/clubs/queries";
 
@@ -25,6 +26,8 @@ type ClubEventCardFullProps = {
   memberCount: number;
   now: Date;
   canCreateEvents: boolean;
+  canEditEvents: boolean;
+  canDeleteEvents: boolean;
   canMarkAttendance: boolean;
   canManageReflections: boolean;
   /** Club-wide RSVP/attendance metrics (RBAC: officers with operational permissions). */
@@ -45,6 +48,8 @@ export function ClubEventCardFull({
   memberCount,
   now,
   canCreateEvents,
+  canEditEvents,
+  canDeleteEvents,
   canMarkAttendance,
   canManageReflections,
   canViewAggregatedStats,
@@ -92,7 +97,12 @@ export function ClubEventCardFull({
   const hasFeedbackStrip = Boolean(eventAttendanceSaved || eventReflectionSaved);
 
   const showOrganizerTools =
-    canMarkAttendance || canManageReflections || canViewAggregatedStats || canCreateEvents;
+    canMarkAttendance ||
+    canManageReflections ||
+    canViewAggregatedStats ||
+    canCreateEvents ||
+    canEditEvents ||
+    canDeleteEvents;
 
   const organizerSubtitle = showClubMetrics
     ? memberCount > 0
@@ -212,6 +222,20 @@ export function ClubEventCardFull({
                     Duplicate event
                   </Link>
                 </div>
+              ) : null}
+
+              {canEditEvents || canDeleteEvents ? (
+                <EventManagementControls
+                  clubId={club.id}
+                  eventId={event.id}
+                  title={event.title}
+                  description={event.description}
+                  location={event.location}
+                  eventType={event.eventType}
+                  eventDateIso={event.eventDateRaw.toISOString()}
+                  canEditEvents={canEditEvents}
+                  canDeleteEvents={canDeleteEvents}
+                />
               ) : null}
 
               {hasDescription ? (

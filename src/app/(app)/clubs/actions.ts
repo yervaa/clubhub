@@ -20,6 +20,8 @@ import {
   clubCreateSchema,
   ANNOUNCEMENT_ATTACHMENT_MIMES,
   eventCreateSchema,
+  eventDeleteSchema,
+  eventUpdateSchema,
   eventReflectionSchema,
   joinCodeSchema,
   MAX_ANNOUNCEMENT_ATTACHMENTS,
@@ -238,7 +240,6 @@ export async function createClubAction(formData: FormData) {
       redirect("/clubs/create?error=Could+not+create+club.+Please+retry.");
     }
   }
-
   if (!created) {
     logClubCreateFunnel("join_code_generation_failed", {
       userId: user.id,
@@ -974,6 +975,173 @@ export async function createEventAction(formData: FormData) {
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
   redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=Event+created.#events`);
+}
+
+export async function updateEventAction(formData: FormData) {
+  const rawDescriptionValue = formData.get("description");
+  const rawLocationValue = formData.get("location");
+  const rawEventTypeValue = formData.get("event_type");
+  const rawDescription = typeof rawDescriptionValue === "string" ? rawDescriptionValue : "";
+  const rawLocation = typeof rawLocationValue === "string" ? rawLocationValue : "";
+  const rawEventType = typeof rawEventTypeValue === "string" ? rawEventTypeValue : "";
+  const normalizedDescription = rawDescription.trim().length > 0 ? rawDescription : "Club event.";
+  const normalizedLocation = rawLocation.trim().length > 0 ? rawLocation : "TBD";
+  const normalizedEventType = rawEventType.trim().length > 0 ? rawEventType : "Meeting";
+
+  const parsed = eventUpdateSchema.safeParse({
+    clubId: formData.get("club_id"),
+    eventId: formData.get("event_id"),
+    title: formData.get("title"),
+    description: normalizedDescription,
+    location: normalizedLocation,
+    eventType: normalizedEventType,
+    eventDate: formData.get("event_date"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    const fallbackEventId = typeof formData.get("event_id") === "string" ? formData.get("event_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}/events?eventError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}#event-${fallbackEventId}`);
+    }
+    redirect("/clubs?error=Invalid+event+request.");
+  }
+
+  const eventDate = new Date(parsed.data.eventDate);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const rateLimit = await enforceRateLimit({
+    policy: "eventCreate",
+    userId: user.id,
+    hint: parsed.data.clubId,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(getRateLimitErrorMessage())}#event-${parsed.data.eventId}`);
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(active.message)}#event-${parsed.data.eventId}`);
+  }
+
+  const canEdit = await hasPermission(user.id, parsed.data.clubId, "events.edit");
+  if (!canEdit) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+do+not+have+permission+to+edit+events.#event-${parsed.data.eventId}`);
+  }
+
+  const { data: existingEvent, error: existingEventError } = await supabase
+    .from("events")
+    .select("id, club_id, event_date")
+    .eq("id", parsed.data.eventId)
+    .maybeSingle();
+
+  if (existingEventError || !existingEvent || existingEvent.club_id !== parsed.data.clubId) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Event+not+found+for+this+club.`);
+  }
+
+  if (new Date(existingEvent.event_date).getTime() <= Date.now()) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Past+events+cannot+be+edited.+Create+a+new+event+instead.#event-${parsed.data.eventId}`);
+  }
+
+  if (eventDate.getTime() <= Date.now()) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Event+date+must+be+in+the+future.#event-${parsed.data.eventId}`);
+  }
+
+  const { error: updateError } = await supabase
+    .from("events")
+    .update({
+      title: parsed.data.title,
+      description: parsed.data.description,
+      location: parsed.data.location,
+      event_type: parsed.data.eventType,
+      event_date: eventDate.toISOString(),
+    })
+    .eq("id", parsed.data.eventId)
+    .eq("club_id", parsed.data.clubId);
+
+  if (updateError) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+update+event.+Please+retry.#event-${parsed.data.eventId}`);
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/events`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/events/history`);
+  redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=Event+updated.#event-${parsed.data.eventId}`);
+}
+
+export async function deleteEventAction(formData: FormData) {
+  const parsed = eventDeleteSchema.safeParse({
+    clubId: formData.get("club_id"),
+    eventId: formData.get("event_id"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}/events?eventError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    }
+    redirect("/clubs?error=Invalid+event+request.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const rateLimit = await enforceRateLimit({
+    policy: "eventCreate",
+    userId: user.id,
+    hint: parsed.data.clubId,
+  });
+  if (!rateLimit.success) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(getRateLimitErrorMessage())}#event-${parsed.data.eventId}`);
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(active.message)}#event-${parsed.data.eventId}`);
+  }
+
+  const canDelete = await hasPermission(user.id, parsed.data.clubId, "events.delete");
+  if (!canDelete) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+do+not+have+permission+to+delete+events.#event-${parsed.data.eventId}`);
+  }
+
+  const { data: existingEvent, error: existingEventError } = await supabase
+    .from("events")
+    .select("id, club_id")
+    .eq("id", parsed.data.eventId)
+    .maybeSingle();
+
+  if (existingEventError || !existingEvent || existingEvent.club_id !== parsed.data.clubId) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Event+not+found+for+this+club.`);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("events")
+    .delete()
+    .eq("id", parsed.data.eventId)
+    .eq("club_id", parsed.data.clubId);
+
+  if (deleteError) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+delete+event.+Please+retry.#event-${parsed.data.eventId}`);
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/events`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/events/history`);
+  redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=Event+deleted.#events`);
 }
 
 export async function upsertRsvpAction(formData: FormData) {

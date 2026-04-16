@@ -219,6 +219,30 @@ export const eventCreateSchema = z
     }
   });
 
+export const eventUpdateSchema = z.object({
+  clubId: uuidSchema,
+  eventId: uuidSchema,
+  title: shortTitleSchema,
+  description: plainTextSchema,
+  location: shortInlineSchema,
+  eventType: eventTypeSchema,
+  eventDate: z.string().min(1).max(40, "Event date value is too long."),
+}).superRefine((value, ctx) => {
+  const parsedDate = new Date(value.eventDate);
+  if (Number.isNaN(parsedDate.getTime())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["eventDate"],
+      message: "Please enter a valid event date.",
+    });
+  }
+});
+
+export const eventDeleteSchema = z.object({
+  clubId: uuidSchema,
+  eventId: uuidSchema,
+});
+
 export const rsvpSchema = z.object({
   clubId: uuidSchema,
   eventId: uuidSchema,

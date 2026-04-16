@@ -53,6 +53,8 @@ export default async function ClubEventsPage({ params, searchParams }: ClubEvent
 
   const permissions = {
     canCreateEvents: userPermissions.has("events.create"),
+    canEditEvents: userPermissions.has("events.edit"),
+    canDeleteEvents: userPermissions.has("events.delete"),
     canMarkAttendance: userPermissions.has("attendance.mark"),
     canManageReflections: userPermissions.has("reflections.create"),
     canViewAggregatedStats:

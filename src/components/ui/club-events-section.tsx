@@ -18,6 +18,8 @@ import type { ClubDetail } from "@/lib/clubs/queries";
 
 export type ClubEventsPermissions = {
   canCreateEvents: boolean;
+  canEditEvents: boolean;
+  canDeleteEvents: boolean;
   canMarkAttendance: boolean;
   canManageReflections: boolean;
   /** RSVP/attendance aggregates on past events (operational roles). */
@@ -51,6 +53,8 @@ type ClubEventsSectionProps = {
 export function ClubEventsSection({ club, query, permissions, listFilter = "all" }: ClubEventsSectionProps) {
   const legacyIsOfficer = club.currentUserRole === "officer";
   const canCreateEvents = permissions?.canCreateEvents ?? legacyIsOfficer;
+  const canEditEvents = permissions?.canEditEvents ?? legacyIsOfficer;
+  const canDeleteEvents = permissions?.canDeleteEvents ?? legacyIsOfficer;
   const canMarkAttendance = permissions?.canMarkAttendance ?? legacyIsOfficer;
   const canManageReflections = permissions?.canManageReflections ?? legacyIsOfficer;
   const canViewAggregatedStats =
@@ -86,6 +90,8 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
     memberCount,
     now,
     canCreateEvents,
+    canEditEvents,
+    canDeleteEvents,
     canMarkAttendance,
     canManageReflections,
     canViewAggregatedStats,
@@ -145,7 +151,7 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
       {query.eventSuccess ? (
         <ActionFeedbackBanner
           variant="success"
-          title="Event published"
+          title="Event saved"
           message={query.eventSuccess}
           className="mt-4"
           actions={
@@ -163,8 +169,8 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
       {query.eventError ? (
         <ActionFeedbackBanner
           variant="error"
-          title="Event not created"
-          message={`${query.eventError} Your draft stays saved so you can fix this and retry.`}
+          title="Event update failed"
+          message={query.eventError}
           className="mt-3"
         />
       ) : null}

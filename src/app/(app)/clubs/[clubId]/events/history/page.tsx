@@ -31,6 +31,8 @@ export default async function ClubEventHistoryPage({ params }: PageProps) {
   const now = new Date();
   const { past } = partitionEventsByLifecycle(club.events, now);
   const canCreateEvents = userPermissions.has("events.create");
+  const canEditEvents = userPermissions.has("events.edit");
+  const canDeleteEvents = userPermissions.has("events.delete");
   const canMarkAttendance = userPermissions.has("attendance.mark");
   const canManageReflections = userPermissions.has("reflections.create");
   const canViewAggregatedStats =
@@ -46,6 +48,8 @@ export default async function ClubEventHistoryPage({ params }: PageProps) {
     memberCount: club.memberCount,
     now,
     canCreateEvents,
+    canEditEvents,
+    canDeleteEvents,
     canMarkAttendance,
     canManageReflections,
     canViewAggregatedStats,

@@ -9,6 +9,8 @@ type ClubEventPastFoldableProps = {
   memberCount: number;
   now: Date;
   canCreateEvents: boolean;
+  canEditEvents: boolean;
+  canDeleteEvents: boolean;
   canMarkAttendance: boolean;
   canManageReflections: boolean;
   canViewAggregatedStats: boolean;
