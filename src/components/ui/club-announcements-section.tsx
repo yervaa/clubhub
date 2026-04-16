@@ -36,6 +36,8 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
 
   const legacyIsOfficer = club.currentUserRole === "officer";
   const canPostAnnouncements = permissions?.canPostAnnouncements ?? legacyIsOfficer;
+  const canEditAnnouncements = permissions?.canEditAnnouncements ?? legacyIsOfficer;
+  const canDeleteAnnouncements = permissions?.canDeleteAnnouncements ?? legacyIsOfficer;
   const canViewReadersList =
     permissions?.canViewReadersList ??
     ((permissions?.canEditAnnouncements ?? false) || legacyIsOfficer);
@@ -66,7 +68,7 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
       {query.annSuccess ? (
         <ActionFeedbackBanner
           variant="success"
-          title="Announcement sent"
+          title="Announcement saved"
           message={query.annSuccess}
           actions={
             <>
@@ -83,7 +85,7 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
       {query.annError ? (
         <ActionFeedbackBanner
           variant="error"
-          title="Announcement not posted"
+          title="Announcement update failed"
           message={`${query.annError} Your draft is still here, so you can fix it and retry.`}
         />
       ) : null}
@@ -138,10 +140,6 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
                 </p>
               </div>
 
-              <button type="submit" className="btn-primary w-full sm:w-auto">
-                Publish now
-              </button>
-
               <details className="rounded-xl border border-slate-200 bg-slate-50/60 open:bg-slate-50/80">
                 <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
                   Optional announcement tools
@@ -164,6 +162,17 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
                       className="input-control min-h-11 w-full sm:max-w-md"
                     />
                     <p className="mt-1 text-xs text-slate-500">Leave empty to publish now.</p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                      <input type="checkbox" name="is_urgent" />
+                      Mark as urgent
+                    </label>
+                    <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                      <input type="checkbox" name="is_pinned" />
+                      Pin when published
+                    </label>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
@@ -207,9 +216,28 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
               <FormDraftPersistence
                 formId="create-announcement-form"
                 storageKey={`clubhub:draft:announcement:${club.id}`}
-                fields={["title", "content", "scheduled_for", "poll_question"]}
+                fields={["title", "content", "scheduled_for", "poll_question", "is_urgent", "is_pinned"]}
                 successSignal={query.annSuccess}
               />
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="submit"
+                  className="btn-primary w-full sm:w-auto"
+                  name="announcement_intent"
+                  value="publish_now"
+                >
+                  Publish now
+                </button>
+                <button
+                  type="submit"
+                  className="btn-secondary w-full sm:w-auto"
+                  name="announcement_intent"
+                  value="save_draft"
+                >
+                  Save as draft
+                </button>
+              </div>
             </form>
           </CardSection>
         </AnnouncementComposerCollapsible>
@@ -237,8 +265,11 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
         <div className="space-y-4" id="announcements">
           {latestAnnouncement ? (
             <AnnouncementFeedItem
+              clubId={club.id}
               announcement={latestAnnouncement}
               canOpenReadersList={canViewReadersList}
+              canEditAnnouncement={canEditAnnouncements}
+              canDeleteAnnouncement={canDeleteAnnouncements}
               variant="featured"
             />
           ) : null}
@@ -254,8 +285,11 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
                 {olderAnnouncements.map((announcement) => (
                   <AnnouncementFeedItem
                     key={announcement.id}
+                    clubId={club.id}
                     announcement={announcement}
                     canOpenReadersList={canViewReadersList}
+                    canEditAnnouncement={canEditAnnouncements}
+                    canDeleteAnnouncement={canDeleteAnnouncements}
                     variant="compact"
                   />
                 ))}

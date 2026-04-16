@@ -8,12 +8,16 @@ import {
   votePollAnnouncementAction,
   type AnnouncementReaderRow,
 } from "@/app/(app)/clubs/announcement-communication-actions";
+import { AnnouncementManagementControls } from "@/components/ui/announcement-management-controls";
 import type { ClubAnnouncement } from "@/lib/clubs/queries";
 
 type AnnouncementFeedItemProps = {
+  clubId: string;
   announcement: ClubAnnouncement;
   /** Officers or members with announcements.edit may open the reader list. */
   canOpenReadersList: boolean;
+  canEditAnnouncement?: boolean;
+  canDeleteAnnouncement?: boolean;
   variant: "featured" | "compact";
 };
 
@@ -30,8 +34,11 @@ function contentNeedsToggle(text: string): boolean {
 }
 
 export function AnnouncementFeedItem({
+  clubId,
   announcement,
   canOpenReadersList,
+  canEditAnnouncement = false,
+  canDeleteAnnouncement = false,
   variant,
 }: AnnouncementFeedItemProps) {
   const router = useRouter();
@@ -41,12 +48,12 @@ export function AnnouncementFeedItem({
   const [readers, setReaders] = useState<AnnouncementReaderRow[] | null>(null);
   const [readersLoading, setReadersLoading] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [localVoteIndex, setLocalVoteIndex] = useState<number | null>(announcement.userPollVoteIndex ?? null);
+  const [localVoteState, setLocalVoteState] = useState<{ announcementId: string; vote: number | null } | null>(null);
   const [bodyExpanded, setBodyExpanded] = useState(false);
-
-  useEffect(() => {
-    setLocalVoteIndex(announcement.userPollVoteIndex ?? null);
-  }, [announcement.id, announcement.userPollVoteIndex]);
+  const localVoteIndex =
+    localVoteState?.announcementId === announcement.id
+      ? localVoteState.vote
+      : (announcement.userPollVoteIndex ?? null);
 
   const readCount = announcement.readCount ?? 0;
   const totalMembers = announcement.totalMembers ?? 0;
@@ -112,7 +119,7 @@ export function AnnouncementFeedItem({
     startTransition(async () => {
       const res = await votePollAnnouncementAction(announcement.id, idx);
       if (res.ok) {
-        setLocalVoteIndex(idx);
+        setLocalVoteState({ announcementId: announcement.id, vote: idx });
         router.refresh();
       }
     });
@@ -125,11 +132,12 @@ export function AnnouncementFeedItem({
 
   const showReadRow = announcement.isPublished && totalMembers > 0;
   const expandableBody = contentNeedsToggle(announcement.content);
+  const canManageAnnouncement = canEditAnnouncement || canDeleteAnnouncement;
 
   const cardClass =
     variant === "featured"
-      ? "ann-latest-card"
-      : "rounded-xl border border-slate-100 bg-white/90 p-4 shadow-sm sm:border-slate-200/90 sm:p-5";
+      ? `${announcement.isUrgent ? "ring-2 ring-rose-200" : ""} ann-latest-card`
+      : `${announcement.isUrgent ? "border-rose-200 bg-rose-50/50" : "border-slate-100 bg-white/90"} rounded-xl border p-4 shadow-sm sm:border-slate-200/90 sm:p-5`;
 
   const titleClass =
     variant === "featured"
@@ -148,6 +156,17 @@ export function AnnouncementFeedItem({
               <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-800">
                 {scheduledLabel}
               </span>
+            ) : null}
+            {!announcement.isPublished ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Draft</span>
+            ) : (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Published</span>
+            )}
+            {announcement.isPinned ? (
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-800">Pinned</span>
+            ) : null}
+            {announcement.isUrgent ? (
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800">Urgent</span>
             ) : null}
             <span className="text-slate-400">{announcement.createdAt}</span>
           </div>
@@ -336,6 +355,20 @@ export function AnnouncementFeedItem({
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {canManageAnnouncement ? (
+        <AnnouncementManagementControls
+          clubId={clubId}
+          announcementId={announcement.id}
+          title={announcement.title}
+          content={announcement.content}
+          isPublished={announcement.isPublished}
+          isPinned={announcement.isPinned}
+          isUrgent={announcement.isUrgent}
+          canEdit={canEditAnnouncement}
+          canDelete={canDeleteAnnouncement}
+        />
       ) : null}
     </article>
   );

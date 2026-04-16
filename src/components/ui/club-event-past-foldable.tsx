@@ -18,7 +18,7 @@ type ClubEventPastFoldableProps = {
 
 export function ClubEventPastFoldable(props: ClubEventPastFoldableProps) {
   const { event, canViewAggregatedStats } = props;
-  const totalRsvp = event.rsvpCounts.yes + event.rsvpCounts.no + event.rsvpCounts.maybe;
+  const totalRsvp = event.rsvpCounts.yes + event.rsvpCounts.no + event.rsvpCounts.maybe + event.rsvpCounts.waitlist;
   const turnoutVsRsvpYes =
     event.rsvpCounts.yes > 0 ? Math.min(100, Math.round((event.attendanceCount / event.rsvpCounts.yes) * 100)) : null;
 
@@ -33,6 +33,9 @@ export function ClubEventPastFoldable(props: ClubEventPastFoldableProps) {
           </>
         ) : null}
       </p>
+      {event.rsvpCounts.waitlist > 0 ? (
+        <p className="mt-0.5 text-[11px] text-amber-700">{event.rsvpCounts.waitlist} waitlisted</p>
+      ) : null}
       {turnoutVsRsvpYes !== null ? (
         <p className="mt-0.5 text-[11px] text-slate-400">~{turnoutVsRsvpYes}% of “yes” checked in</p>
       ) : null}

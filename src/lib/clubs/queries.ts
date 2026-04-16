@@ -36,6 +36,9 @@ export type ClubAnnouncement = {
   pollOptions: string[] | null;
   scheduledFor: string | null;
   isPublished: boolean;
+  isPinned: boolean;
+  pinnedAt: string | null;
+  isUrgent: boolean;
   /** Populated on the announcements tab (aggregated RPCs). */
   readCount?: number;
   totalMembers?: number;
@@ -54,6 +57,9 @@ type AnnouncementSelectRow = {
   poll_options?: unknown;
   scheduled_for?: string | null;
   is_published?: boolean | null;
+  is_pinned?: boolean | null;
+  pinned_at?: string | null;
+  is_urgent?: boolean | null;
 };
 
 function mapAnnouncementRow(row: AnnouncementSelectRow): ClubAnnouncement {
@@ -67,6 +73,9 @@ function mapAnnouncementRow(row: AnnouncementSelectRow): ClubAnnouncement {
     pollOptions: parsePollOptionsFromDb(row.poll_options),
     scheduledFor: row.scheduled_for ?? null,
     isPublished: row.is_published ?? true,
+    isPinned: row.is_pinned ?? false,
+    pinnedAt: row.pinned_at ?? null,
+    isUrgent: row.is_urgent ?? false,
   };
 }
 
@@ -76,9 +85,23 @@ export type ClubEvent = {
   description: string;
   location: string;
   eventType: EventType;
+  /** Optional attendee limit; null means unlimited. */
+  capacity: number | null;
+  /** Confirmed going RSVPs (`status = yes`). */
+  confirmedYesCount: number;
+  /** Waitlisted RSVPs (`status = waitlist`). */
+  waitlistCount: number;
+  /** Remaining confirmed spots; null when capacity is unlimited. */
+  capacityRemaining: number | null;
+  /** True when confirmed attendees exceed configured capacity. */
+  isOverCapacity: boolean;
   eventDate: string;
   eventDateRaw: Date;
-  userRsvpStatus: "yes" | "no" | "maybe" | null;
+  seriesId: string | null;
+  seriesOccurrence: number | null;
+  userRsvpStatus: EventRsvpStatus | null;
+  /** One-based position in the waitlist for current user when applicable. */
+  userWaitlistPosition: number | null;
   /** Whether the current user appears in attendance for this event (self only; safe for all members). */
   userMarkedPresent: boolean;
   attendanceCount: number;
@@ -87,6 +110,7 @@ export type ClubEvent = {
     yes: number;
     no: number;
     maybe: number;
+    waitlist: number;
   };
   goingMemberIds: string[];
   reflection: {
@@ -98,6 +122,8 @@ export type ClubEvent = {
     updatedAtIso: string;
   } | null;
 };
+
+export type EventRsvpStatus = "yes" | "no" | "maybe" | "waitlist";
 
 export type MembershipStatus = "active" | "alumni";
 
@@ -405,13 +431,16 @@ type ClubEventRow = {
   location: string;
   event_type: string;
   event_date: string;
+  capacity?: number | null;
+  series_id?: string | null;
+  series_occurrence?: number | null;
 };
 
 function mapEventRowsToClubEvents(
   eventsData: ClubEventRow[],
   userId: string,
   rsvpData:
-    | { event_id: string; user_id: string; status: "yes" | "no" | "maybe"; created_at: string }[]
+    | { event_id: string; user_id: string; status: EventRsvpStatus; created_at: string; waitlisted_at?: string | null }[]
     | null
     | undefined,
   attendanceData: { event_id: string; user_id: string }[] | null | undefined,
@@ -420,31 +449,67 @@ function mapEventRowsToClubEvents(
     | null
     | undefined,
 ): ClubEvent[] {
-  return eventsData.map((event) => ({
-    id: event.id,
-    title: event.title,
-    description: event.description,
-    location: event.location,
-    eventType: normalizeEventType(event.event_type),
-    eventDate: new Date(event.event_date).toLocaleString(),
-    eventDateRaw: new Date(event.event_date),
-    userRsvpStatus:
-      (rsvpData ?? []).find((rsvp) => rsvp.event_id === event.id && rsvp.user_id === userId)?.status ?? null,
-    userMarkedPresent: (attendanceData ?? []).some(
-      (attendance) => attendance.event_id === event.id && attendance.user_id === userId,
-    ),
-    attendanceCount: (attendanceData ?? []).filter((attendance) => attendance.event_id === event.id).length,
-    presentMemberIds: (attendanceData ?? [])
-      .filter((attendance) => attendance.event_id === event.id)
-      .map((attendance) => attendance.user_id),
-    rsvpCounts: {
-      yes: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "yes").length,
-      no: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "no").length,
-      maybe: (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "maybe").length,
-    },
-    goingMemberIds: (rsvpData ?? [])
-      .filter((rsvp) => rsvp.event_id === event.id && rsvp.status === "yes")
-      .map((rsvp) => rsvp.user_id),
+  const waitlistPositionByEventAndUser = new Map<string, number>();
+  const waitlistRows = (rsvpData ?? []).filter((rsvp) => rsvp.status === "waitlist");
+  const waitlistRowsByEvent = new Map<string, typeof waitlistRows>();
+  for (const row of waitlistRows) {
+    const existing = waitlistRowsByEvent.get(row.event_id) ?? [];
+    existing.push(row);
+    waitlistRowsByEvent.set(row.event_id, existing);
+  }
+  for (const [eventId, rows] of waitlistRowsByEvent) {
+    rows
+      .sort((a, b) => {
+        const aRank = new Date(a.waitlisted_at ?? a.created_at).getTime();
+        const bRank = new Date(b.waitlisted_at ?? b.created_at).getTime();
+        if (aRank !== bRank) return aRank - bRank;
+        if (a.created_at !== b.created_at) return a.created_at.localeCompare(b.created_at);
+        return a.user_id.localeCompare(b.user_id);
+      })
+      .forEach((row, index) => {
+        waitlistPositionByEventAndUser.set(`${eventId}:${row.user_id}`, index + 1);
+      });
+  }
+
+  return eventsData.map((event) => {
+    const eventRsvps = (rsvpData ?? []).filter((rsvp) => rsvp.event_id === event.id);
+    const yesCount = eventRsvps.filter((rsvp) => rsvp.status === "yes").length;
+    const noCount = eventRsvps.filter((rsvp) => rsvp.status === "no").length;
+    const maybeCount = eventRsvps.filter((rsvp) => rsvp.status === "maybe").length;
+    const waitlistCount = eventRsvps.filter((rsvp) => rsvp.status === "waitlist").length;
+    const eventAttendanceRows = (attendanceData ?? []).filter((attendance) => attendance.event_id === event.id);
+    const userRsvpStatus = eventRsvps.find((rsvp) => rsvp.user_id === userId)?.status ?? null;
+    const capacity = event.capacity ?? null;
+    return {
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      eventType: normalizeEventType(event.event_type),
+      capacity,
+      confirmedYesCount: yesCount,
+      waitlistCount,
+      capacityRemaining: capacity == null ? null : Math.max(0, capacity - yesCount),
+      isOverCapacity: capacity != null && yesCount > capacity,
+      eventDate: new Date(event.event_date).toLocaleString(),
+      eventDateRaw: new Date(event.event_date),
+      seriesId: event.series_id ?? null,
+      seriesOccurrence: event.series_occurrence ?? null,
+      userRsvpStatus,
+      userWaitlistPosition:
+        userRsvpStatus === "waitlist" ? (waitlistPositionByEventAndUser.get(`${event.id}:${userId}`) ?? null) : null,
+      userMarkedPresent: eventAttendanceRows.some((attendance) => attendance.user_id === userId),
+      attendanceCount: eventAttendanceRows.length,
+      presentMemberIds: eventAttendanceRows.map((attendance) => attendance.user_id),
+      rsvpCounts: {
+        yes: yesCount,
+        no: noCount,
+        maybe: maybeCount,
+        waitlist: waitlistCount,
+      },
+      goingMemberIds: eventRsvps
+        .filter((rsvp) => rsvp.status === "yes")
+        .map((rsvp) => rsvp.user_id),
     reflection: (() => {
       const reflection = (reflectionData ?? []).find((item) => item.event_id === event.id);
 
@@ -460,7 +525,8 @@ function mapEventRowsToClubEvents(
         updatedAtIso: reflection.updated_at,
       };
     })(),
-  }));
+    };
+  });
 }
 
 /** Roster fields required for event RSVP/attendance UI; other ClubMember fields are inert defaults. */
@@ -1014,23 +1080,25 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     supabase
       .from("announcements")
       .select(
-        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published",
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent",
       )
       .eq("club_id", clubId)
+      .order("is_pinned", { ascending: false })
+      .order("pinned_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(10),
     supabase.rpc("get_club_recent_activity", { target_club_id: clubId }),
     Promise.all([
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date")
+        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
         .eq("club_id", clubId)
         .gte("event_date", nowIso)
         .order("event_date", { ascending: true })
         .limit(100),
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date")
+        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
         .eq("club_id", clubId)
         .lt("event_date", nowIso)
         .order("event_date", { ascending: false })
@@ -1146,7 +1214,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     data: [] as {
       event_id: string;
       user_id: string;
-      status: "yes" | "no" | "maybe";
+      status: EventRsvpStatus;
       created_at: string;
     }[],
   };
@@ -1162,7 +1230,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
 
   const [rsvpRes, attendanceRes, reflectionRes] = await Promise.all([
     eventIds.length > 0
-      ? supabase.from("rsvps").select("event_id, user_id, status, created_at").in("event_id", eventIds)
+      ? supabase.from("rsvps").select("event_id, user_id, status, created_at, waitlisted_at").in("event_id", eventIds)
       : Promise.resolve(emptyRsvp),
     eventIds.length > 0
       ? supabase.from("event_attendance").select("event_id, user_id").in("event_id", eventIds)
@@ -1452,7 +1520,7 @@ export async function getClubDetailForCurrentUser(clubId: string): Promise<ClubD
     events: mapEventRowsToClubEvents(
       eventsData as ClubEventRow[],
       user.id,
-      (rsvpData ?? []) as { event_id: string; user_id: string; status: "yes" | "no" | "maybe"; created_at: string }[],
+      (rsvpData ?? []) as { event_id: string; user_id: string; status: EventRsvpStatus; created_at: string; waitlisted_at?: string | null }[],
       attendanceData ?? [],
       reflectionData ?? [],
     ),
@@ -1494,9 +1562,11 @@ export async function getClubDetailForAnnouncementsForCurrentUser(clubId: string
     supabase
       .from("announcements")
       .select(
-        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published",
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent",
       )
       .eq("club_id", clubId)
+      .order("is_pinned", { ascending: false })
+      .order("pinned_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(30),
     supabase
@@ -1672,14 +1742,14 @@ export async function getClubDetailForEventsForCurrentUser(clubId: string): Prom
     Promise.all([
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date")
+        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
         .eq("club_id", clubId)
         .gte("event_date", nowIso)
         .order("event_date", { ascending: true })
         .limit(100),
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date")
+        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
         .eq("club_id", clubId)
         .lt("event_date", nowIso)
         .order("event_date", { ascending: false })
@@ -1708,7 +1778,7 @@ export async function getClubDetailForEventsForCurrentUser(clubId: string): Prom
     data: [] as {
       event_id: string;
       user_id: string;
-      status: "yes" | "no" | "maybe";
+      status: EventRsvpStatus;
       created_at: string;
     }[],
   };
@@ -1724,7 +1794,7 @@ export async function getClubDetailForEventsForCurrentUser(clubId: string): Prom
 
   const [rsvpRes, attendanceRes, reflectionRes] = await Promise.all([
     eventIds.length > 0
-      ? supabase.from("rsvps").select("event_id, user_id, status, created_at").in("event_id", eventIds)
+      ? supabase.from("rsvps").select("event_id, user_id, status, created_at, waitlisted_at").in("event_id", eventIds)
       : Promise.resolve(emptyRsvp),
     eventIds.length > 0
       ? supabase.from("event_attendance").select("event_id, user_id").in("event_id", eventIds)
@@ -1766,7 +1836,7 @@ export async function getClubDetailForEventsForCurrentUser(clubId: string): Prom
     events: mapEventRowsToClubEvents(
       eventsData,
       user.id,
-      (rsvpRes.data ?? []) as { event_id: string; user_id: string; status: "yes" | "no" | "maybe"; created_at: string }[],
+      (rsvpRes.data ?? []) as { event_id: string; user_id: string; status: EventRsvpStatus; created_at: string; waitlisted_at?: string | null }[],
       attendanceRes.data ?? [],
       reflectionRes.data ?? [],
     ),
@@ -1819,23 +1889,25 @@ export async function getClubDetailForOverviewForCurrentUser(clubId: string): Pr
     supabase
       .from("announcements")
       .select(
-        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published",
+        "id, title, content, created_at, poll_question, poll_options, scheduled_for, is_published, is_pinned, pinned_at, is_urgent",
       )
       .eq("club_id", clubId)
+      .order("is_pinned", { ascending: false })
+      .order("pinned_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(10),
     supabase.rpc("get_club_recent_activity", { target_club_id: clubId }),
     Promise.all([
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date")
+        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
         .eq("club_id", clubId)
         .gte("event_date", nowIso)
         .order("event_date", { ascending: true })
         .limit(100),
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date")
+        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
         .eq("club_id", clubId)
         .lt("event_date", nowIso)
         .order("event_date", { ascending: false })
@@ -1864,7 +1936,7 @@ export async function getClubDetailForOverviewForCurrentUser(clubId: string): Pr
     data: [] as {
       event_id: string;
       user_id: string;
-      status: "yes" | "no" | "maybe";
+      status: EventRsvpStatus;
       created_at: string;
     }[],
   };
@@ -1882,7 +1954,7 @@ export async function getClubDetailForOverviewForCurrentUser(clubId: string): Pr
 
   const [rsvpRes, attendanceRes, reflectionRes, pastAttendanceRes] = await Promise.all([
     eventIds.length > 0
-      ? supabase.from("rsvps").select("event_id, user_id, status, created_at").in("event_id", eventIds)
+      ? supabase.from("rsvps").select("event_id, user_id, status, created_at, waitlisted_at").in("event_id", eventIds)
       : Promise.resolve(emptyRsvp),
     eventIds.length > 0
       ? supabase.from("event_attendance").select("event_id, user_id").in("event_id", eventIds)
@@ -2010,7 +2082,7 @@ export async function getClubDetailForOverviewForCurrentUser(clubId: string): Pr
     events: mapEventRowsToClubEvents(
       eventsData as ClubEventRow[],
       user.id,
-      (rsvpData ?? []) as { event_id: string; user_id: string; status: "yes" | "no" | "maybe"; created_at: string }[],
+      (rsvpData ?? []) as { event_id: string; user_id: string; status: EventRsvpStatus; created_at: string; waitlisted_at?: string | null }[],
       attendanceData ?? [],
       reflectionData ?? [],
     ),
@@ -2061,14 +2133,14 @@ export async function getClubDetailForInsightsForCurrentUser(clubId: string): Pr
     Promise.all([
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date")
+        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
         .eq("club_id", clubId)
         .gte("event_date", nowIso)
         .order("event_date", { ascending: true })
         .limit(100),
       supabase
         .from("events")
-        .select("id, title, description, location, event_type, event_date")
+        .select("id, title, description, location, event_type, event_date, capacity, series_id, series_occurrence")
         .eq("club_id", clubId)
         .lt("event_date", nowIso)
         .order("event_date", { ascending: false })
@@ -2099,7 +2171,7 @@ export async function getClubDetailForInsightsForCurrentUser(clubId: string): Pr
     data: [] as {
       event_id: string;
       user_id: string;
-      status: "yes" | "no" | "maybe";
+      status: EventRsvpStatus;
       created_at: string;
     }[],
   };
@@ -2117,7 +2189,7 @@ export async function getClubDetailForInsightsForCurrentUser(clubId: string): Pr
 
   const [rsvpRes, attendanceRes, pastAttendanceRes] = await Promise.all([
     eventIds.length > 0
-      ? supabase.from("rsvps").select("event_id, user_id, status, created_at").in("event_id", eventIds)
+      ? supabase.from("rsvps").select("event_id, user_id, status, created_at, waitlisted_at").in("event_id", eventIds)
       : Promise.resolve(emptyRsvp),
     eventIds.length > 0
       ? supabase.from("event_attendance").select("event_id, user_id").in("event_id", eventIds)
@@ -2211,7 +2283,7 @@ export async function getClubDetailForInsightsForCurrentUser(clubId: string): Pr
     events: mapEventRowsToClubEvents(
       eventsData as ClubEventRow[],
       user.id,
-      (rsvpData ?? []) as { event_id: string; user_id: string; status: "yes" | "no" | "maybe"; created_at: string }[],
+      (rsvpData ?? []) as { event_id: string; user_id: string; status: EventRsvpStatus; created_at: string; waitlisted_at?: string | null }[],
       attendanceData ?? [],
       emptyReflection.data,
     ),
@@ -2498,7 +2570,7 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
     data: [] as {
       event_id: string;
       user_id: string;
-      status: "yes" | "no" | "maybe";
+      status: EventRsvpStatus;
       created_at: string;
     }[],
   };
@@ -2526,7 +2598,7 @@ export async function getClubDetailForMembersRosterForCurrentUser(clubId: string
       engagementEventIds.length > 0
         ? supabase
             .from("rsvps")
-            .select("event_id, user_id, status, created_at")
+            .select("event_id, user_id, status, created_at, waitlisted_at")
             .in("event_id", engagementEventIds)
         : Promise.resolve(emptyRsvp),
       pastEventIds.length > 0

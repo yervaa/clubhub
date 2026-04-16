@@ -15,7 +15,9 @@ import { createActivityEvent } from "@/lib/activity/create-activity-event";
 import { createBulkNotifications } from "@/lib/notifications/create-notification";
 import { getMemberManagementErrorMessage } from "@/lib/clubs/member-management-messages";
 import {
+  announcementDeleteSchema,
   announcementCreateSchema,
+  announcementUpdateSchema,
   attendanceToggleSchema,
   clubCreateSchema,
   ANNOUNCEMENT_ATTACHMENT_MIMES,
@@ -24,12 +26,15 @@ import {
   eventUpdateSchema,
   eventReflectionSchema,
   joinCodeSchema,
+  MAX_RECURRING_OCCURRENCES,
   MAX_ANNOUNCEMENT_ATTACHMENTS,
   MAX_ANNOUNCEMENT_ATTACHMENT_BYTES,
   memberRemovalSchema,
   memberMarkAlumniSchema,
   memberRoleUpdateSchema,
   parseAnnouncementCreateExtras,
+  parseAnnouncementUpdateIntent,
+  parseEventRecurrenceSettings,
   rsvpSchema,
 } from "@/lib/validation/clubs";
 
@@ -91,6 +96,72 @@ function getReflectionErrorMessage(code?: string, message?: string) {
   }
 
   return "Unable to save reflection. Please retry.";
+}
+
+function addMonthsWithDayFallback(date: Date, monthsToAdd: number, desiredDayOfMonth: number): Date {
+  const next = new Date(date);
+  const originalHours = next.getHours();
+  const originalMinutes = next.getMinutes();
+  const originalSeconds = next.getSeconds();
+  const originalMs = next.getMilliseconds();
+
+  next.setDate(1);
+  next.setMonth(next.getMonth() + monthsToAdd);
+  const lastDayOfTargetMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(desiredDayOfMonth, lastDayOfTargetMonth));
+  next.setHours(originalHours, originalMinutes, originalSeconds, originalMs);
+  return next;
+}
+
+function generateRecurringOccurrenceDates(params: {
+  firstStartAt: Date;
+  frequency: "weekly" | "biweekly" | "monthly";
+  endType: "after_count" | "until_date";
+  occurrenceCount: number | null;
+  untilDate: string | null;
+}) {
+  const dates: Date[] = [];
+  const first = new Date(params.firstStartAt);
+  if (Number.isNaN(first.getTime())) {
+    return { dates, truncatedByCap: false };
+  }
+
+  const desiredDayOfMonth = first.getDate();
+  let cursor = first;
+  const untilLimit =
+    params.endType === "until_date" && params.untilDate
+      ? new Date(`${params.untilDate}T23:59:59`)
+      : null;
+
+  while (dates.length < MAX_RECURRING_OCCURRENCES) {
+    if (params.endType === "after_count" && params.occurrenceCount != null && dates.length >= params.occurrenceCount) {
+      break;
+    }
+    if (params.endType === "until_date" && untilLimit && cursor.getTime() > untilLimit.getTime()) {
+      break;
+    }
+
+    dates.push(new Date(cursor));
+
+    if (params.frequency === "weekly") {
+      const next = new Date(cursor);
+      next.setDate(next.getDate() + 7);
+      cursor = next;
+    } else if (params.frequency === "biweekly") {
+      const next = new Date(cursor);
+      next.setDate(next.getDate() + 14);
+      cursor = next;
+    } else {
+      cursor = addMonthsWithDayFallback(cursor, 1, desiredDayOfMonth);
+    }
+  }
+  const truncatedByCap =
+    params.endType === "until_date" &&
+    untilLimit != null &&
+    dates.length === MAX_RECURRING_OCCURRENCES &&
+    cursor.getTime() <= untilLimit.getTime();
+
+  return { dates, truncatedByCap };
 }
 
 async function ensureCreatorOfficerMembership(supabase: Awaited<ReturnType<typeof createClient>>, clubId: string, userId: string) {
@@ -487,6 +558,88 @@ function safeAttachmentFilename(name: string): string {
   return base || "file";
 }
 
+const MAX_PINNED_ANNOUNCEMENTS = 3;
+
+async function enforcePinnedAnnouncementsLimit(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clubId: string,
+  targetAnnouncementId?: string,
+) {
+  const { data: pinnedRows, error: pinnedError } = await supabase
+    .from("announcements")
+    .select("id")
+    .eq("club_id", clubId)
+    .eq("is_published", true)
+    .eq("is_pinned", true);
+
+  if (pinnedError) {
+    return { ok: false as const, error: "Unable to check pinned announcements. Please retry." };
+  }
+
+  const countExcludingTarget = (pinnedRows ?? []).filter((row) => row.id !== targetAnnouncementId).length;
+  if (countExcludingTarget >= MAX_PINNED_ANNOUNCEMENTS) {
+    return {
+      ok: false as const,
+      error: `You can pin at most ${MAX_PINNED_ANNOUNCEMENTS} published announcements. Unpin one first.`,
+    };
+  }
+
+  return { ok: true as const };
+}
+
+async function sendAnnouncementPublishedNotifications(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  clubId: string;
+  actorId: string;
+  announcementId: string;
+  title: string;
+  hasPoll: boolean;
+  activityEventId: string | null;
+  isUrgent: boolean;
+}) {
+  const { supabase, clubId, actorId, announcementId, title, hasPoll, activityEventId, isUrgent } = params;
+  const { data: otherMembers } = await supabase
+    .from("club_members")
+    .select("user_id")
+    .eq("club_id", clubId)
+    .eq("membership_status", "active")
+    .neq("user_id", actorId);
+
+  const admin = createAdminClient();
+  const href = `/clubs/${clubId}/announcements#announcement-${announcementId}`;
+  const body = hasPoll
+    ? isUrgent
+      ? "Urgent poll: please review and vote."
+      : "A new poll was posted in your club."
+    : isUrgent
+      ? "Urgent club update posted."
+      : "A new announcement was posted in your club.";
+
+  const sent =
+    otherMembers && otherMembers.length > 0
+      ? await createBulkNotifications(
+          otherMembers.map((m) => ({
+            userId: m.user_id,
+            clubId,
+            type: hasPoll ? ("poll_created" as const) : ("announcement_created" as const),
+            title,
+            body,
+            href,
+            activityEventId: activityEventId ?? undefined,
+            metadata: { announcement_id: announcementId, activity_event_id: activityEventId },
+          })),
+        )
+      : ({ ok: true } as const);
+
+  if (sent.ok) {
+    await admin
+      .from("announcements")
+      .update({ member_broadcast_sent_at: new Date().toISOString() })
+      .eq("id", announcementId)
+      .is("member_broadcast_sent_at", null);
+  }
+}
+
 export async function createAnnouncementAction(formData: FormData) {
   const parsed = announcementCreateSchema.safeParse({
     clubId: formData.get("club_id"),
@@ -572,6 +725,13 @@ export async function createAnnouncementAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+permission+to+create+announcements.`);
   }
 
+  if (extras.data.isPinned) {
+    const pinCheck = await enforcePinnedAnnouncementsLimit(supabase, parsed.data.clubId);
+    if (!pinCheck.ok) {
+      redirect(`/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(pinCheck.error)}`);
+    }
+  }
+
   const { data: inserted, error: insertError } = await supabase
     .from("announcements")
     .insert({
@@ -583,6 +743,9 @@ export async function createAnnouncementAction(formData: FormData) {
       poll_options: extras.data.pollOptions,
       scheduled_for: extras.data.scheduledForIso,
       is_published: extras.data.isPublished,
+      is_urgent: extras.data.isUrgent,
+      is_pinned: extras.data.isPinned,
+      pinned_at: extras.data.isPinned ? new Date().toISOString() : null,
     })
     .select("id")
     .maybeSingle();
@@ -592,18 +755,22 @@ export async function createAnnouncementAction(formData: FormData) {
   }
 
   const announcementId = inserted.id;
-  const announcementActivityId = await createActivityEvent({
-    type: "announcement.created",
-    actorId: user.id,
-    clubId: parsed.data.clubId,
-    entityId: announcementId,
-    targetLabel: parsed.data.title,
-    href: `/clubs/${parsed.data.clubId}/announcements#announcement-${announcementId}`,
-    metadata: {
-      has_poll: Boolean(extras.data.pollQuestion),
-      scheduled: !extras.data.isPublished,
-    },
-  });
+  let announcementActivityId: string | null = null;
+  if (extras.data.isPublished) {
+    announcementActivityId = await createActivityEvent({
+      type: "announcement.created",
+      actorId: user.id,
+      clubId: parsed.data.clubId,
+      entityId: announcementId,
+      targetLabel: parsed.data.title,
+      href: `/clubs/${parsed.data.clubId}/announcements#announcement-${announcementId}`,
+      metadata: {
+        has_poll: Boolean(extras.data.pollQuestion),
+        scheduled: !extras.data.isPublished,
+        urgent: extras.data.isUrgent,
+      },
+    });
+  }
 
   if (attachmentFiles.length > 0) {
     const admin = createAdminClient();
@@ -639,39 +806,16 @@ export async function createAnnouncementAction(formData: FormData) {
   }
 
   if (extras.data.isPublished) {
-    const { data: otherMembers } = await supabase
-      .from("club_members")
-      .select("user_id")
-      .eq("club_id", parsed.data.clubId)
-      .eq("membership_status", "active")
-      .neq("user_id", user.id);
-
-    const admin = createAdminClient();
-    const hasPoll = Boolean(extras.data.pollQuestion);
-    const href = `/clubs/${parsed.data.clubId}/announcements#announcement-${announcementId}`;
-    const sent =
-      otherMembers && otherMembers.length > 0
-        ? await createBulkNotifications(
-            otherMembers.map((m) => ({
-              userId: m.user_id,
-              clubId: parsed.data.clubId,
-              type: hasPoll ? ("poll_created" as const) : ("announcement_created" as const),
-              title: parsed.data.title,
-              body: hasPoll ? "A new poll was posted in your club." : "A new announcement was posted in your club.",
-              href,
-              activityEventId: announcementActivityId,
-              metadata: { announcement_id: announcementId, activity_event_id: announcementActivityId },
-            })),
-          )
-        : ({ ok: true } as const);
-
-    if (sent.ok) {
-      await admin
-        .from("announcements")
-        .update({ member_broadcast_sent_at: new Date().toISOString() })
-        .eq("id", announcementId)
-        .is("member_broadcast_sent_at", null);
-    }
+    await sendAnnouncementPublishedNotifications({
+      supabase,
+      clubId: parsed.data.clubId,
+      actorId: user.id,
+      announcementId,
+      title: parsed.data.title,
+      hasPoll: Boolean(extras.data.pollQuestion),
+      activityEventId: announcementActivityId,
+      isUrgent: extras.data.isUrgent,
+    });
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
@@ -680,8 +824,221 @@ export async function createAnnouncementAction(formData: FormData) {
 
   const successMsg = extras.data.isPublished
     ? "Announcement posted."
-    : "Announcement scheduled — members will be notified when it publishes.";
+    : extras.data.scheduledForIso
+      ? "Announcement scheduled — members will be notified when it publishes."
+      : "Draft saved.";
   redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=${encodeURIComponent(successMsg)}`);
+}
+
+export async function updateAnnouncementAction(formData: FormData) {
+  const parsed = announcementUpdateSchema.safeParse({
+    clubId: formData.get("club_id"),
+    announcementId: formData.get("announcement_id"),
+    title: formData.get("title"),
+    content: formData.get("content"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}/announcements?annError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    }
+    redirect("/clubs?error=Invalid+announcement.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(active.message)}`);
+  }
+
+  const canEdit = await hasPermission(user.id, parsed.data.clubId, "announcements.edit");
+  if (!canEdit) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+permission+to+edit+announcements.`);
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("announcements")
+    .select("id, club_id, is_published, is_pinned, poll_question, member_broadcast_sent_at")
+    .eq("id", parsed.data.announcementId)
+    .maybeSingle();
+
+  if (existingError || !existing || existing.club_id !== parsed.data.clubId) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Announcement+not+found+for+this+club.`);
+  }
+
+  const intent = parseAnnouncementUpdateIntent(formData);
+  const wantsUrgent = formData.get("is_urgent") === "on";
+  const wantsPinned = formData.get("is_pinned") === "on";
+
+  const nextIsPublished =
+    intent === "publish_now"
+      ? true
+      : intent === "save_draft"
+        ? existing.is_published
+          ? true
+          : false
+        : existing.is_published;
+  const nextIsPinned = nextIsPublished ? wantsPinned : false;
+
+  if (nextIsPinned && (!existing.is_pinned || !existing.is_published)) {
+    const pinCheck = await enforcePinnedAnnouncementsLimit(supabase, parsed.data.clubId, parsed.data.announcementId);
+    if (!pinCheck.ok) {
+      redirect(`/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(pinCheck.error)}`);
+    }
+  }
+
+  const becomingPublished = !existing.is_published && nextIsPublished;
+  const nowIso = new Date().toISOString();
+  const updatePayload: {
+    title: string;
+    content: string;
+    is_urgent: boolean;
+    is_published: boolean;
+    is_pinned: boolean;
+    pinned_at?: string | null;
+    scheduled_for?: string | null;
+    member_broadcast_sent_at?: string | null;
+  } = {
+    title: parsed.data.title,
+    content: parsed.data.content,
+    is_urgent: wantsUrgent,
+    is_published: nextIsPublished,
+    is_pinned: nextIsPinned,
+  };
+  if (!nextIsPinned) {
+    updatePayload.pinned_at = null;
+  } else if (!existing.is_pinned) {
+    updatePayload.pinned_at = nowIso;
+  }
+  if (nextIsPublished) {
+    updatePayload.scheduled_for = null;
+  }
+  if (becomingPublished) {
+    updatePayload.member_broadcast_sent_at = null;
+  }
+
+  const { error: updateError } = await supabase
+    .from("announcements")
+    .update(updatePayload)
+    .eq("id", parsed.data.announcementId)
+    .eq("club_id", parsed.data.clubId);
+
+  if (updateError) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Unable+to+update+announcement.+Please+retry.`);
+  }
+
+  if (becomingPublished) {
+    const activityEventId = await createActivityEvent({
+      type: "announcement.created",
+      actorId: user.id,
+      clubId: parsed.data.clubId,
+      entityId: parsed.data.announcementId,
+      targetLabel: parsed.data.title,
+      href: `/clubs/${parsed.data.clubId}/announcements#announcement-${parsed.data.announcementId}`,
+      metadata: {
+        published_from_draft: true,
+        has_poll: Boolean(existing.poll_question),
+        urgent: wantsUrgent,
+      },
+    });
+
+    await sendAnnouncementPublishedNotifications({
+      supabase,
+      clubId: parsed.data.clubId,
+      actorId: user.id,
+      announcementId: parsed.data.announcementId,
+      title: parsed.data.title,
+      hasPoll: Boolean(existing.poll_question),
+      activityEventId,
+      isUrgent: wantsUrgent,
+    });
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/announcements`);
+  revalidatePath("/dashboard");
+
+  const successMessage = becomingPublished
+    ? "Draft published."
+    : nextIsPublished
+      ? "Announcement updated."
+      : "Draft updated.";
+  redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=${encodeURIComponent(successMessage)}`);
+}
+
+export async function deleteAnnouncementAction(formData: FormData) {
+  const parsed = announcementDeleteSchema.safeParse({
+    clubId: formData.get("club_id"),
+    announcementId: formData.get("announcement_id"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}/announcements?annError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    }
+    redirect("/clubs?error=Invalid+announcement.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(active.message)}`);
+  }
+
+  const canDelete = await hasPermission(user.id, parsed.data.clubId, "announcements.delete");
+  if (!canDelete) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=You+do+not+have+permission+to+delete+announcements.`);
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("announcements")
+    .select("id, club_id")
+    .eq("id", parsed.data.announcementId)
+    .maybeSingle();
+
+  if (existingError || !existing || existing.club_id !== parsed.data.clubId) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Announcement+not+found+for+this+club.`);
+  }
+
+  const admin = createAdminClient();
+  const { data: attachmentRows } = await admin
+    .from("announcement_attachments")
+    .select("file_url")
+    .eq("announcement_id", parsed.data.announcementId);
+  const filePaths = (attachmentRows ?? []).map((row) => row.file_url).filter((value): value is string => Boolean(value));
+  if (filePaths.length > 0) {
+    await admin.storage.from("announcement-attachments").remove(filePaths);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("announcements")
+    .delete()
+    .eq("id", parsed.data.announcementId)
+    .eq("club_id", parsed.data.clubId);
+  if (deleteError) {
+    redirect(`/clubs/${parsed.data.clubId}/announcements?annError=Unable+to+delete+announcement.+Please+retry.`);
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/announcements`);
+  revalidatePath("/dashboard");
+  redirect(`/clubs/${parsed.data.clubId}/announcements?annSuccess=Announcement+deleted.`);
 }
 
 export async function updateMemberRoleAction(formData: FormData) {
@@ -870,6 +1227,7 @@ export async function createEventAction(formData: FormData) {
     description: normalizedDescription,
     location: normalizedLocation,
     eventType: normalizedEventType,
+    capacity: formData.get("capacity"),
     eventDate: formData.get("event_date"),
   });
 
@@ -881,6 +1239,13 @@ export async function createEventAction(formData: FormData) {
     redirect("/clubs?error=Invalid+club.");
   }
   const eventDate = new Date(parsed.data.eventDate);
+  const recurrenceParsed = parseEventRecurrenceSettings(formData, parsed.data.eventDate);
+  if (!recurrenceParsed.ok) {
+    redirect(
+      `/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(recurrenceParsed.error)}${duplicateQuery}#create-event`,
+    );
+  }
+  const recurrenceSettings = recurrenceParsed.data;
 
   const supabase = await createClient();
   const {
@@ -924,21 +1289,108 @@ export async function createEventAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+don't+have+permission+to+create+events.${duplicateQuery}#create-event`);
   }
 
-  const { data: insertedEvent, error: insertError } = await supabase
-    .from("events")
-    .insert({
+  let insertedEvent: { id: string; title: string } | null = null;
+  let createdOccurrences = 1;
+  if (!recurrenceSettings) {
+    const { data: oneTimeEvent, error: insertError } = await supabase
+      .from("events")
+      .insert({
+        club_id: parsed.data.clubId,
+        title: parsed.data.title,
+        description: parsed.data.description,
+        location: parsed.data.location,
+        event_type: parsed.data.eventType,
+        capacity: parsed.data.capacity,
+        event_date: eventDate.toISOString(),
+        created_by: user.id,
+      })
+      .select("id, title")
+      .maybeSingle();
+
+    if (insertError || !oneTimeEvent?.id) {
+      redirect(
+        `/clubs/${parsed.data.clubId}/events?eventError=Unable+to+create+event.+Please+retry.${duplicateQuery}#create-event`,
+      );
+    }
+    insertedEvent = oneTimeEvent;
+  } else {
+    const generation = generateRecurringOccurrenceDates({
+      firstStartAt: eventDate,
+      frequency: recurrenceSettings.frequency,
+      endType: recurrenceSettings.endType,
+      occurrenceCount: recurrenceSettings.occurrenceCount,
+      untilDate: recurrenceSettings.untilDate,
+    });
+    const occurrenceDates = generation.dates;
+
+    if (occurrenceDates.length < 1) {
+      redirect(
+        `/clubs/${parsed.data.clubId}/events?eventError=Recurrence+settings+did+not+produce+any+occurrences.${duplicateQuery}#create-event`,
+      );
+    }
+    if (recurrenceSettings.endType === "until_date" && generation.truncatedByCap) {
+      redirect(
+        `/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(`This series exceeds the ${MAX_RECURRING_OCCURRENCES} occurrence limit. Choose an earlier end date.`)}${duplicateQuery}#create-event`,
+      );
+    }
+
+    createdOccurrences = occurrenceDates.length;
+    const { data: seriesRow, error: seriesError } = await supabase
+      .from("event_series")
+      .insert({
+        club_id: parsed.data.clubId,
+        created_by: user.id,
+        title: parsed.data.title,
+        description: parsed.data.description,
+        location: parsed.data.location,
+        event_type: parsed.data.eventType,
+        capacity: parsed.data.capacity,
+        starts_at: eventDate.toISOString(),
+        duration_minutes: recurrenceSettings.durationMinutes,
+        recurrence_type: recurrenceSettings.frequency,
+        end_type: recurrenceSettings.endType,
+        occurrence_count: recurrenceSettings.occurrenceCount,
+        until_date: recurrenceSettings.untilDate,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (seriesError || !seriesRow?.id) {
+      redirect(
+        `/clubs/${parsed.data.clubId}/events?eventError=Unable+to+create+recurring+series.+Please+retry.${duplicateQuery}#create-event`,
+      );
+    }
+
+    const eventRows = occurrenceDates.map((date, idx) => ({
       club_id: parsed.data.clubId,
       title: parsed.data.title,
       description: parsed.data.description,
       location: parsed.data.location,
       event_type: parsed.data.eventType,
-      event_date: eventDate.toISOString(),
+      capacity: parsed.data.capacity,
+      event_date: date.toISOString(),
       created_by: user.id,
-    })
-    .select("id, title")
-    .maybeSingle();
+      series_id: seriesRow.id,
+      series_occurrence: idx + 1,
+    }));
 
-  if (insertError || !insertedEvent?.id) {
+    const { data: createdEvents, error: recurringInsertError } = await supabase
+      .from("events")
+      .insert(eventRows)
+      .select("id, title, event_date")
+      .order("event_date", { ascending: true });
+
+    if (recurringInsertError || !createdEvents || createdEvents.length === 0) {
+      await supabase.from("event_series").delete().eq("id", seriesRow.id);
+      redirect(
+        `/clubs/${parsed.data.clubId}/events?eventError=Unable+to+create+recurring+occurrences.+Please+retry.${duplicateQuery}#create-event`,
+      );
+    }
+
+    insertedEvent = { id: createdEvents[0]!.id, title: createdEvents[0]!.title };
+  }
+
+  if (!insertedEvent) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+create+event.+Please+retry.${duplicateQuery}#create-event`);
   }
 
@@ -966,7 +1418,10 @@ export async function createEventAction(formData: FormData) {
         clubId: parsed.data.clubId,
         type: "event.created" as const,
         title: parsed.data.title,
-        body: `New event on ${eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${parsed.data.location}`,
+        body:
+          createdOccurrences > 1
+            ? `New recurring series (${createdOccurrences} events) starts ${eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${parsed.data.location}`
+            : `New event on ${eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${parsed.data.location}`,
         href: `/clubs/${parsed.data.clubId}/events`,
         activityEventId: eventActivityId,
       })),
@@ -974,7 +1429,11 @@ export async function createEventAction(formData: FormData) {
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
-  redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=Event+created.#events`);
+  redirect(
+    `/clubs/${parsed.data.clubId}/events?eventSuccess=${encodeURIComponent(
+      createdOccurrences > 1 ? `Recurring series created (${createdOccurrences} events).` : "Event created.",
+    )}.#events`,
+  );
 }
 
 export async function updateEventAction(formData: FormData) {
@@ -995,6 +1454,7 @@ export async function updateEventAction(formData: FormData) {
     description: normalizedDescription,
     location: normalizedLocation,
     eventType: normalizedEventType,
+    capacity: formData.get("capacity"),
     eventDate: formData.get("event_date"),
   });
 
@@ -1038,7 +1498,7 @@ export async function updateEventAction(formData: FormData) {
 
   const { data: existingEvent, error: existingEventError } = await supabase
     .from("events")
-    .select("id, club_id, event_date")
+    .select("id, club_id, event_date, capacity")
     .eq("id", parsed.data.eventId)
     .maybeSingle();
 
@@ -1061,6 +1521,7 @@ export async function updateEventAction(formData: FormData) {
       description: parsed.data.description,
       location: parsed.data.location,
       event_type: parsed.data.eventType,
+      capacity: parsed.data.capacity,
       event_date: eventDate.toISOString(),
     })
     .eq("id", parsed.data.eventId)
@@ -1068,6 +1529,16 @@ export async function updateEventAction(formData: FormData) {
 
   if (updateError) {
     redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+update+event.+Please+retry.#event-${parsed.data.eventId}`);
+  }
+
+  const previousCapacity = existingEvent.capacity;
+  if (previousCapacity !== parsed.data.capacity) {
+    const { error: waitlistReconcileError } = await supabase.rpc("reconcile_event_waitlist", {
+      target_event_id: parsed.data.eventId,
+    });
+    if (waitlistReconcileError) {
+      redirect(`/clubs/${parsed.data.clubId}/events?eventError=Event+updated,+but+waitlist+sync+failed.+Please+retry.#event-${parsed.data.eventId}`);
+    }
   }
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
@@ -1144,6 +1615,68 @@ export async function deleteEventAction(formData: FormData) {
   redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=Event+deleted.#events`);
 }
 
+export async function deleteEventSeriesAction(formData: FormData) {
+  const parsed = eventDeleteSchema.safeParse({
+    clubId: formData.get("club_id"),
+    eventId: formData.get("event_id"),
+  });
+
+  if (!parsed.success) {
+    const fallbackClubId = typeof formData.get("club_id") === "string" ? formData.get("club_id") : "";
+    if (fallbackClubId) {
+      redirect(`/clubs/${fallbackClubId}/events?eventError=${encodeURIComponent(getSafeValidationErrorMessage(parsed))}`);
+    }
+    redirect("/clubs?error=Invalid+event+request.");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const active = await assertClubActiveForMutations(parsed.data.clubId);
+  if (!active.ok) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=${encodeURIComponent(active.message)}#event-${parsed.data.eventId}`);
+  }
+
+  const canDelete = await hasPermission(user.id, parsed.data.clubId, "events.delete");
+  if (!canDelete) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=You+do+not+have+permission+to+delete+events.#event-${parsed.data.eventId}`);
+  }
+
+  const { data: existingEvent, error: existingEventError } = await supabase
+    .from("events")
+    .select("id, club_id, series_id")
+    .eq("id", parsed.data.eventId)
+    .maybeSingle();
+
+  if (existingEventError || !existingEvent || existingEvent.club_id !== parsed.data.clubId) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Event+not+found+for+this+club.`);
+  }
+  if (!existingEvent.series_id) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=This+event+is+not+part+of+a+recurring+series.#event-${parsed.data.eventId}`);
+  }
+
+  const { error: deleteSeriesError } = await supabase
+    .from("event_series")
+    .delete()
+    .eq("id", existingEvent.series_id)
+    .eq("club_id", parsed.data.clubId);
+
+  if (deleteSeriesError) {
+    redirect(`/clubs/${parsed.data.clubId}/events?eventError=Unable+to+delete+event+series.+Please+retry.#event-${parsed.data.eventId}`);
+  }
+
+  revalidatePath(`/clubs/${parsed.data.clubId}`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/events`);
+  revalidatePath(`/clubs/${parsed.data.clubId}/events/history`);
+  redirect(`/clubs/${parsed.data.clubId}/events?eventSuccess=Recurring+series+deleted.#events`);
+}
+
 export async function upsertRsvpAction(formData: FormData) {
   const parsed = rsvpSchema.safeParse({
     clubId: formData.get("club_id"),
@@ -1203,18 +1736,22 @@ export async function upsertRsvpAction(formData: FormData) {
     redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=Event+not+found+for+this+club.`);
   }
 
-  const { error: upsertError } = await supabase.from("rsvps").upsert(
-    {
-      event_id: parsed.data.eventId,
-      user_id: user.id,
-      status: parsed.data.status,
-    },
-    { onConflict: "event_id,user_id" },
-  );
+  const { data: appliedStatus, error: upsertError } = await supabase.rpc("set_event_rsvp_with_capacity", {
+    target_event_id: parsed.data.eventId,
+    target_status: parsed.data.status,
+  });
 
   if (upsertError) {
+    if (upsertError.message?.includes("not_allowed")) {
+      redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=You+do+not+have+access+to+this+event.`);
+    }
     redirect(`/clubs/${parsed.data.clubId}/events?rsvpError=Unable+to+save+RSVP.+Please+retry.`);
   }
+
+  const finalStatus =
+    typeof appliedStatus === "string" && ["yes", "no", "maybe", "waitlist"].includes(appliedStatus)
+      ? appliedStatus
+      : parsed.data.status;
 
   await createActivityEvent({
     type: "rsvp.submitted",
@@ -1223,12 +1760,13 @@ export async function upsertRsvpAction(formData: FormData) {
     entityId: parsed.data.eventId,
     targetLabel: eventRow.title,
     href: `/clubs/${parsed.data.clubId}/events#event-${parsed.data.eventId}`,
-    metadata: { status: parsed.data.status },
+    metadata: { status: finalStatus },
   });
 
   revalidatePath(`/clubs/${parsed.data.clubId}`);
+  const successMessage = finalStatus === "waitlist" ? "Event is full — you are on the waitlist." : "RSVP saved.";
   redirect(
-    `/clubs/${parsed.data.clubId}/events?rsvpSuccess=RSVP+saved.&rsvpEventId=${encodeURIComponent(parsed.data.eventId)}&rsvpStatus=${encodeURIComponent(parsed.data.status)}`,
+    `/clubs/${parsed.data.clubId}/events?rsvpSuccess=${encodeURIComponent(successMessage)}&rsvpEventId=${encodeURIComponent(parsed.data.eventId)}&rsvpStatus=${encodeURIComponent(finalStatus)}`,
   );
 }
 

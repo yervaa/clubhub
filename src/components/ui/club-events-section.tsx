@@ -264,6 +264,99 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
 
             <details className="rounded-xl border border-slate-200 bg-white/80">
               <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+                Recurring schedule (optional)
+                <span className="ml-2 text-xs font-medium text-slate-500">Weekly, every 2 weeks, or monthly</span>
+              </summary>
+              <div className="space-y-4 border-t border-slate-200 px-4 py-4">
+                <div>
+                  <label htmlFor="recurrence_mode" className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Event pattern
+                  </label>
+                  <select id="recurrence_mode" name="recurrence_mode" defaultValue="one_time" className="input-control min-h-11 sm:min-h-0">
+                    <option value="one_time">One-time event</option>
+                    <option value="recurring">Recurring series</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="recurrence_frequency" className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Frequency
+                    </label>
+                    <select
+                      id="recurrence_frequency"
+                      name="recurrence_frequency"
+                      defaultValue="weekly"
+                      className="input-control min-h-11 sm:min-h-0"
+                    >
+                      <option value="weekly">Every week</option>
+                      <option value="biweekly">Every 2 weeks</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="recurrence_end_time" className="mb-1.5 block text-sm font-medium text-slate-700">
+                      End time
+                    </label>
+                    <input
+                      id="recurrence_end_time"
+                      name="recurrence_end_time"
+                      type="time"
+                      className="input-control min-h-11 sm:min-h-0"
+                      defaultValue="19:00"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor="recurrence_end_type" className="mb-1.5 block text-sm font-medium text-slate-700">
+                      End condition
+                    </label>
+                    <select
+                      id="recurrence_end_type"
+                      name="recurrence_end_type"
+                      defaultValue="after_count"
+                      className="input-control min-h-11 sm:min-h-0"
+                    >
+                      <option value="after_count">After number of events</option>
+                      <option value="until_date">On a date</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="recurrence_count" className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Occurrence count
+                    </label>
+                    <input
+                      id="recurrence_count"
+                      name="recurrence_count"
+                      type="number"
+                      min={1}
+                      max={52}
+                      defaultValue={8}
+                      className="input-control min-h-11 sm:min-h-0"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="recurrence_until_date" className="mb-1.5 block text-sm font-medium text-slate-700">
+                      End date
+                    </label>
+                    <input
+                      id="recurrence_until_date"
+                      name="recurrence_until_date"
+                      type="date"
+                      className="input-control min-h-11 sm:min-h-0"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500">
+                  For monthly events on dates like 29/30/31, shorter months use the last day of that month.
+                </p>
+              </div>
+            </details>
+
+            <details className="rounded-xl border border-slate-200 bg-white/80">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
                 Optional details
                 <span className="ml-2 text-xs font-medium text-slate-500">Type, location, and description</span>
               </summary>
@@ -302,6 +395,25 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
                 </div>
 
                 <div>
+                  <label htmlFor="event_capacity" className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Capacity (optional)
+                  </label>
+                  <input
+                    id="event_capacity"
+                    name="capacity"
+                    type="number"
+                    min={1}
+                    max={5000}
+                    defaultValue={duplicateEvent?.capacity ?? ""}
+                    className="input-control min-h-11 sm:min-h-0"
+                    placeholder="Leave blank for unlimited"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    When full, new “Yes” RSVPs are placed on a waitlist automatically.
+                  </p>
+                </div>
+
+                <div>
                   <label htmlFor="event_description" className="mb-1.5 block text-sm font-medium text-slate-700">
                     Description
                   </label>
@@ -321,7 +433,20 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
             <FormDraftPersistence
               formId="create-event"
               storageKey={`clubhub:draft:event:${club.id}`}
-              fields={["title", "event_date", "event_type", "location", "description"]}
+              fields={[
+                "title",
+                "event_date",
+                "event_type",
+                "location",
+                "capacity",
+                "description",
+                "recurrence_mode",
+                "recurrence_frequency",
+                "recurrence_end_type",
+                "recurrence_count",
+                "recurrence_until_date",
+                "recurrence_end_time",
+              ]}
               successSignal={query.eventSuccess}
             />
 

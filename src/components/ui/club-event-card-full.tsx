@@ -62,14 +62,16 @@ export function ClubEventCardFull({
   const isToday = event.eventDateRaw.toDateString() === now.toDateString();
   const isPast = event.eventDateRaw.getTime() < now.getTime();
   const totalResponses = event.rsvpCounts.yes + event.rsvpCounts.no + event.rsvpCounts.maybe;
+  const totalResponsesWithWaitlist = totalResponses + event.rsvpCounts.waitlist;
   const activeMembersForAttendance = club.members.filter((m) => m.membershipStatus === "active");
   const unmarkedActiveCount = activeMembersForAttendance.filter(
     (m) => !event.presentMemberIds.includes(m.userId),
   ).length;
 
-  const responsePercent = memberCount > 0 ? Math.min(100, Math.round((totalResponses / memberCount) * 100)) : 0;
+  const responsePercent = memberCount > 0 ? Math.min(100, Math.round((totalResponsesWithWaitlist / memberCount) * 100)) : 0;
   const goingPercent = memberCount > 0 ? Math.min(100, Math.round((event.rsvpCounts.yes / memberCount) * 100)) : 0;
   const goingLabel = event.rsvpCounts.yes === 1 ? "person going" : "people going";
+  const waitlistLabel = event.rsvpCounts.waitlist === 1 ? "person waitlisted" : "people waitlisted";
   const memberNameById = new Map(
     club.members.map((member) => [
       member.userId,
@@ -147,6 +149,11 @@ export function ClubEventCardFull({
             metaCompact
             supportingBorder={false}
           />
+          {event.seriesId ? (
+            <p className="mt-2 text-xs font-medium text-indigo-700">
+              Recurring series{event.seriesOccurrence ? ` · Occurrence ${event.seriesOccurrence}` : ""}
+            </p>
+          ) : null}
 
           {isPast ? (
             <p className="mt-3 text-sm text-slate-600">
@@ -176,6 +183,17 @@ export function ClubEventCardFull({
                 <p className="mt-1 text-sm font-semibold text-slate-900">
                   {event.rsvpCounts.yes} {goingLabel}
                 </p>
+                {event.rsvpCounts.waitlist > 0 ? (
+                  <p className="mt-0.5 text-xs text-amber-700">
+                    {event.rsvpCounts.waitlist} {waitlistLabel}
+                  </p>
+                ) : null}
+                {event.capacity != null ? (
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    {event.confirmedYesCount} / {event.capacity} confirmed
+                    {event.isOverCapacity ? " · Over capacity" : event.capacityRemaining === 0 ? " · Full" : ""}
+                  </p>
+                ) : null}
                 {goingNames.length > 0 ? (
                   <p className="mt-0.5 text-xs text-slate-600">
                     Going: {goingNames.join(", ")}
@@ -232,7 +250,10 @@ export function ClubEventCardFull({
                   description={event.description}
                   location={event.location}
                   eventType={event.eventType}
+                  capacity={event.capacity}
                   eventDateIso={event.eventDateRaw.toISOString()}
+                  seriesId={event.seriesId}
+                  seriesOccurrence={event.seriesOccurrence}
                   canEditEvents={canEditEvents}
                   canDeleteEvents={canDeleteEvents}
                 />
@@ -261,10 +282,24 @@ export function ClubEventCardFull({
                   <div className="event-meta-item">
                     <span className="event-meta-label">Your RSVP</span>
                     <span className="event-meta-value">
-                      {event.userRsvpStatus ? `You replied: ${event.userRsvpStatus}` : "You did not RSVP"}
+                      {event.userRsvpStatus === "waitlist"
+                        ? `You are waitlisted${event.userWaitlistPosition ? ` (#${event.userWaitlistPosition})` : ""}`
+                        : event.userRsvpStatus
+                          ? `You replied: ${event.userRsvpStatus}`
+                          : "You did not RSVP"}
                     </span>
                   </div>
                 )}
+                {event.capacity != null ? (
+                  <div className="event-meta-item">
+                    <span className="event-meta-label">Capacity</span>
+                    <span className="event-meta-value">
+                      {event.confirmedYesCount}/{event.capacity} confirmed
+                      {event.rsvpCounts.waitlist > 0 ? ` · ${event.rsvpCounts.waitlist} waitlisted` : ""}
+                      {event.isOverCapacity ? " · Over capacity" : ""}
+                    </span>
+                  </div>
+                ) : null}
                 {isPast ? (
                   <div className="event-meta-item">
                     <span className="event-meta-label">Your attendance</span>
@@ -310,12 +345,13 @@ export function ClubEventCardFull({
                         <p className="text-sm font-semibold text-slate-900">Participation</p>
                         <p className="mt-1 text-sm text-slate-600">
                           {memberCount > 0
-                            ? `${totalResponses} of ${memberCount} ${memberCount === 1 ? "member" : "members"} responded`
+                            ? `${totalResponsesWithWaitlist} of ${memberCount} ${memberCount === 1 ? "member" : "members"} responded`
                             : "Waiting for members to join this club."}
                         </p>
                       </div>
                       <span className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200/80">
                         {event.rsvpCounts.yes} yes · {event.rsvpCounts.maybe} maybe · {event.rsvpCounts.no} no
+                        {event.rsvpCounts.waitlist > 0 ? ` · ${event.rsvpCounts.waitlist} waitlist` : ""}
                       </span>
                     </div>
                     <div className="event-progress-bar mt-4" aria-hidden="true">

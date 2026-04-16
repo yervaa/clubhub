@@ -10,6 +10,7 @@ type AnnouncementPublishRow = {
   title: string;
   created_by: string;
   poll_question: string | null;
+  is_urgent: boolean | null;
 };
 
 const nowIso = () => new Date().toISOString();
@@ -46,6 +47,14 @@ async function deliverScheduledAnnouncementBroadcast(admin: SupabaseClient, row:
 
   const hasPoll = Boolean(row.poll_question?.trim());
   const href = `/clubs/${row.club_id}/announcements#announcement-${row.id}`;
+  const isUrgent = Boolean(row.is_urgent);
+  const body = hasPoll
+    ? isUrgent
+      ? "Urgent poll: please review and vote."
+      : "A new poll was posted in your club."
+    : isUrgent
+      ? "Urgent club update posted."
+      : "A new announcement was posted in your club.";
 
   const result = await createBulkNotifications(
     members.map((m) => ({
@@ -53,7 +62,7 @@ async function deliverScheduledAnnouncementBroadcast(admin: SupabaseClient, row:
       clubId: row.club_id,
       type: hasPoll ? ("poll_created" as const) : ("announcement_created" as const),
       title: row.title,
-      body: hasPoll ? "A new poll was posted in your club." : "A new announcement was posted in your club.",
+      body,
       href,
       metadata: { announcement_id: row.id },
     })),
@@ -74,7 +83,7 @@ export async function publishDueScheduledAnnouncements(): Promise<{ published: n
 
   const { data: due, error } = await admin
     .from("announcements")
-    .select("id, club_id, title, created_by, poll_question")
+    .select("id, club_id, title, created_by, poll_question, is_urgent")
     .eq("is_published", false)
     .not("scheduled_for", "is", null)
     .lte("scheduled_for", t);
@@ -110,7 +119,7 @@ export async function publishDueScheduledAnnouncements(): Promise<{ published: n
   // Retry member broadcast: scheduled posts past their time, or immediate publishes
   // (scheduled_for null) where notify failed after is_published was set.
   const pendingSelect =
-    "id, club_id, title, created_by, poll_question" as const;
+    "id, club_id, title, created_by, poll_question, is_urgent" as const;
   const basePending = () =>
     admin
       .from("announcements")

@@ -3,7 +3,7 @@
 import { useFormStatus } from "react-dom";
 import { upsertRsvpAction } from "@/app/(app)/clubs/actions";
 
-type RsvpStatus = "yes" | "maybe" | "no";
+type RsvpStatus = "yes" | "maybe" | "no" | "waitlist";
 
 type EventRsvpControlsProps = {
   clubId: string;
@@ -60,7 +60,11 @@ export function EventRsvpControls({
   recentlySaved,
   embedded = false,
 }: EventRsvpControlsProps) {
-  const savedLabel = selectedStatus ? `${selectedStatus.toUpperCase()} saved` : "Response saved";
+  const savedLabel = selectedStatus === "waitlist"
+    ? "Waitlisted"
+    : selectedStatus
+      ? `${selectedStatus.toUpperCase()} saved`
+      : "Response saved";
 
   return (
     <form

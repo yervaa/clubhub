@@ -56,6 +56,27 @@ const shortTitleSchema = z.string().transform(sanitizeInlineText).pipe(z.string(
 const plainTextSchema = z.string().transform(sanitizeMultilineText).pipe(z.string().min(1).max(2000));
 const shortInlineSchema = z.string().transform(sanitizeInlineText).pipe(z.string().min(1).max(160));
 const eventTypeSchema = z.enum(EVENT_TYPE_OPTIONS);
+const optionalEventCapacitySchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((value) => (typeof value === "string" ? value.trim() : ""))
+  .superRefine((value, ctx) => {
+    if (value === "") return;
+    if (!/^\d+$/.test(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Capacity must be a whole number.",
+      });
+      return;
+    }
+    const n = Number.parseInt(value, 10);
+    if (n < 1 || n > 5000) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Capacity must be between 1 and 5000.",
+      });
+    }
+  })
+  .transform((value) => (value === "" ? null : Number.parseInt(value, 10)));
 
 export const clubCreateSchema = z.object({
   name: shortTitleSchema,
@@ -73,6 +94,18 @@ export const announcementCreateSchema = z.object({
   clubId: uuidSchema,
   title: shortTitleSchema,
   content: plainTextSchema,
+});
+
+export const announcementUpdateSchema = z.object({
+  clubId: uuidSchema,
+  announcementId: uuidSchema,
+  title: shortTitleSchema,
+  content: plainTextSchema,
+});
+
+export const announcementDeleteSchema = z.object({
+  clubId: uuidSchema,
+  announcementId: uuidSchema,
 });
 
 export const MAX_ANNOUNCEMENT_ATTACHMENTS = 5;
@@ -106,6 +139,8 @@ export type AnnouncementCreateExtras = {
   pollOptions: string[] | null;
   scheduledForIso: string | null;
   isPublished: boolean;
+  isUrgent: boolean;
+  isPinned: boolean;
 };
 
 /**
@@ -156,10 +191,17 @@ export function parseAnnouncementCreateExtras(formData: FormData): {
   }
 
   const scheduleStr = scheduleRaw.data;
+  const intentRaw = formData.get("announcement_intent");
+  const intent = typeof intentRaw === "string" ? intentRaw.trim() : "publish_now";
+  if (intent !== "publish_now" && intent !== "save_draft") {
+    return { ok: false, error: "Invalid publish intent." };
+  }
+  const isUrgent = formData.get("is_urgent") === "on";
+  const requestedPinned = formData.get("is_pinned") === "on";
   let scheduledForIso: string | null = null;
-  let isPublished = true;
+  let isPublished = intent !== "save_draft";
 
-  if (scheduleStr.length > 0) {
+  if (scheduleStr.length > 0 && intent !== "save_draft") {
     const ms = Date.parse(scheduleStr);
     if (Number.isNaN(ms)) {
       return { ok: false, error: "Enter a valid publish date and time." };
@@ -179,8 +221,22 @@ export function parseAnnouncementCreateExtras(formData: FormData): {
       pollOptions,
       scheduledForIso,
       isPublished,
+      isUrgent,
+      isPinned: isPublished && requestedPinned,
     },
   };
+}
+
+export type AnnouncementUpdateIntent = "save_draft" | "publish_now" | "save_changes";
+
+export function parseAnnouncementUpdateIntent(formData: FormData): AnnouncementUpdateIntent {
+  const raw = formData.get("announcement_intent");
+  if (typeof raw !== "string") return "save_changes";
+  const trimmed = raw.trim();
+  if (trimmed === "save_draft" || trimmed === "publish_now" || trimmed === "save_changes") {
+    return trimmed;
+  }
+  return "save_changes";
 }
 
 /** Reflection / optional note blocks — FormData may omit or send null. */
@@ -197,6 +253,7 @@ export const eventCreateSchema = z
     description: plainTextSchema,
     location: shortInlineSchema,
     eventType: eventTypeSchema,
+    capacity: optionalEventCapacitySchema,
     eventDate: z.string().min(1).max(40, "Event date value is too long."),
   })
   .superRefine((value, ctx) => {
@@ -226,6 +283,7 @@ export const eventUpdateSchema = z.object({
   description: plainTextSchema,
   location: shortInlineSchema,
   eventType: eventTypeSchema,
+  capacity: optionalEventCapacitySchema,
   eventDate: z.string().min(1).max(40, "Event date value is too long."),
 }).superRefine((value, ctx) => {
   const parsedDate = new Date(value.eventDate);
@@ -242,6 +300,119 @@ export const eventDeleteSchema = z.object({
   clubId: uuidSchema,
   eventId: uuidSchema,
 });
+
+export const MAX_RECURRING_OCCURRENCES = 52;
+
+const recurrenceFrequencySchema = z.enum(["weekly", "biweekly", "monthly"]);
+const recurrenceEndTypeSchema = z.enum(["after_count", "until_date"]);
+const optionalTimeHmSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (typeof v === "string" ? v.trim() : ""));
+const optionalDateOnlySchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (typeof v === "string" ? v.trim() : ""));
+
+export type EventRecurrenceSettings = {
+  frequency: "weekly" | "biweekly" | "monthly";
+  endType: "after_count" | "until_date";
+  occurrenceCount: number | null;
+  untilDate: string | null;
+  durationMinutes: number;
+  endTimeHm: string;
+};
+
+/**
+ * Parses optional recurrence controls from event create form.
+ * Returns `null` when recurring mode is not selected.
+ */
+export function parseEventRecurrenceSettings(
+  formData: FormData,
+  eventDateInput: string,
+): { ok: true; data: EventRecurrenceSettings | null } | { ok: false; error: string } {
+  const modeRaw = formData.get("recurrence_mode");
+  const mode = typeof modeRaw === "string" ? modeRaw.trim() : "";
+  if (mode !== "recurring") {
+    return { ok: true, data: null };
+  }
+
+  const frequencyParsed = recurrenceFrequencySchema.safeParse(formData.get("recurrence_frequency"));
+  if (!frequencyParsed.success) {
+    return { ok: false, error: "Choose a valid recurrence frequency." };
+  }
+
+  const endTypeParsed = recurrenceEndTypeSchema.safeParse(formData.get("recurrence_end_type"));
+  if (!endTypeParsed.success) {
+    return { ok: false, error: "Choose a valid recurrence end condition." };
+  }
+
+  const endTimeParsed = optionalTimeHmSchema.safeParse(formData.get("recurrence_end_time"));
+  if (!endTimeParsed.success) {
+    return { ok: false, error: "Enter a valid end time." };
+  }
+  const endTimeHm = endTimeParsed.data;
+  if (!/^\d{2}:\d{2}$/.test(endTimeHm)) {
+    return { ok: false, error: "End time must use HH:MM format." };
+  }
+
+  const timePart = eventDateInput.includes("T") ? eventDateInput.split("T")[1] ?? "" : "";
+  if (!/^\d{2}:\d{2}/.test(timePart)) {
+    return { ok: false, error: "Event start time is invalid." };
+  }
+  const startHm = timePart.slice(0, 5);
+  const [startH, startM] = startHm.split(":").map((x) => Number.parseInt(x, 10));
+  const [endH, endM] = endTimeHm.split(":").map((x) => Number.parseInt(x, 10));
+  const startTotal = startH * 60 + startM;
+  const endTotal = endH * 60 + endM;
+  if (endTotal <= startTotal) {
+    return { ok: false, error: "End time must be after start time." };
+  }
+  const durationMinutes = endTotal - startTotal;
+
+  let occurrenceCount: number | null = null;
+  let untilDate: string | null = null;
+
+  if (endTypeParsed.data === "after_count") {
+    const rawCount = formData.get("recurrence_count");
+    const count = typeof rawCount === "string" ? Number.parseInt(rawCount.trim(), 10) : Number.NaN;
+    if (!Number.isInteger(count) || count < 1) {
+      return { ok: false, error: "Occurrence count must be a whole number greater than zero." };
+    }
+    if (count > MAX_RECURRING_OCCURRENCES) {
+      return { ok: false, error: `You can generate at most ${MAX_RECURRING_OCCURRENCES} occurrences at once.` };
+    }
+    occurrenceCount = count;
+  } else {
+    const untilParsed = optionalDateOnlySchema.safeParse(formData.get("recurrence_until_date"));
+    if (!untilParsed.success) {
+      return { ok: false, error: "Enter a valid recurrence end date." };
+    }
+    const value = untilParsed.data;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return { ok: false, error: "Recurrence end date must use YYYY-MM-DD." };
+    }
+    const untilMs = Date.parse(`${value}T23:59:59`);
+    const startMs = Date.parse(eventDateInput);
+    if (Number.isNaN(untilMs) || Number.isNaN(startMs)) {
+      return { ok: false, error: "Recurrence dates are invalid." };
+    }
+    if (untilMs < startMs) {
+      return { ok: false, error: "Recurrence end date must be on or after the first occurrence." };
+    }
+    untilDate = value;
+  }
+
+  return {
+    ok: true,
+    data: {
+      frequency: frequencyParsed.data,
+      endType: endTypeParsed.data,
+      occurrenceCount,
+      untilDate,
+      durationMinutes,
+      endTimeHm,
+    },
+  };
+}
 
 export const rsvpSchema = z.object({
   clubId: uuidSchema,
