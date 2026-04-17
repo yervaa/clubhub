@@ -807,6 +807,72 @@ export const clubDuesSettingsUpsertSchema = z
     currency: d.currency,
   }));
 
+/** Stripe-backed club dues payment request (see `public.dues`). */
+export const stripeDuesCreateSchema = z
+  .object({
+    clubId: uuidSchema,
+    title: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((v) => sanitizeInlineText(typeof v === "string" ? v : ""))
+      .pipe(
+        z
+          .string()
+          .min(1, "Title is required.")
+          .max(200, "Title must be 200 characters or fewer."),
+      ),
+    description: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((v) => sanitizeMultilineText(typeof v === "string" ? v : ""))
+      .pipe(z.string().max(4000, "Description must be 4000 characters or fewer.")),
+    dueDate: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((v) => (typeof v === "string" ? v.trim() : ""))
+      .refine(
+        (s) => s === "" || /^\d{4}-\d{2}-\d{2}$/.test(s),
+        "Pick a valid due date or leave blank.",
+      ),
+    amount: z
+      .union([z.string(), z.number(), z.null(), z.undefined()])
+      .transform((v) => {
+        if (v == null) return "";
+        const raw = typeof v === "number" && Number.isFinite(v) ? String(v) : String(v);
+        return sanitizeInlineText(raw).replace(/[$,\s]/g, "");
+      })
+      .pipe(
+        z
+          .string()
+          .min(1, "Enter an amount.")
+          .regex(/^\d+(\.\d{1,2})?$/, "Use dollars with up to two decimal places (e.g. 20 or 20.50)."),
+      )
+      .transform((s) => Math.round(parseFloat(s) * 100))
+      .pipe(
+        z
+          .number()
+          .int("Amount must resolve to whole cents.")
+          .min(100, "Minimum amount is $1.00.")
+          .max(99_999_999, "Amount is too large."),
+      ),
+    currency: duesCurrencyNormalized,
+  })
+  .transform((d) => ({
+    clubId: d.clubId,
+    title: d.title,
+    description: d.description,
+    dueDate: d.dueDate === "" ? null : d.dueDate,
+    amountCents: d.amount,
+    currency: d.currency,
+  }));
+
+export const stripeDuesCheckoutSchema = z.object({
+  clubId: uuidSchema,
+  duesId: uuidSchema,
+});
+
+export const stripeDuesCancelSchema = z.object({
+  clubId: uuidSchema,
+  duesId: uuidSchema,
+});
+
 const roleNameSchema = z
   .string()
   .transform(sanitizeInlineText)

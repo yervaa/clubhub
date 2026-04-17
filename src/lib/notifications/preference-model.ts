@@ -101,6 +101,10 @@ export function notificationTypeToGroup(type: string): NotificationPreferenceGro
     case "approval.pending":
     case "approval.resolved":
       return "activity";
+    case "dues.created":
+    case "dues.paid":
+    case "dues.received":
+      return "activity";
     default:
       return "activity";
   }

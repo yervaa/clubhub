@@ -56,6 +56,11 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
     description: "Assign the President role to another member.",
     category: "Club",
   },
+  "dues.manage": {
+    label: "Manage Stripe dues",
+    description: "Create dues payment requests and view Stripe payment records for members.",
+    category: "Club",
+  },
   // Members
   "members.view": {
     label: "View Members",

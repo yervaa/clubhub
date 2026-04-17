@@ -10,6 +10,8 @@ export type PermissionKey =
   | "club.archive"
   | "club.delete"
   | "club.transfer_presidency"
+  /** Stripe dues payment requests and viewing club payment records */
+  | "dues.manage"
   // Member management
   | "members.view"
   | "members.invite"

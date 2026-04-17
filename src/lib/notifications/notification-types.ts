@@ -14,7 +14,10 @@ export type NotificationType =
   | "task.assigned"
   | "task_assigned"
   | "approval.pending"
-  | "approval.resolved";
+  | "approval.resolved"
+  | "dues.created"
+  | "dues.paid"
+  | "dues.received";
 
 export type NotificationInput = {
   userId: string;

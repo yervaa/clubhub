@@ -17,7 +17,8 @@ type PolicyName =
   | "bulkMemberWrite"
   | "clubDataExport"
   | "joinRequestReview"
-  | "taskWrite";
+  | "taskWrite"
+  | "duesCheckout";
 
 type PolicyConfig = {
   limit: number;
@@ -60,6 +61,8 @@ const RATE_LIMIT_POLICIES: Record<PolicyName, PolicyConfig> = {
   joinRequestReview: { limit: 120, duration: "10 m", windowMs: 10 * 60 * 1000 },
   /** Task create/update/status/delete — per user per club. */
   taskWrite: { limit: 72, duration: "15 m", windowMs: 15 * 60 * 1000 },
+  /** Stripe Checkout session creation for club dues — per user per club. */
+  duesCheckout: { limit: 15, duration: "15 m", windowMs: 15 * 60 * 1000 },
 };
 
 const localStore = globalThis.__clubhubRateLimitStore ?? new Map<string, LocalBucket>();

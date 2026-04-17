@@ -47,6 +47,7 @@ export const ROLE_TEMPLATES: Record<RoleTemplateKey, RoleTemplate> = {
       "events.create",
       "events.edit",
       "events.delete",
+      "dues.manage",
       "attendance.mark",
       "attendance.edit",
       "reflections.create",
@@ -87,11 +88,12 @@ export const ROLE_TEMPLATES: Record<RoleTemplateKey, RoleTemplate> = {
   treasurer: {
     key: "treasurer",
     name: "Treasurer",
-    description: "Oversees club records and engagement analytics.",
-    tagline: "Insights, exports, and read-only visibility.",
+    description: "Oversees club records, dues collection, and engagement analytics.",
+    tagline: "Dues, insights, and exports.",
     emoji: "💰",
     permissions: [
       "members.view",
+      "dues.manage",
       "insights.view",
       "insights.export",
     ],
