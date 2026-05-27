@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { NotificationSettingsForm } from "@/components/ui/notification-settings-form";
 import { ProfileSettingsForm } from "@/components/ui/profile-settings-form";
-import { PageIntro } from "@/components/ui/page-intro";
 import { CardSection, SectionHeader } from "@/components/ui/page-patterns";
 import { getCurrentUserClubs } from "@/lib/clubs/queries";
 import {
@@ -44,15 +43,10 @@ export default async function SettingsPage() {
 
   return (
     <section className="space-y-4 lg:space-y-6">
-      <PageIntro
-        kicker="Account"
-        title="Settings"
-        description="Manage your account context and jump into club-level settings for the clubs you help run."
-      />
+      <h1 className="app-page-title sr-only">Settings</h1>
 
       <CardSection>
         <SectionHeader
-          kicker="Profile"
           title="Your account"
           description="Update how you appear in clubs and manage your sign-in password."
         />
@@ -65,7 +59,6 @@ export default async function SettingsPage() {
 
       <CardSection>
         <SectionHeader
-          kicker="Notifications"
           title="Alerts & email"
           description="Choose how ClubHub reaches you. Quiet hours only affect immediate emails, not in-app notifications."
         />
@@ -80,7 +73,6 @@ export default async function SettingsPage() {
 
       <CardSection>
         <SectionHeader
-          kicker="Club settings"
           title="Manage clubs"
           action={<span className="badge-soft">{manageableClubs.length}</span>}
         />

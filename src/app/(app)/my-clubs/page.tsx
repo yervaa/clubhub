@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ClubJoinCodeRow } from "@/components/ui/club-join-code-row";
-import { PageIntro } from "@/components/ui/page-intro";
 import { PageEmptyState } from "@/components/ui/page-patterns";
 import { getCurrentUserClubs } from "@/lib/clubs/queries";
 
@@ -9,21 +8,14 @@ export default async function MyClubsPage() {
 
   return (
     <section className="space-y-4 lg:space-y-6">
-      <PageIntro
-        kicker="Global"
-        title="My Clubs"
-        description="Your club workspaces in one place. Join another club or start a new one when needed."
-        actions={
-          <>
-            <Link href="/clubs/join" className="btn-secondary">
-              Join Club
-            </Link>
-            <Link href="/clubs/create" className="btn-primary">
-              Start a Club
-            </Link>
-          </>
-        }
-      />
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Link href="/clubs/join" className="btn-secondary">
+          Join Club
+        </Link>
+        <Link href="/clubs/create" className="btn-primary">
+          Start a Club
+        </Link>
+      </div>
 
       {clubs.length === 0 ? (
         <PageEmptyState

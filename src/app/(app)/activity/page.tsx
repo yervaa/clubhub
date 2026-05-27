@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { PageIntro } from "@/components/ui/page-intro";
 import { CardSection, SectionHeader } from "@/components/ui/page-patterns";
 import { ActivityFeed } from "@/components/ui/activity-feed";
 import { getDashboardData } from "@/lib/clubs/queries";
@@ -13,21 +12,11 @@ export default async function ActivityPage() {
 
   return (
     <section className="space-y-4 lg:space-y-6">
-      <PageIntro
-        kicker="Global"
-        title="Activity"
-        description="Follow-ups, assigned work, and inbox updates that need your attention."
-        actions={
-          <Link href="/notifications" className="btn-secondary">
-            Notifications {unreadNotificationCount > 0 ? `(${unreadNotificationCount})` : ""}
-          </Link>
-        }
-      />
-
       <ActivityFeed
         items={activityItems}
         title="Recent activity"
         description="Announcements, events, RSVPs, attendance, and role updates across your clubs."
+        showClubDots
         emptyHint="Activity appears after clubs start posting announcements, creating events, and tracking attendance."
         emptyAction={
           <Link href="/my-clubs" className="btn-primary">
@@ -39,7 +28,6 @@ export default async function ActivityPage() {
       <div className="grid gap-4 xl:grid-cols-2">
         <CardSection>
           <SectionHeader
-            kicker="My tasks"
             title="Open assignments"
             action={<span className="badge-soft">{myOpenTasks.length}</span>}
           />
@@ -72,7 +60,6 @@ export default async function ActivityPage() {
 
         <CardSection>
           <SectionHeader
-            kicker="Club follow-ups"
             title="Attention needed"
             action={<span className="badge-soft">{needsAttentionAlerts.length}</span>}
           />
@@ -84,6 +71,7 @@ export default async function ActivityPage() {
               </p>
               <Link href="/notifications" className="btn-secondary mt-3 inline-flex">
                 Check notifications
+                {unreadNotificationCount > 0 ? ` (${unreadNotificationCount})` : ""}
               </Link>
             </div>
           ) : (

@@ -37,3 +37,4 @@ using (
   public.is_club_officer(club_id, auth.uid())
   or public.has_club_permission(club_id, auth.uid(), 'events.delete')
 );
+ 

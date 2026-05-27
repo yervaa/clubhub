@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { EventSummaryListLink } from "@/components/ui/event-summary";
-import { PageIntro } from "@/components/ui/page-intro";
 import { PageEmptyState } from "@/components/ui/page-patterns";
 import { getDashboardData } from "@/lib/clubs/queries";
 
@@ -9,17 +8,6 @@ export default async function EventsPage() {
 
   return (
     <section className="space-y-4 lg:space-y-6">
-      <PageIntro
-        kicker="Global"
-        title="Events"
-        description="Upcoming events across your clubs, with direct links into each club workspace."
-        actions={
-          <Link href="/dashboard" className="btn-secondary">
-            Back to Dashboard
-          </Link>
-        }
-      />
-
       {upcomingEvents.length === 0 ? (
         <PageEmptyState
           title="No upcoming events yet"
