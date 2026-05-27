@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NotificationSettingsForm } from "@/components/ui/notification-settings-form";
+import { ProfileSettingsForm } from "@/components/ui/profile-settings-form";
 import { PageIntro } from "@/components/ui/page-intro";
 import { CardSection, SectionHeader } from "@/components/ui/page-patterns";
 import { getCurrentUserClubs } from "@/lib/clubs/queries";
@@ -7,6 +8,7 @@ import {
   NOTIFICATION_PREFERENCES_FORM_DEFAULTS,
   type NotificationPreferencesRow,
 } from "@/lib/notifications/preference-model";
+import { sanitizeInlineText } from "@/lib/sanitize";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function SettingsPage() {
@@ -18,16 +20,26 @@ export default async function SettingsPage() {
   const manageableClubs = clubs.filter((club) => club.role === "officer");
 
   let notificationDefaults: Omit<NotificationPreferencesRow, "user_id"> = NOTIFICATION_PREFERENCES_FORM_DEFAULTS;
+  let profileFullName = "";
+  let profileEmail = user?.email ?? "";
+
   if (user) {
-    const { data: prefRow } = await supabase
-      .from("notification_preferences")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const [{ data: prefRow }, { data: profileRow }] = await Promise.all([
+      supabase.from("notification_preferences").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle(),
+    ]);
+
     if (prefRow) {
       const { user_id: _uid, ...rest } = prefRow as NotificationPreferencesRow;
       notificationDefaults = rest;
     }
+
+    const metaName =
+      typeof user.user_metadata?.full_name === "string"
+        ? sanitizeInlineText(user.user_metadata.full_name).slice(0, 80)
+        : "";
+    profileFullName = profileRow?.full_name?.trim() || metaName;
+    profileEmail = profileRow?.email?.trim() || user.email || "";
   }
 
   return (
@@ -39,10 +51,16 @@ export default async function SettingsPage() {
       />
 
       <CardSection>
-        <SectionHeader kicker="Profile" title="Signed in as" />
-        <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-          {user?.email ?? "Unknown account"}
-        </p>
+        <SectionHeader
+          kicker="Profile"
+          title="Your account"
+          description="Update how you appear in clubs and manage your sign-in password."
+        />
+        {user ? (
+          <ProfileSettingsForm email={profileEmail} fullName={profileFullName} />
+        ) : (
+          <p className="mt-3 text-sm text-slate-600">Sign in to manage your profile.</p>
+        )}
       </CardSection>
 
       <CardSection>

@@ -1,14 +1,18 @@
 import Link from "next/link";
 import type { ClubDetail } from "@/lib/clubs/queries";
 import { DisclosurePanel } from "@/components/ui/disclosure-panel";
+import { InsightsExportButton } from "@/components/ui/insights-export-button";
 import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
 import { PageIntro } from "@/components/ui/page-intro";
 import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 import { computeClubInsights } from "@/lib/clubs/insights";
+import type { InsightsExportPayload } from "@/lib/clubs/insights-export";
 import type { TrendDirection, EngagementTier } from "@/lib/clubs/insights";
 
 type ClubInsightsSectionProps = {
   club: ClubDetail;
+  canExportInsights?: boolean;
+  exportPayload?: InsightsExportPayload | null;
 };
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
@@ -123,11 +127,16 @@ function InlineEmptyState({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
+export function ClubInsightsSection({
+  club,
+  canExportInsights = false,
+  exportPayload = null,
+}: ClubInsightsSectionProps) {
   const insights = computeClubInsights(club);
   const hasData = club.totalTrackedEvents > 0;
   const highlyEngaged = club.members.filter((m) => m.attendanceRate >= 70).length;
   const eventsLabel = club.totalTrackedEvents === 1 ? "event" : "events";
+  const showExport = canExportInsights && exportPayload && hasData;
 
   return (
     <section id="club-insights" className="space-y-5 lg:space-y-8">
@@ -135,6 +144,11 @@ export function ClubInsightsSection({ club }: ClubInsightsSectionProps) {
         kicker="Club analytics"
         title="Insights"
         description="A quick read on turnout, momentum, and member engagement so you can act, not just scroll numbers."
+        actions={
+          showExport ? (
+            <InsightsExportButton payload={exportPayload} />
+          ) : null
+        }
       />
 
       <CardSection className="bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/70">

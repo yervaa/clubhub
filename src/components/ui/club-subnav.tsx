@@ -16,6 +16,7 @@ const CLUB_PRIMARY_TABS = [
   { label: "Events", href: "/events" },
   { label: "Dues", href: "/dues" },
   { label: "Members", href: "/members" },
+  { label: "Tasks", href: "/tasks" },
   { label: "Insights", href: "/insights" },
 ] as const;
 
@@ -43,6 +44,7 @@ export function ClubSubnav({ clubId, canViewSettings = false, canAccessAdvisor =
     }
     if (pathname.startsWith(`${basePath}/events`)) return `${basePath}/events`;
     if (pathname.startsWith(`${basePath}/members`)) return `${basePath}/members`;
+    if (pathname.startsWith(`${basePath}/tasks`)) return `${basePath}/tasks`;
     if (pathname.startsWith(`${basePath}/announcements`)) return `${basePath}/announcements`;
     if (pathname.startsWith(`${basePath}/insights`)) return `${basePath}/insights`;
     if (pathname.startsWith(`${basePath}/dues`)) return `${basePath}/dues`;

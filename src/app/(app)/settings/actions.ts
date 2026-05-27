@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { notificationPreferencesFormSchema } from "@/lib/validation/notification-preferences";
+import { changePasswordSchema, updateDisplayNameSchema } from "@/lib/validation/profile-settings";
 
 export type NotificationPreferencesActionState =
   | { ok: true; message?: string }
@@ -82,4 +83,105 @@ export async function updateNotificationPreferencesAction(
 
   revalidatePath("/settings");
   return { ok: true, message: "Notification settings saved." };
+}
+
+export type ProfileActionState = { ok: true; message?: string } | { ok: false; message: string } | null;
+
+function firstValidationMessage(result: { error: { issues: Array<{ message: string }> } }) {
+  return result.error.issues[0]?.message ?? "Please review your input and try again.";
+}
+
+export async function updateDisplayNameAction(
+  _prev: ProfileActionState,
+  formData: FormData,
+): Promise<ProfileActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, message: "You must be signed in to update your profile." };
+  }
+
+  const parsed = updateDisplayNameSchema.safeParse({
+    fullName: formData.get("full_name"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, message: firstValidationMessage(parsed) };
+  }
+
+  const fullName = parsed.data.fullName;
+
+  const { error: authError } = await supabase.auth.updateUser({
+    data: { full_name: fullName },
+  });
+
+  if (authError) {
+    return { ok: false, message: authError.message };
+  }
+
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({ full_name: fullName })
+    .eq("id", user.id);
+
+  if (profileError) {
+    return { ok: false, message: profileError.message };
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Display name saved." };
+}
+
+export async function changePasswordAction(
+  _prev: ProfileActionState,
+  formData: FormData,
+): Promise<ProfileActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return { ok: false, message: "You must be signed in with an email account to change your password." };
+  }
+
+  const parsed = changePasswordSchema.safeParse({
+    currentPassword: formData.get("current_password"),
+    newPassword: formData.get("new_password"),
+    confirmPassword: formData.get("confirm_password"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, message: firstValidationMessage(parsed) };
+  }
+
+  const { currentPassword, newPassword } = parsed.data;
+
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: currentPassword,
+  });
+
+  if (verifyError) {
+    const ml = verifyError.message.toLowerCase();
+    if (ml.includes("invalid login credentials") || ml.includes("invalid credentials")) {
+      return { ok: false, message: "Current password is incorrect." };
+    }
+    return { ok: false, message: verifyError.message };
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
+
+  if (updateError) {
+    return { ok: false, message: updateError.message };
+  }
+
+  return { ok: true, message: "Password updated." };
 }
