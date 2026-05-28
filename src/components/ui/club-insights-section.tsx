@@ -3,7 +3,6 @@ import type { ClubDetail } from "@/lib/clubs/queries";
 import { DisclosurePanel } from "@/components/ui/disclosure-panel";
 import { InsightsExportButton } from "@/components/ui/insights-export-button";
 import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
-import { PageIntro } from "@/components/ui/page-intro";
 import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
 import { computeClubInsights } from "@/lib/clubs/insights";
 import type { InsightsExportPayload } from "@/lib/clubs/insights-export";
@@ -140,16 +139,11 @@ export function ClubInsightsSection({
 
   return (
     <section id="club-insights" className="space-y-5 lg:space-y-8">
-      <PageIntro
-        kicker="Club analytics"
-        title="Insights"
-        description="A quick read on turnout, momentum, and member engagement so you can act, not just scroll numbers."
-        actions={
-          showExport ? (
-            <InsightsExportButton payload={exportPayload} />
-          ) : null
-        }
-      />
+      {showExport ? (
+        <div className="flex justify-end">
+          <InsightsExportButton payload={exportPayload} />
+        </div>
+      ) : null}
 
       <CardSection className="bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/70">
         {hasData ? (

@@ -8,6 +8,7 @@ export default async function AnnouncementsPage() {
 
   return (
     <section className="space-y-4 lg:space-y-6">
+      <h1 className="app-page-title">Announcements</h1>
       {recentAnnouncements.length === 0 ? (
         <PageEmptyState
           title="No announcements yet"

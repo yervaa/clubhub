@@ -180,7 +180,6 @@ export default async function DashboardPage() {
         greetingName={greetingName}
         unreadNotificationCount={unreadNotificationCount}
         userDisplayLabel={userDisplayLabel}
-        clubs={clubs}
       />
 
       {!hasClubs ? (

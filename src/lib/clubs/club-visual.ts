@@ -46,6 +46,32 @@ export function clubAccentTextColor(hex: string): string {
   return "#ffffff";
 }
 
+/** Darkest readable stop on each accent ramp (cover icons, role badge text). */
+const CLUB_ACCENT_ICON_COLORS: Record<ClubAccentColor, string> = {
+  "#B5D4F4": "#1e40af",
+  "#AFA9EC": "#4c1d95",
+  "#9FE1CB": "#065f46",
+  "#FAC775": "#92400e",
+  "#F0997B": "#9a3412",
+};
+
+export function getClubAccentIconColor(accent: ClubAccentColor): string {
+  return CLUB_ACCENT_ICON_COLORS[accent];
+}
+
+export function getClubRoleBadgeColors(accent: ClubAccentColor): {
+  backgroundColor: string;
+  color: string;
+} {
+  return {
+    backgroundColor: `color-mix(in srgb, ${accent} 38%, #0f172a)`,
+    color: getClubAccentIconColor(accent),
+  };
+}
+
+/** Dark text for pastel club cover bands (no dynamic contrast). */
+export const CLUB_COVER_TEXT_COLOR = "#1a1a2e";
+
 export function buildClubColorMap(clubs: Array<{ id: string; name: string }>): Map<string, ClubAccentColor> {
   const map = new Map<string, ClubAccentColor>();
   for (const club of clubs) {

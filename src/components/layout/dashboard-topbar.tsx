@@ -1,14 +1,11 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
-import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
-import type { UserClub } from "@/lib/clubs/queries";
 import { getMemberRosterInitials } from "@/lib/member-display";
 
 type DashboardTopbarProps = {
   greetingName: string;
   unreadNotificationCount: number;
   userDisplayLabel: string;
-  clubs: UserClub[];
 };
 
 function getTimeGreeting(): string {
@@ -35,21 +32,15 @@ export function DashboardTopbar({
   greetingName,
   unreadNotificationCount,
   userDisplayLabel,
-  clubs,
 }: DashboardTopbarProps) {
   const greeting = getTimeGreeting();
   const initials = getMemberRosterInitials({ fullName: userDisplayLabel, email: null });
 
   return (
     <header className="dashboard-topbar -mx-3 mb-6 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-4 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <div className="shrink-0 md:hidden">
-          <MobileNavDrawer clubs={clubs} />
-        </div>
-        <h1 className="app-page-title min-w-0 truncate">
-          {greeting}, {greetingName}
-        </h1>
-      </div>
+      <h1 className="app-page-title min-w-0 flex-1 truncate">
+        {greeting}, {greetingName}
+      </h1>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <Link
           href="/notifications"

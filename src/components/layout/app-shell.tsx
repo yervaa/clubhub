@@ -1,5 +1,6 @@
 import { AppShellHeader } from "@/components/layout/app-shell-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import type { UserClub } from "@/lib/clubs/queries";
 import { getRecentNotifications, getUnreadNotificationCount } from "@/lib/notifications/queries";
 import { sanitizeInlineText } from "@/lib/sanitize";
@@ -36,14 +37,14 @@ export async function AppShell({ clubs, children }: AppShellProps) {
       <AppSidebar />
       <div className="app-shell-main flex min-h-screen min-w-0 flex-1 flex-col">
         <AppShellHeader
-          clubs={clubs}
           unreadCount={unreadCount}
           notifications={notifications}
           userDisplayLabel={userDisplayLabel}
         />
-        <main className="app-page-main flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-4 sm:pb-8 md:px-6 md:pt-6">
+        <main className="app-page-main flex-1 overflow-y-auto px-3 pb-16 pt-4 sm:px-4 md:px-6 md:pb-8 md:pt-6">
           {children}
         </main>
+        <MobileBottomNav unreadNotificationCount={0} className="md:hidden" />
       </div>
     </div>
   );

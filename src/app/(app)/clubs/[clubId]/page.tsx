@@ -8,7 +8,6 @@ import { EventMetaRow } from "@/components/ui/event-summary";
 import { getClubDetailForOverviewForCurrentUser } from "@/lib/clubs/queries";
 import { getMyClubTasks } from "@/lib/tasks/queries";
 import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
-import { PageIntro } from "@/components/ui/page-intro";
 import { getClubActivityFeed } from "@/lib/activity/queries";
 import { ActionFeedbackBanner } from "@/components/ui/action-feedback-banner";
 
@@ -197,27 +196,20 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
 
   return (
     <section className="space-y-5 lg:space-y-8">
-      <PageIntro
-        kicker="Overview"
-        title={club.name}
-        description={club.description}
-        actions={
-          canInviteMembers || canCreateEvents ? (
-            <>
-              {canInviteMembers ? (
-                <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-primary">
-                  Invite Members
-                </Link>
-              ) : null}
-              {canCreateEvents ? (
-                <Link href={`/clubs/${club.id}/events#create-event`} className="btn-secondary">
-                  Create Event
-                </Link>
-              ) : null}
-            </>
-          ) : undefined
-        }
-      />
+      {canInviteMembers || canCreateEvents ? (
+        <div className="flex flex-wrap gap-2">
+          {canInviteMembers ? (
+            <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-primary">
+              Invite Members
+            </Link>
+          ) : null}
+          {canCreateEvents ? (
+            <Link href={`/clubs/${club.id}/events#create-event`} className="btn-secondary">
+              Create Event
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       {query.setupSuccess ? (
         <ActionFeedbackBanner

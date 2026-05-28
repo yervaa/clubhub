@@ -585,13 +585,7 @@ export function ClubTasksSection({
 
       <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-emerald-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8 lg:shadow-[var(--shadow-soft)]">
         <div className="max-w-4xl">
-          <p className="section-kicker text-slate-600">Tasks</p>
-          <h1 className="section-title mt-1 text-xl sm:mt-2 sm:text-3xl md:text-4xl">Tasks</h1>
-          <p className="section-subtitle mt-2 max-w-2xl text-sm sm:mt-3 sm:text-base text-slate-700">
-            {permissions.canCreate
-              ? "Assign responsibilities, track progress, and keep club operations organized."
-              : "View your assigned tasks and keep track of your responsibilities."}
-          </p>
+          <h1 className="section-title text-xl sm:text-3xl md:text-4xl">Tasks</h1>
 
           {/* Stats row */}
           <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-6 sm:grid-cols-4 lg:mt-8">

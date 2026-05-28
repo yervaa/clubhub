@@ -12,6 +12,7 @@ export default async function ActivityPage() {
 
   return (
     <section className="space-y-4 lg:space-y-6">
+      <h1 className="app-page-title">Activity</h1>
       <ActivityFeed
         items={activityItems}
         title="Recent activity"

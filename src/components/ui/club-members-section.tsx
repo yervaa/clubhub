@@ -489,13 +489,7 @@ export function ClubMembersSection({
     <section className="space-y-6">
 
       <PageIntro
-        kicker="People"
         title="Members"
-        description={
-          hasAnyManagementPermission
-            ? "Manage membership, review attendance history, and coordinate club participation."
-            : "See who is part of this club and how everyone is doing."
-        }
         actions={
           showInvite ? (
             <a href="#invite-members" className="btn-primary">

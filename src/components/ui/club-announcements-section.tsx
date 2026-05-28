@@ -57,11 +57,6 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
 
       <PageIntro
         title="Announcements"
-        description={
-          canPostAnnouncements
-            ? "Post updates, polls, and files while keeping the feed easy for members to scan."
-            : "Latest news and updates from your club."
-        }
         actions={<span className="badge-soft tabular-nums">{statsParts.join(" · ")}</span>}
       />
 

@@ -43,7 +43,7 @@ export default async function SettingsPage() {
 
   return (
     <section className="space-y-4 lg:space-y-6">
-      <h1 className="app-page-title sr-only">Settings</h1>
+      <h1 className="app-page-title">Settings</h1>
 
       <CardSection>
         <SectionHeader

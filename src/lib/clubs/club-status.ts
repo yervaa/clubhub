@@ -24,12 +24,17 @@ export async function assertClubActiveForMutations(
   return { ok: true };
 }
 
+export type ClubLayoutShell = {
+  name: string;
+  status: ClubStatus;
+  memberCount: number;
+  userRole: "member" | "officer";
+};
+
 /**
- * Club name + status for layouts when the user is a member (else null).
+ * Club name + status (+ roster context) for layouts when the user is a member (else null).
  */
-export async function getClubNameAndStatusIfMember(
-  clubId: string,
-): Promise<{ name: string; status: ClubStatus } | null> {
+export async function getClubNameAndStatusIfMember(clubId: string): Promise<ClubLayoutShell | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -38,17 +43,31 @@ export async function getClubNameAndStatusIfMember(
 
   const { data: membership } = await supabase
     .from("club_members")
-    .select("club_id")
+    .select("club_id, role")
     .eq("club_id", clubId)
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (!membership) return null;
 
-  const { data: club } = await supabase.from("clubs").select("name, status").eq("id", clubId).maybeSingle();
+  const [{ data: club }, { count: memberCount }] = await Promise.all([
+    supabase.from("clubs").select("name, status").eq("id", clubId).maybeSingle(),
+    supabase
+      .from("club_members")
+      .select("*", { count: "exact", head: true })
+      .eq("club_id", clubId)
+      .eq("membership_status", "active"),
+  ]);
 
   if (!club?.name) return null;
 
   const status = (club.status as ClubStatus | undefined) ?? "active";
-  return { name: club.name, status };
+  const role = membership.role === "officer" ? "officer" : "member";
+
+  return {
+    name: club.name,
+    status,
+    memberCount: memberCount ?? 0,
+    userRole: role,
+  };
 }

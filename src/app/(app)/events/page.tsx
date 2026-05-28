@@ -8,6 +8,7 @@ export default async function EventsPage() {
 
   return (
     <section className="space-y-4 lg:space-y-6">
+      <h1 className="app-page-title">Events</h1>
       {upcomingEvents.length === 0 ? (
         <PageEmptyState
           title="No upcoming events yet"
