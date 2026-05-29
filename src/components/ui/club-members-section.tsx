@@ -1,20 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { markMemberAlumniAction, removeMemberAction, updateMemberRoleAction } from "@/app/(app)/clubs/actions";
 import { ClubCommitteesPanel } from "@/components/ui/club-committees-panel";
 import { ClubTeamsPanel } from "@/components/ui/club-teams-panel";
 import { GettingStartedChecklist } from "@/components/ui/getting-started-checklist";
 import { ClubJoinRequestsPanel } from "@/components/ui/club-join-requests-panel";
-import { MemberInvite } from "@/components/ui/member-invite";
 import { MemberBulkActionsToolbar } from "@/components/ui/member-bulk-actions-toolbar";
 import { MemberImportPanel } from "@/components/ui/member-import-panel";
+import { CopyInviteLinkButton } from "@/components/ui/copy-invite-link-button";
+import { CopyJoinCodeButton } from "@/components/ui/copy-join-code-button";
+import { CopyPublicClubPageButton } from "@/components/ui/copy-public-club-page-button";
 import { ClubDuesTermEditDialog } from "@/components/ui/club-dues-term-edit-dialog";
 import { MemberProfileDialog } from "@/components/ui/member-profile-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
-import { PageIntro } from "@/components/ui/page-intro";
+import { PageEmptyState } from "@/components/ui/page-patterns";
 import { ActionFeedbackBanner } from "@/components/ui/action-feedback-banner";
 import { formatVolunteerHoursAmount } from "@/components/ui/volunteer-hours-panel";
 import type { ClubMembersPagePermissionGates } from "@/lib/clubs/member-management-access";
@@ -39,6 +40,7 @@ import type {
   PendingJoinRequest,
 } from "@/lib/clubs/queries";
 import { getMemberRosterDisplayName, getMemberRosterInitials } from "@/lib/member-display";
+import { getClubAccentColor } from "@/lib/clubs/club-visual";
 import type { MemberWithRoles } from "@/lib/rbac/role-actions";
 
 /** Role filter uses real data only: legacy `club_members.role` + RBAC President. */
@@ -298,6 +300,25 @@ function rosterActivityPointsPill(member: ClubMember) {
   );
 }
 
+function memberAttendancePercentClass(rate: number): string {
+  if (rate < 30) return "member-roster-row__attendance-pct is-low";
+  if (rate <= 60) return "member-roster-row__attendance-pct is-mid";
+  return "member-roster-row__attendance-pct is-high";
+}
+
+function memberAttendanceBarFillColor(rate: number, accent: string): string {
+  if (rate < 30) return "#E24B4A";
+  return accent;
+}
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
 /** Server-built gates plus async import check from `member-import-auth`. */
 export type ClubMembersSectionPermissions = ClubMembersPagePermissionGates & {
   canImportMemberList?: boolean;
@@ -349,9 +370,14 @@ export function ClubMembersSection({
   const [duesTermEditOpen, setDuesTermEditOpen] = useState(false);
   const [duesTermEditKey, setDuesTermEditKey] = useState(0);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(() => new Set());
+  const [expandedMemberIds, setExpandedMemberIds] = useState<Set<string>>(() => new Set());
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [filterAboutOpen, setFilterAboutOpen] = useState(false);
+  const [advancedPanelOpen, setAdvancedPanelOpen] = useState(false);
+  const [inviteMoreOptionsOpen, setInviteMoreOptionsOpen] = useState(false);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   const activeMembers = club.members.filter((m) => m.membershipStatus === "active");
-  const alumniCount = club.members.length - activeMembers.length;
   const memberCount = activeMembers.length;
   const officerCount = activeMembers.filter((m) => m.role === "officer").length;
   const rosterTotalCount = club.members.length;
@@ -396,6 +422,11 @@ export function ClubMembersSection({
   const showManagement = hasAnyManagementPermission && !isArchived;
 
   const rosterQuery = rosterSearch.trim().toLowerCase();
+  const panelFilterCount =
+    (statusFilter !== "all" ? 1 : 0)
+    + (roleFilter !== "all" ? 1 : 0)
+    + (activityLevelFilter !== "all" ? 1 : 0)
+    + (canSeeInactiveEngagement && engagementFilter !== "all" ? 1 : 0);
   const hasActiveFilters =
     Boolean(rosterQuery)
     || roleFilter !== "all"
@@ -403,6 +434,8 @@ export function ClubMembersSection({
     || activityLevelFilter !== "all"
     || rosterSortKey !== "name_asc"
     || (canSeeInactiveEngagement && engagementFilter !== "all");
+
+  const isViewerOfficer = legacyIsOfficer || isPresident || canSeeInactiveEngagement;
 
   const likelyInactiveCount = canSeeInactiveEngagement
     ? activeMembers.filter((m) => m.likelyInactive).length
@@ -463,6 +496,39 @@ export function ClubMembersSection({
     return next;
   }, [bulkSelected, filteredMembers]);
 
+  const showLowActivityBadge = useMemo(() => {
+    const activeVisible = filteredMembers.filter((m) => m.membershipStatus !== "alumni");
+    if (activeVisible.length === 0) return false;
+    const inactiveCount = activeVisible.filter((m) => m.isInactive).length;
+    if (inactiveCount === 0) return false;
+    return inactiveCount < activeVisible.length;
+  }, [filteredMembers]);
+
+  useEffect(() => {
+    if (!filterPanelOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(event.target as Node)) {
+        closeFilterPanel();
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [filterPanelOpen]);
+
+  function clearPanelFilters() {
+    setRoleFilter("all");
+    setStatusFilter("all");
+    setEngagementFilter("all");
+    setActivityLevelFilter("all");
+  }
+
+  function closeFilterPanel() {
+    setFilterPanelOpen(false);
+    setFilterAboutOpen(false);
+  }
+
   function clearRosterFilters() {
     setRosterSearch("");
     setRoleFilter("all");
@@ -486,424 +552,114 @@ export function ClubMembersSection({
     });
   }
 
+  function toggleMemberExpanded(userId: string) {
+    setExpandedMemberIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  const clubAccentColor = getClubAccentColor(club.name);
+  const hasSidebar =
+    showInvite || (canImportMemberList && !isArchived) || canExportMemberRoster;
+
   return (
     <section className="page-sections">
+      <header className="members-page-header">
+        <h1 className="app-page-title">Members</h1>
+        {showInvite ? (
+          <a href="#invite-members" className="btn-primary shrink-0">
+            Invite members
+          </a>
+        ) : null}
+      </header>
 
-      <PageIntro
-        title="Members"
-        actions={
-          showInvite ? (
-            <a href="#invite-members" className="btn-primary">
-              Invite Members
-            </a>
-          ) : undefined
-        }
-      />
+      {isArchived ? (
+        <p className="members-page-archived-note">
+          This club is archived — inviting new members is disabled.
+        </p>
+      ) : null}
 
-      <CardSection className="bg-gradient-to-br from-slate-50 to-indigo-50/40">
-        <SectionHeader kicker="Snapshot" title="Membership overview" description="Active members, officers, and attendance context." />
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:gap-8">
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{memberCount}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
-                Active {memberCount === 1 ? "member" : "members"}
-              </p>
-              {alumniCount > 0 ? (
-                <p className="mt-1 text-xs font-medium text-slate-500">{alumniCount} alumni</p>
-              ) : null}
-            </div>
-
-            <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
-
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{officerCount}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
-                {officerCount === 1 ? "Officer" : "Officers"}
-              </p>
-            </div>
-
-            {club.totalTrackedEvents > 0 && (
-              <>
-                <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
-                <div className="col-span-2 sm:col-span-1">
-                  <p className="text-2xl font-bold text-slate-900">{club.clubAverageAttendance}%</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Avg. Attendance</p>
-                </div>
-              </>
-            )}
-          </div>
-          {isArchived && (
-            <p className="mt-6 text-sm font-medium text-amber-900">
-              This club is archived — inviting new members is disabled.
-            </p>
-          )}
-      </CardSection>
-
-      {/* Invite tools — requires members.invite permission */}
-      {showInvite && (
-        <section id="invite-members">
-          <MemberInvite
-            joinCode={club.joinCode}
-            membersCount={memberCount}
-            requireJoinApproval={club.requireJoinApproval}
-          />
-        </section>
-      )}
+      <div className="members-stats-row">
+        <div className="members-stats-tile card-surface">
+          <p className="members-stats-tile__value">{memberCount}</p>
+          <p className="members-stats-tile__label">
+            Active {memberCount === 1 ? "member" : "members"}
+          </p>
+        </div>
+        <div className="members-stats-tile card-surface">
+          <p className="members-stats-tile__value">{officerCount}</p>
+          <p className="members-stats-tile__label">
+            {officerCount === 1 ? "Officer" : "Officers"}
+          </p>
+        </div>
+        <div className="members-stats-tile card-surface">
+          <p className="members-stats-tile__value">
+            {club.totalTrackedEvents > 0 ? `${club.clubAverageAttendance}%` : "—"}
+          </p>
+          <p className="members-stats-tile__label">Avg. attendance</p>
+        </div>
+      </div>
 
       {pendingJoinRequests.length > 0 ? (
         <ClubJoinRequestsPanel clubId={club.id} requests={pendingJoinRequests} />
       ) : null}
 
-      {showAdvancedMemberTools ? (
-        <details className="card-surface overflow-hidden p-0 open:shadow-md">
-          <summary className="section-card-header cursor-pointer list-none px-5 py-4 [&::-webkit-details-marker]:hidden">
-            <div>
-              <p className="section-kicker">Advanced</p>
-              <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Dues, committees, and teams</h2>
-              <p className="mt-1 text-xs text-slate-600 sm:text-sm">Expanded only when you need deeper management tools.</p>
-            </div>
-            <span className="badge-soft">Manage</span>
-          </summary>
-          <div className="space-y-4 border-t border-slate-100 px-4 py-4 sm:px-5">
-            {canManageMemberDues ? (
-              <section
-                className="card-surface overflow-hidden border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/45 p-5 shadow-sm sm:p-6"
-                aria-labelledby="club-dues-summary-heading"
-              >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1 space-y-3">
-              <div>
-                <p className="section-kicker text-slate-600">Club dues</p>
-                <h2
-                  id="club-dues-summary-heading"
-                  className="mt-1 text-lg font-semibold tracking-tight text-slate-900"
-                >
-                  {duesSettings ? "This term" : isArchived ? "No term on file" : "Set a club-wide term"}
-                </h2>
-              </div>
-
-              {duesSettings ? (
-                <>
-                  <div className="rounded-xl border border-slate-100/95 bg-white/85 px-4 py-3 shadow-inner sm:px-4 sm:py-3.5">
-                    <p
-                      className="text-base font-semibold leading-snug text-slate-900 sm:text-[1.05rem] line-clamp-3 break-words"
-                      title={duesSettings.label}
-                    >
-                      {duesSettings.label}
-                    </p>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                      <span className="font-medium text-slate-800 tabular-nums">
-                        {formatClubDuesMoney(duesSettings.amountCents, duesSettings.currency)}
-                      </span>
-                      <span className="text-slate-400"> · </span>
-                      Due{" "}
-                      <span className="font-medium text-slate-800">
-                        {formatClubDuesDueDateLabel(duesSettings.dueDate)}
-                      </span>
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2 text-center sm:text-left">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800/80">Paid</p>
-                      <p className="mt-0.5 text-lg font-bold tabular-nums text-emerald-950">{duesStatusCounts.paid}</p>
-                    </div>
-                    <div className="rounded-lg border border-amber-100/90 bg-amber-50/50 px-3 py-2 text-center sm:text-left">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-900/90">Unpaid</p>
-                      <p className="mt-0.5 text-lg font-bold tabular-nums text-amber-950">{duesStatusCounts.unpaid}</p>
-                    </div>
-                    <div className="rounded-lg border border-sky-100/90 bg-sky-50/60 px-3 py-2 text-center sm:text-left">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-sky-900/85">Partial</p>
-                      <p className="mt-0.5 text-lg font-bold tabular-nums text-sky-950">{duesStatusCounts.partial}</p>
-                    </div>
-                    <div className="rounded-lg border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-center sm:text-left">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Waived / exempt</p>
-                      <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">
-                        {duesStatusCounts.waivedOrExempt}
-                      </p>
-                    </div>
-                  </div>
-
-                  {duesStatusesOnFile === 0 ? (
-                    <p className="text-xs leading-relaxed text-slate-600">
-                      No member statuses recorded yet — open a profile from the roster and choose{" "}
-                      <span className="font-medium text-slate-800">Paid</span>,{" "}
-                      <span className="font-medium text-slate-800">Unpaid</span>, or another option to populate these
-                      counts.
-                    </p>
-                  ) : (
-                    <p className="text-xs leading-relaxed text-slate-600">
-                      Counts only include members with a status saved on their profile (not the whole roster).
-                      {activeMembersWithoutDuesStatus > 0 ? (
-                        <>
-                          {" "}
-                          <span className="font-medium text-slate-800">
-                            {activeMembersWithoutDuesStatus} active{" "}
-                            {activeMembersWithoutDuesStatus === 1 ? "member has" : "members have"} no status yet.
-                          </span>
-                        </>
-                      ) : null}
-                    </p>
-                  )}
-
-                  <p className="text-[11px] leading-relaxed text-slate-500">
-                    Roster chips use <span className="font-medium text-slate-700">Past due</span> when someone is{" "}
-                    <span className="font-medium text-slate-700">Unpaid</span> and today is after the term due date.
-                  </p>
-                </>
-              ) : isArchived ? (
-                <div className="rounded-xl border border-dashed border-slate-200/95 bg-slate-50/60 px-4 py-4 sm:px-5">
-                  <p className="text-sm font-semibold text-slate-800">No club dues term on file</p>
-                  <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                    Archived clubs cannot add or change a dues term. Restore the club if you need to edit this.
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-slate-200/95 bg-white/70 px-4 py-4 sm:px-5">
-                  <div className="flex gap-3">
-                    <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"
-                      aria-hidden
-                    >
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">No dues term yet</p>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                        Add what you charge and when it is due. The same line appears on member profiles so everyone sees
-                        one source of truth.
-                      </p>
-                      <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-slate-600">
-                        <li>Use the button on the right to set the term.</li>
-                        <li>Open each member and set Paid, Unpaid, or another status as you collect money.</li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setDuesTermEditKey((k) => k + 1);
-                setDuesTermEditOpen(true);
-              }}
-              disabled={isArchived}
-              title={
-                isArchived
-                  ? "Archived clubs cannot add or change the dues term."
-                  : duesSettings
-                    ? "Edit amount, due date, or label for this club."
-                    : "Set the amount and due date for this club."
-              }
-              className="btn-secondary inline-flex min-h-10 shrink-0 items-center justify-center self-start px-4 py-2.5 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60 sm:self-start"
-            >
-              {isArchived ? "Term locked" : duesSettings ? "Edit club dues term" : "Set club dues term"}
-            </button>
-          </div>
-              </section>
-            ) : null}
-
-            {canManageCommittees ? (
-              <ClubCommitteesPanel
-                clubId={club.id}
-                committees={club.clubCommittees}
-                canManage={canManageCommittees}
-                isArchived={isArchived}
-              />
-            ) : null}
-
-            {canManageTeams ? (
-              <ClubTeamsPanel
-                clubId={club.id}
-                teams={club.clubTeams}
-                canManage={canManageTeams}
-                isArchived={isArchived}
-              />
-            ) : null}
-          </div>
-        </details>
-      ) : null}
-
-      {/* Getting started — management users only, hidden once all steps are done */}
-      {showManagement && !setupDone && (
+      {showManagement && !setupDone ? (
         <GettingStartedChecklist
           clubId={club.id}
           membersCount={memberCount}
           announcementsCount={announcementsCountForUi}
           eventsCount={eventsCountForUi}
         />
-      )}
+      ) : null}
 
-      {/* Member roster */}
-      <CardSection className="sm:p-6" id="members">
-        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-          <div className="min-w-0 flex-1">
-            <SectionHeader
-              kicker="Roster"
-              title="Member directory"
-              description="Open a member for full detail, including tags, committees, skills, availability, volunteer hours, and attendance."
-              action={
-                <span className="badge-soft text-[11px]">
-                  {hasActiveFilters
-                    ? `${filteredMembers.length} / ${rosterTotalCount} shown`
-                    : `${rosterTotalCount} total`}
-                </span>
-              }
-            />
-            <p className="mt-2 text-sm text-slate-600">
-              {memberCount} active
-              {alumniCount > 0 ? ` · ${alumniCount} alumni` : ""} · {officerCount}{" "}
-              {officerCount === 1 ? "officer" : "officers"}
-              {hasAnyManagementPermission ? " · Officers listed first" : null}
-              {canSeeInactiveEngagement &&
-              club.totalTrackedEvents >= MEMBER_INACTIVITY.MIN_TRACKED_EVENTS_FOR_LABEL &&
-              likelyInactiveCount > 0
-                ? ` · ${likelyInactiveCount} likely inactive`
-                : null}
-            </p>
-          </div>
-          {(canImportMemberList && !isArchived) || canExportMemberRoster ? (
-            <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Roster files</p>
-              <div className="flex flex-wrap gap-2">
-                {canImportMemberList && !isArchived ? (
+      <div className={`members-page-columns${hasSidebar ? "" : " members-page-columns--solo"}`}>
+        <div className="members-roster-card card-surface" id="members">
+          {rosterTotalCount > 0 ? (
+            <div className="members-roster-card__filters">
+              <div className="member-roster-filter-bar" ref={filterPanelRef}>
+                <div className="flex items-center gap-2">
+                  <div className="member-roster-search w-48 shrink-0">
+                    <svg
+                      className="member-roster-search__icon"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      aria-hidden
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="search"
+                      value={rosterSearch}
+                      onChange={(e) => setRosterSearch(e.target.value)}
+                      placeholder="Search members..."
+                      className="input-control member-roster-search__input min-h-10 w-full text-sm"
+                      aria-label="Search members in roster"
+                      autoComplete="off"
+                    />
+                  </div>
                   <button
                     type="button"
-                    className="btn-secondary inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold sm:text-sm"
-                    aria-expanded={rosterImportOpen}
-                    onClick={() => setRosterImportOpen((open) => !open)}
+                    className="member-roster-filter-btn shrink-0"
+                    aria-expanded={filterPanelOpen}
+                    aria-haspopup="true"
+                    onClick={() => setFilterPanelOpen((open) => !open)}
                   >
-                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
-                      />
-                    </svg>
-                    {rosterImportOpen ? "Hide import" : "Import CSV"}
+                    {panelFilterCount > 0 ? `Filter · ${panelFilterCount}` : "Filter"}
                   </button>
-                ) : null}
-                {canExportMemberRoster ? (
-                  <a
-                    href={`/clubs/${club.id}/members/export`}
-                    title="Downloads every member in this club as CSV. Roster search and filters do not apply."
-                    className="btn-secondary inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold sm:text-sm"
-                  >
-                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                    Export CSV
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        {rosterImportOpen && canImportMemberList && !isArchived ? <MemberImportPanel clubId={club.id} /> : null}
-
-        {rosterTotalCount > 0 && (
-          <div className="mt-5 space-y-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Find members</p>
-                {showBulkMemberChrome ? (
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600/80">Bulk</p>
-                ) : null}
-              </div>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
-                <div className="relative min-w-0 flex-1">
-                  <svg
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <input
-                    type="search"
-                    value={rosterSearch}
-                    onChange={(e) => setRosterSearch(e.target.value)}
-                    placeholder="Search members…"
-                    className="input-control min-h-11 w-full pl-9 text-sm sm:min-h-10"
-                    aria-label="Search members in roster"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
-                  <div className="w-full sm:min-w-[180px]">
-                    <label htmlFor="roster-status-filter" className="mb-1 block text-xs font-semibold text-slate-600">
-                      Status
-                    </label>
-                    <select
-                      id="roster-status-filter"
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value as RosterStatusFilter)}
-                      className="input-control min-h-11 w-full text-sm sm:min-h-10"
-                      aria-label="Filter roster by membership status"
-                    >
-                      <option value="all">All</option>
-                      <option value="active">Active only</option>
-                      <option value="alumni">Alumni only</option>
-                    </select>
-                  </div>
-                  <div className="w-full sm:min-w-[220px]">
-                    <label htmlFor="roster-role-filter" className="mb-1 block text-xs font-semibold text-slate-600">
-                      Role
-                    </label>
-                    <select
-                      id="roster-role-filter"
-                      value={roleFilter}
-                      onChange={(e) => setRoleFilter(e.target.value as RosterRoleFilter)}
-                      className="input-control min-h-11 w-full text-sm sm:min-h-10"
-                      aria-label="Filter roster by role"
-                    >
-                      <option value="all">All roles</option>
-                      <option value="president">President</option>
-                      <option value="officer">Officer (not President)</option>
-                      <option value="member">Member</option>
-                    </select>
-                  </div>
-                  <div className="w-full sm:min-w-[200px]">
-                    <label htmlFor="roster-activity-filter" className="mb-1 block text-xs font-semibold text-slate-600">
-                      Activity
-                    </label>
-                    <select
-                      id="roster-activity-filter"
-                      value={activityLevelFilter}
-                      onChange={(e) => setActivityLevelFilter(e.target.value as RosterActivityLevelFilter)}
-                      className="input-control min-h-11 w-full text-sm sm:min-h-10"
-                      aria-label="Filter by recent RSVP and attendance activity"
-                    >
-                      <option value="all">All</option>
-                      <option value="engaged">Engaged</option>
-                      <option value="low_activity">Low activity</option>
-                    </select>
-                  </div>
-                  <div className="w-full sm:min-w-[220px]">
-                    <label htmlFor="roster-sort" className="mb-1 block text-xs font-semibold text-slate-600">
+                  <div className="w-36 shrink-0">
+                    <label htmlFor="roster-sort" className="sr-only">
                       Sort
                     </label>
                     <select
                       id="roster-sort"
                       value={rosterSortKey}
                       onChange={(e) => setRosterSortKey(e.target.value as RosterSortKey)}
-                      className="input-control min-h-11 w-full text-sm sm:min-h-10"
+                      className="input-control min-h-10 w-full text-sm"
                       aria-label="Sort roster"
                     >
                       <option value="name_asc">Name (A–Z)</option>
@@ -913,86 +669,143 @@ export function ClubMembersSection({
                       <option value="last_activity_asc">Last activity (oldest first)</option>
                     </select>
                   </div>
-                  {canSeeInactiveEngagement ? (
-                    <div className="w-full sm:min-w-[200px]">
-                      <label htmlFor="roster-engagement-filter" className="mb-1 block text-xs font-semibold text-slate-600">
-                        Engagement
-                      </label>
-                      <select
-                        id="roster-engagement-filter"
-                        value={engagementFilter}
-                        onChange={(e) => setEngagementFilter(e.target.value as RosterEngagementFilter)}
-                        className="input-control min-h-11 w-full text-sm sm:min-h-10"
-                        aria-label="Filter roster by engagement"
-                      >
-                        <option value="all">All members</option>
-                        <option value="likely_inactive">Likely inactive</option>
-                      </select>
+                </div>
+                {filterPanelOpen ? (
+                  <div className="member-roster-filter-panel" role="dialog" aria-label="Filter members">
+                    <button
+                      type="button"
+                      className="member-roster-filter-panel__close"
+                      aria-label="Close filters"
+                      onClick={closeFilterPanel}
+                    >
+                      ×
+                    </button>
+                    <div className="member-roster-filter-panel__grid">
+                      <div className="member-roster-filter-panel__field">
+                        <label htmlFor="roster-status-filter" className="member-roster-filter-panel__label">
+                          Status
+                        </label>
+                        <select
+                          id="roster-status-filter"
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value as RosterStatusFilter)}
+                          className="input-control min-h-10 w-full text-sm"
+                          aria-label="Filter roster by membership status"
+                        >
+                          <option value="all">All</option>
+                          <option value="active">Active only</option>
+                          <option value="alumni">Alumni only</option>
+                        </select>
+                      </div>
+                      <div className="member-roster-filter-panel__field">
+                        <label htmlFor="roster-role-filter" className="member-roster-filter-panel__label">
+                          Role
+                        </label>
+                        <select
+                          id="roster-role-filter"
+                          value={roleFilter}
+                          onChange={(e) => setRoleFilter(e.target.value as RosterRoleFilter)}
+                          className="input-control min-h-10 w-full text-sm"
+                          aria-label="Filter roster by role"
+                        >
+                          <option value="all">All roles</option>
+                          <option value="president">President</option>
+                          <option value="officer">Officer (not President)</option>
+                          <option value="member">Member</option>
+                        </select>
+                      </div>
+                      <div className="member-roster-filter-panel__field">
+                        <label htmlFor="roster-activity-filter" className="member-roster-filter-panel__label">
+                          Activity
+                        </label>
+                        <select
+                          id="roster-activity-filter"
+                          value={activityLevelFilter}
+                          onChange={(e) => setActivityLevelFilter(e.target.value as RosterActivityLevelFilter)}
+                          className="input-control min-h-10 w-full text-sm"
+                          aria-label="Filter by recent RSVP and attendance activity"
+                        >
+                          <option value="all">All</option>
+                          <option value="engaged">Engaged</option>
+                          <option value="low_activity">Low activity</option>
+                        </select>
+                      </div>
+                      {canSeeInactiveEngagement ? (
+                        <div className="member-roster-filter-panel__field">
+                          <label htmlFor="roster-engagement-filter" className="member-roster-filter-panel__label">
+                            Engagement
+                          </label>
+                          <select
+                            id="roster-engagement-filter"
+                            value={engagementFilter}
+                            onChange={(e) => setEngagementFilter(e.target.value as RosterEngagementFilter)}
+                            className="input-control min-h-10 w-full text-sm"
+                            aria-label="Filter roster by engagement"
+                          >
+                            <option value="all">All members</option>
+                            <option value="likely_inactive">Likely inactive</option>
+                          </select>
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                  <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 sm:border-t-0 sm:border-l sm:pl-3 sm:pt-0">
-                    {canSeeInactiveEngagement &&
-                    likelyInactiveCount > 0 &&
-                    engagementFilter === "all" &&
-                    club.totalTrackedEvents >= MEMBER_INACTIVITY.MIN_TRACKED_EVENTS_FOR_LABEL ? (
+                    {filterAboutOpen ? (
+                      <div className="member-roster-filter-panel__about-content">
+                        <p>
+                          The list shows a short engagement summary; skills, availability, notes, and full attendance history
+                          are in each member&apos;s profile.
+                        </p>
+                        <p>
+                          <span className="font-semibold text-slate-600">Grade &amp; class year</span> are not stored yet
+                          (profiles only include name and email). Filters use membership role and RBAC roles only.
+                        </p>
+                        {canSeeInactiveEngagement ? (
+                          <p>
+                            <span className="font-semibold text-slate-600">Likely inactive</span> uses RSVP and event signals
+                            (leadership recency), not the same as attendance % or participation score. No RSVP or attended-event
+                            signal in {MEMBER_INACTIVITY.INACTIVITY_DAYS} days after a {MEMBER_INACTIVITY.NEW_MEMBER_GRACE_DAYS}
+                            -day join grace; needs {MEMBER_INACTIVITY.MIN_TRACKED_EVENTS_FOR_LABEL}+ tracked past events
+                            club-wide. Nothing changes automatically.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div className="member-roster-filter-panel__footer">
+                      {panelFilterCount > 0 ? (
+                        <button
+                          type="button"
+                          className="member-roster-filter-panel__footer-link"
+                          onClick={clearPanelFilters}
+                        >
+                          Clear filters
+                        </button>
+                      ) : (
+                        <span aria-hidden />
+                      )}
                       <button
                         type="button"
-                        onClick={() => setEngagementFilter("likely_inactive")}
-                        className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-amber-200/90 bg-amber-50/80 px-3 text-xs font-semibold text-amber-950 transition hover:bg-amber-100/80 sm:min-h-10 sm:px-4 sm:text-sm"
-                        aria-label={`Filter roster to ${likelyInactiveCount} likely inactive members`}
+                        className="member-roster-filter-panel__footer-link"
+                        aria-expanded={filterAboutOpen}
+                        onClick={() => setFilterAboutOpen((open) => !open)}
                       >
-                        {likelyInactiveCount} likely inactive
+                        About filters
                       </button>
-                    ) : null}
-                    {hasActiveFilters ? (
-                      <button
-                        type="button"
-                        onClick={clearRosterFilters}
-                        className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-800 transition hover:bg-slate-100 sm:px-4 sm:text-sm"
-                      >
-                        Clear filters
-                      </button>
-                    ) : null}
-                    {showBulkMemberChrome && filteredMembers.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={selectAllVisibleMembers}
-                        className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-indigo-200/90 bg-indigo-50/60 px-3 text-xs font-semibold text-indigo-950 transition hover:bg-indigo-100/70 sm:px-4 sm:text-sm"
-                      >
-                        Select visible (
-                        {filteredMembers.filter((m) => m.userId !== club.currentUserId).length})
-                      </button>
-                    ) : null}
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
-              <details className="mt-3 border-t border-slate-200/90 pt-3">
-                <summary className="cursor-pointer list-none text-xs font-semibold text-slate-600 hover:text-slate-900 [&::-webkit-details-marker]:hidden">
-                  About search &amp; filters
-                </summary>
-                <div className="mt-2 space-y-3 text-xs leading-relaxed text-slate-500">
-                  <p>
-                    The list shows a short engagement summary; skills, availability, notes, and full attendance history
-                    are in each member&apos;s profile.
-                  </p>
-                  <p>
-                    <span className="font-semibold text-slate-600">Grade &amp; class year</span> are not stored yet
-                    (profiles only include name and email). Filters use membership role and RBAC roles only.
-                  </p>
-                  {canSeeInactiveEngagement ? (
-                    <p>
-                      <span className="font-semibold text-slate-600">Likely inactive</span> uses RSVP and event signals
-                      (leadership recency), not the same as attendance % or participation score. No RSVP or attended-event
-                      signal in {MEMBER_INACTIVITY.INACTIVITY_DAYS} days after a {MEMBER_INACTIVITY.NEW_MEMBER_GRACE_DAYS}
-                      -day join grace; needs {MEMBER_INACTIVITY.MIN_TRACKED_EVENTS_FOR_LABEL}+ tracked past events
-                      club-wide. Nothing changes automatically.
-                    </p>
-                  ) : null}
+              {hasActiveFilters ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={clearRosterFilters}
+                    className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-800 transition hover:bg-slate-100 sm:text-sm"
+                  >
+                    Clear all
+                  </button>
                 </div>
-              </details>
+              ) : null}
             </div>
-          </div>
-        )}
+          ) : null}
 
         {rosterTotalCount > 0 && hasActiveFilters ? (
           <p className="mt-3 text-xs text-slate-600" role="status">
@@ -1031,6 +844,18 @@ export function ClubMembersSection({
           />
         ) : null}
 
+        {showBulkMemberChrome && visibleBulkSelected.size > 0 ? (
+          <div className="members-bulk-select-bar">
+            <button
+              type="button"
+              onClick={selectAllVisibleMembers}
+              className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg border border-indigo-200/90 bg-indigo-50/60 px-3 text-xs font-semibold text-indigo-950 transition hover:bg-indigo-100/70 sm:text-sm"
+            >
+              Select visible ({filteredMembers.filter((m) => m.userId !== club.currentUserId).length})
+            </button>
+          </div>
+        ) : null}
+
         {showBulkMemberChrome ? (
           <MemberBulkActionsToolbar
             clubId={club.id}
@@ -1049,7 +874,7 @@ export function ClubMembersSection({
         ) : null}
 
         {rosterTotalCount === 0 ? (
-          <div className="mt-6">
+          <div className="members-roster-card__empty">
             <EmptyState
               icon="ti-users"
               title="No members yet"
@@ -1061,7 +886,7 @@ export function ClubMembersSection({
             />
           </div>
         ) : filteredMembers.length === 0 ? (
-          <div className="mt-6">
+          <div className="members-roster-card__empty">
             <PageEmptyState
               title="No members match current filters"
               copy={
@@ -1087,11 +912,12 @@ export function ClubMembersSection({
             />
           </div>
         ) : (
-          <ul className="list-stack member-roster-list mt-4" aria-label="Club member roster">
+          <ul className="member-roster-list" aria-label="Club member roster">
             {filteredMembers.map((member) => {
               const isCurrentUser = member.userId === club.currentUserId;
               const isAlumni = member.membershipStatus === "alumni";
               const isOfficer = member.role === "officer" && !isAlumni;
+              const isExpanded = expandedMemberIds.has(member.userId);
 
               const rbacRoles = rbacByUser[member.userId] ?? [];
               const significantRbacRoles = rbacRoles.filter(
@@ -1111,11 +937,11 @@ export function ClubMembersSection({
               return (
                 <li
                   key={member.userId}
-                  className={`member-card ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""} ${isAlumni ? "border-dashed border-slate-200/90 bg-slate-50/40" : ""}`}
+                  className={`member-roster-row${isExpanded ? " is-expanded" : ""}${isOfficer ? " is-officer" : ""}${isCurrentUser ? " is-current-user" : ""}${isAlumni ? " is-alumni" : ""}`}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="member-roster-row__outer">
                     {showBulkMemberChrome ? (
-                      <div className="flex shrink-0 items-start pt-1">
+                      <div className="member-roster-row__checkbox">
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
@@ -1131,188 +957,237 @@ export function ClubMembersSection({
                         />
                       </div>
                     ) : null}
-                    <div className={`member-avatar ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""}`}>
-                      {getMemberRosterInitials(member)}
-                    </div>
-
-                    <div className="min-w-0 flex-1 space-y-2.5">
-                      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="text-base font-semibold tracking-tight text-slate-950">
-                              {getMemberRosterDisplayName(member)}
-                            </h3>
-                            {isPresident && !isAlumni ? (
-                              <Link
-                                href={`/clubs/${club.id}/settings`}
-                                className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                                title="Manage roles in Settings"
-                                aria-label="Manage roles in Settings"
-                              >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                                  />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                              </Link>
-                            ) : null}
-                          </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <span className={`member-role-pill ${isOfficer ? "is-officer" : "is-member"}`}>
-                              {member.role}
-                            </span>
-                            {isAlumni ? (
-                              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
-                                Alumni
-                              </span>
-                            ) : null}
-                            {duesPill ? (
-                              <span
-                                className={`inline-flex max-w-full min-w-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${duesPill.className}`}
-                                title={duesPillHint}
-                              >
-                                <span className="truncate">{duesPill.label}</span>
-                              </span>
-                            ) : null}
-                            {!isAlumni && member.isInactive ? (
-                              <span
-                                className="inline-flex max-w-full items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-900"
-                                title={`No RSVP and no attendance in the last ${PARTICIPATION_ACTIVITY_WINDOW_DAYS} days (after a short grace period for new members). For outreach only.`}
-                              >
-                                Low activity
-                              </span>
-                            ) : null}
-                            {canSeeInactiveEngagement && !isAlumni && member.likelyInactive ? (
-                              <span
-                                className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700"
-                                title={
-                                  (() => {
-                                    const last = formatMemberLastEngagementDisplay(member.lastEngagementAt);
-                                    return last
-                                      ? `Leadership recency (RSVP / events): last signal ${last}. Nothing in ${MEMBER_INACTIVITY.INACTIVITY_DAYS}d — separate from attendance % and participation score.`
-                                      : `Leadership recency: no RSVP or attended-event signal in loaded history; nothing in ${MEMBER_INACTIVITY.INACTIVITY_DAYS}d — separate from attendance % and score.`;
-                                  })()
-                                }
-                              >
-                                Likely inactive
-                              </span>
-                            ) : null}
-                            {isCurrentUser ? <span className="member-you-pill">You</span> : null}
-                          </div>
-                        </div>
-                        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
-                          <button
-                            type="button"
-                            onClick={() => setProfileUserId(member.userId)}
-                            className="inline-flex min-h-9 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:w-auto sm:text-sm"
-                          >
-                            Profile
-                          </button>
-                        </div>
+                    <div className="member-roster-row__grid">
+                      <div className={`member-avatar ${isOfficer ? "is-officer" : ""} ${isCurrentUser ? "is-current-user" : ""}`}>
+                        {getMemberRosterInitials(member)}
                       </div>
 
-                      {hasAffiliationChips ? (
-                        <div
-                          className="flex flex-wrap items-center gap-1.5 border-t border-slate-100/90 pt-2.5"
-                          aria-label="Roles, tags, committees, and teams"
-                        >
-                          {significantRbacRoles.map((r) => (
-                            <span
-                              key={r.roleId}
-                              className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                                r.roleName === "President"
-                                  ? "border-violet-200 bg-violet-50 text-violet-700"
-                                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              }`}
-                            >
-                              {r.roleName}
-                            </span>
-                          ))}
-                          {(member.tags ?? []).slice(0, 3).map((t) => (
-                            <span
-                              key={t.id}
-                              className="inline-flex max-w-full items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-800"
-                            >
-                              {t.name}
-                            </span>
-                          ))}
-                          {(member.tags ?? []).length > 3 ? (
-                            <span className="text-[11px] font-medium text-slate-500">
-                              +{(member.tags ?? []).length - 3} tags
-                            </span>
-                          ) : null}
-                          {(member.committees ?? []).slice(0, 2).map((c) => (
-                            <span
-                              key={c.id}
-                              className="inline-flex max-w-full items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-900"
-                            >
-                              {c.name}
-                            </span>
-                          ))}
-                          {(member.committees ?? []).length > 2 ? (
-                            <span className="text-[11px] font-medium text-slate-500">
-                              +{(member.committees ?? []).length - 2} committees
-                            </span>
-                          ) : null}
-                          {(member.teams ?? []).slice(0, 2).map((t) => (
-                            <span
-                              key={t.id}
-                              className="inline-flex max-w-full items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-900"
-                            >
-                              {t.name}
-                            </span>
-                          ))}
-                          {(member.teams ?? []).length > 2 ? (
-                            <span className="text-[11px] font-medium text-slate-500">
-                              +{(member.teams ?? []).length - 2} teams
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : null}
-
-                      <div
-                        className="flex flex-col gap-2 border-t border-slate-100/90 pt-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1"
-                        aria-label="Tracked attendance, participation score, and volunteer hours"
+                      <button
+                        type="button"
+                        className="member-roster-row__identity"
+                        aria-expanded={isExpanded}
+                        onClick={() => toggleMemberExpanded(member.userId)}
                       >
-                        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-slate-600">
-                          <span className="font-medium text-slate-500">Summary</span>
-                          <span className="hidden h-3 w-px bg-slate-200 sm:block" aria-hidden />
-                          {member.totalTrackedEvents > 0 ? (
-                            <span className="text-slate-800" title="Marked present at tracked past events (not RSVPs)">
-                              {formatTrackedAttendanceSummary({
-                                attendanceCount: member.attendanceCount,
-                                totalTrackedEvents: member.totalTrackedEvents,
-                                attendanceRate: member.attendanceRate,
-                              })}
-                            </span>
-                          ) : (
-                            <span className="text-slate-500" title={trackedAttendanceEmptyCopy()}>
-                              No tracked events yet
-                            </span>
-                          )}
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="member-roster-row__name">
+                            {getMemberRosterDisplayName(member)}
+                          </h3>
+                          {isPresident && !isAlumni ? (
+                            <Link
+                              href={`/clubs/${club.id}/settings`}
+                              className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                              title="Manage roles in Settings"
+                              aria-label="Manage roles in Settings"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                                />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            </Link>
+                          ) : null}
                         </div>
-                        <span className="hidden h-3 w-px bg-slate-200 sm:block" aria-hidden />
-                        <div className="flex flex-wrap items-center gap-2">
-                          {rosterActivityPointsPill(member)}
-                          <span className="text-xs text-slate-400">·</span>
-                          {rosterParticipationPill(member)}
-                          <span className="text-xs text-slate-400">·</span>
-                          <span className="text-xs font-medium text-slate-700">
-                            {member.volunteerHoursTotal > 0
-                              ? `${formatVolunteerHoursAmount(member.volunteerHoursTotal)} h volunteer`
-                              : "No hours logged"}
+                        <div className="member-roster-row__badges">
+                          <span className={`member-role-pill ${isOfficer ? "is-officer" : "is-member"}`}>
+                            {member.role}
                           </span>
+                          {isCurrentUser ? <span className="member-you-pill">You</span> : null}
                         </div>
+                      </button>
+
+                      <div className="member-roster-row__attendance">
+                        {member.totalTrackedEvents > 0 ? (
+                          <>
+                            <p className={memberAttendancePercentClass(member.attendanceRate)}>
+                              {member.attendanceRate}%
+                            </p>
+                            <div className="member-roster-row__bar" title={`${member.attendanceRate}% attendance`}>
+                              <div
+                                className="member-roster-row__bar-fill"
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, member.attendanceRate))}%`,
+                                  backgroundColor: memberAttendanceBarFillColor(
+                                    member.attendanceRate,
+                                    clubAccentColor,
+                                  ),
+                                }}
+                              />
+                            </div>
+                          </>
+                        ) : null}
+                      </div>
+
+                      <div className="member-roster-row__actions">
+                        <button
+                          type="button"
+                          onClick={() => setProfileUserId(member.userId)}
+                          className="member-roster-row__profile-btn"
+                        >
+                          Profile
+                        </button>
+                        <button
+                          type="button"
+                          className="member-roster-row__chevron-btn"
+                          aria-expanded={isExpanded}
+                          aria-label={isExpanded ? "Collapse member details" : "Expand member details"}
+                          onClick={() => toggleMemberExpanded(member.userId)}
+                        >
+                          <ChevronDownIcon className="member-roster-row__chevron" />
+                        </button>
                       </div>
                     </div>
                   </div>
 
+                  <div className="member-roster-row__details">
+                    <div className="member-roster-row__details-inner">
+                      <div className="member-roster-row__details-content">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {isAlumni ? (
+                                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                                  Alumni
+                                </span>
+                              ) : null}
+                              {duesPill ? (
+                                <span
+                                  className={`inline-flex max-w-full min-w-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${duesPill.className}`}
+                                  title={duesPillHint}
+                                >
+                                  <span className="truncate">{duesPill.label}</span>
+                                </span>
+                              ) : null}
+                              {!isAlumni && member.isInactive && showLowActivityBadge ? (
+                                <span
+                                  className="inline-flex max-w-full items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-900"
+                                  title={`No RSVP and no attendance in the last ${PARTICIPATION_ACTIVITY_WINDOW_DAYS} days (after a short grace period for new members). For outreach only.`}
+                                >
+                                  Low activity
+                                </span>
+                              ) : null}
+                              {canSeeInactiveEngagement && !isAlumni && member.likelyInactive ? (
+                                <span
+                                  className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700"
+                                  title={
+                                    (() => {
+                                      const last = formatMemberLastEngagementDisplay(member.lastEngagementAt);
+                                      return last
+                                        ? `Leadership recency (RSVP / events): last signal ${last}. Nothing in ${MEMBER_INACTIVITY.INACTIVITY_DAYS}d — separate from attendance % and participation score.`
+                                        : `Leadership recency: no RSVP or attended-event signal in loaded history; nothing in ${MEMBER_INACTIVITY.INACTIVITY_DAYS}d — separate from attendance % and score.`;
+                                    })()
+                                  }
+                                >
+                                  Likely inactive
+                                </span>
+                              ) : null}
+                            </div>
+
+                            {hasAffiliationChips ? (
+                              <div
+                                className="flex flex-wrap items-center gap-1.5 border-t border-slate-100/90 pt-2.5"
+                                aria-label="Roles, tags, committees, and teams"
+                              >
+                                {significantRbacRoles.map((r) => (
+                                  <span
+                                    key={r.roleId}
+                                    className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                      r.roleName === "President"
+                                        ? "border-violet-200 bg-violet-50 text-violet-700"
+                                        : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    }`}
+                                  >
+                                    {r.roleName}
+                                  </span>
+                                ))}
+                                {(member.tags ?? []).slice(0, 3).map((t) => (
+                                  <span
+                                    key={t.id}
+                                    className="inline-flex max-w-full items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-800"
+                                  >
+                                    {t.name}
+                                  </span>
+                                ))}
+                                {(member.tags ?? []).length > 3 ? (
+                                  <span className="text-[11px] font-medium text-slate-500">
+                                    +{(member.tags ?? []).length - 3} tags
+                                  </span>
+                                ) : null}
+                                {(member.committees ?? []).slice(0, 2).map((c) => (
+                                  <span
+                                    key={c.id}
+                                    className="inline-flex max-w-full items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-900"
+                                  >
+                                    {c.name}
+                                  </span>
+                                ))}
+                                {(member.committees ?? []).length > 2 ? (
+                                  <span className="text-[11px] font-medium text-slate-500">
+                                    +{(member.committees ?? []).length - 2} committees
+                                  </span>
+                                ) : null}
+                                {(member.teams ?? []).slice(0, 2).map((t) => (
+                                  <span
+                                    key={t.id}
+                                    className="inline-flex max-w-full items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-900"
+                                  >
+                                    {t.name}
+                                  </span>
+                                ))}
+                                {(member.teams ?? []).length > 2 ? (
+                                  <span className="text-[11px] font-medium text-slate-500">
+                                    +{(member.teams ?? []).length - 2} teams
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+
+                            <div
+                              className="flex flex-col gap-2 border-t border-slate-100/90 pt-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1"
+                              aria-label="Tracked attendance, participation score, and volunteer hours"
+                            >
+                              <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-slate-600">
+                                <span className="font-medium text-slate-500">Summary</span>
+                                <span className="hidden h-3 w-px bg-slate-200 sm:block" aria-hidden />
+                                {member.totalTrackedEvents > 0 ? (
+                                  <span className="text-slate-800" title="Marked present at tracked past events (not RSVPs)">
+                                    {formatTrackedAttendanceSummary({
+                                      attendanceCount: member.attendanceCount,
+                                      totalTrackedEvents: member.totalTrackedEvents,
+                                      attendanceRate: member.attendanceRate,
+                                    })}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500" title={trackedAttendanceEmptyCopy()}>
+                                    No tracked events yet
+                                  </span>
+                                )}
+                              </div>
+                              {isViewerOfficer ? (
+                                <>
+                                  <span className="hidden h-3 w-px bg-slate-200 sm:block" aria-hidden />
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {rosterActivityPointsPill(member)}
+                                    <span className="text-xs text-slate-400">·</span>
+                                    {rosterParticipationPill(member)}
+                                    <span className="text-xs text-slate-400">·</span>
+                                    <span className="text-xs font-medium text-slate-700">
+                                      {member.volunteerHoursTotal > 0
+                                        ? `${formatVolunteerHoursAmount(member.volunteerHoursTotal)} h volunteer`
+                                        : "No hours logged"}
+                                    </span>
+                                  </div>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                   {!isArchived && !isCurrentUser && (canAssignRoles || canRemoveMembers) ? (
-                    <div className="member-card-actions">
+                    <div className="member-roster-row__actions-bar">
                       {/* Role promotion/demotion — requires members.assign_roles; alumni are read-only */}
                       {canAssignRoles && member.membershipStatus === "active" &&
                         (member.role === "member" ? (
@@ -1359,7 +1234,241 @@ export function ClubMembersSection({
             })}
           </ul>
         )}
-      </CardSection>
+
+          {showAdvancedMemberTools ? (
+            <div className="members-roster-card__footer">
+              <button
+                type="button"
+                className="members-roster-advanced-link"
+                aria-expanded={advancedPanelOpen}
+                onClick={() => setAdvancedPanelOpen((open) => !open)}
+              >
+                ⋯ Advanced: dues, committees &amp; teams
+              </button>
+              {advancedPanelOpen ? (
+                <div className="members-roster-advanced-panel space-y-4">
+                  {canManageMemberDues ? (
+                    <section
+                      className="card-surface overflow-hidden border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/90 to-emerald-50/45 p-5 shadow-sm sm:p-6"
+                      aria-labelledby="club-dues-summary-heading"
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div>
+                            <p className="section-kicker text-slate-600">Club dues</p>
+                            <h2
+                              id="club-dues-summary-heading"
+                              className="mt-1 text-lg font-semibold tracking-tight text-slate-900"
+                            >
+                              {duesSettings ? "This term" : isArchived ? "No term on file" : "Set a club-wide term"}
+                            </h2>
+                          </div>
+
+                          {duesSettings ? (
+                            <>
+                              <div className="rounded-xl border border-slate-100/95 bg-white/85 px-4 py-3 shadow-inner sm:px-4 sm:py-3.5">
+                                <p
+                                  className="text-base font-semibold leading-snug text-slate-900 sm:text-[1.05rem] line-clamp-3 break-words"
+                                  title={duesSettings.label}
+                                >
+                                  {duesSettings.label}
+                                </p>
+                                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                                  <span className="font-medium text-slate-800 tabular-nums">
+                                    {formatClubDuesMoney(duesSettings.amountCents, duesSettings.currency)}
+                                  </span>
+                                  <span className="text-slate-400"> · </span>
+                                  Due{" "}
+                                  <span className="font-medium text-slate-800">
+                                    {formatClubDuesDueDateLabel(duesSettings.dueDate)}
+                                  </span>
+                                </p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                <div className="rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2 text-center sm:text-left">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800/80">Paid</p>
+                                  <p className="mt-0.5 text-lg font-bold tabular-nums text-emerald-950">{duesStatusCounts.paid}</p>
+                                </div>
+                                <div className="rounded-lg border border-amber-100/90 bg-amber-50/50 px-3 py-2 text-center sm:text-left">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-900/90">Unpaid</p>
+                                  <p className="mt-0.5 text-lg font-bold tabular-nums text-amber-950">{duesStatusCounts.unpaid}</p>
+                                </div>
+                                <div className="rounded-lg border border-sky-100/90 bg-sky-50/60 px-3 py-2 text-center sm:text-left">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-sky-900/85">Partial</p>
+                                  <p className="mt-0.5 text-lg font-bold tabular-nums text-sky-950">{duesStatusCounts.partial}</p>
+                                </div>
+                                <div className="rounded-lg border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-center sm:text-left">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Waived / exempt</p>
+                                  <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">
+                                    {duesStatusCounts.waivedOrExempt}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {duesStatusesOnFile === 0 ? (
+                                <p className="text-xs leading-relaxed text-slate-600">
+                                  No member statuses recorded yet — open a profile from the roster and choose{" "}
+                                  <span className="font-medium text-slate-800">Paid</span>,{" "}
+                                  <span className="font-medium text-slate-800">Unpaid</span>, or another option to populate these
+                                  counts.
+                                </p>
+                              ) : (
+                                <p className="text-xs leading-relaxed text-slate-600">
+                                  Counts only include members with a status saved on their profile (not the whole roster).
+                                  {activeMembersWithoutDuesStatus > 0 ? (
+                                    <>
+                                      {" "}
+                                      <span className="font-medium text-slate-800">
+                                        {activeMembersWithoutDuesStatus} active{" "}
+                                        {activeMembersWithoutDuesStatus === 1 ? "member has" : "members have"} no status yet.
+                                      </span>
+                                    </>
+                                  ) : null}
+                                </p>
+                              )}
+
+                              <p className="text-[11px] leading-relaxed text-slate-500">
+                                Roster chips use <span className="font-medium text-slate-700">Past due</span> when someone is{" "}
+                                <span className="font-medium text-slate-700">Unpaid</span> and today is after the term due date.
+                              </p>
+                            </>
+                          ) : isArchived ? (
+                            <div className="rounded-xl border border-dashed border-slate-200/95 bg-slate-50/60 px-4 py-4 sm:px-5">
+                              <p className="text-sm font-semibold text-slate-800">No club dues term on file</p>
+                              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                                Archived clubs cannot add or change a dues term. Restore the club if you need to edit this.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-slate-200/95 bg-white/70 px-4 py-4 sm:px-5">
+                              <p className="text-sm font-semibold text-slate-900">No dues term yet</p>
+                              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                                Add what you charge and when it is due. The same line appears on member profiles so everyone sees
+                                one source of truth.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDuesTermEditKey((k) => k + 1);
+                            setDuesTermEditOpen(true);
+                          }}
+                          disabled={isArchived}
+                          className="btn-secondary inline-flex min-h-10 shrink-0 items-center justify-center self-start px-4 py-2.5 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isArchived ? "Term locked" : duesSettings ? "Edit club dues term" : "Set club dues term"}
+                        </button>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {canManageCommittees ? (
+                    <ClubCommitteesPanel
+                      clubId={club.id}
+                      committees={club.clubCommittees}
+                      canManage={canManageCommittees}
+                      isArchived={isArchived}
+                    />
+                  ) : null}
+
+                  {canManageTeams ? (
+                    <ClubTeamsPanel
+                      clubId={club.id}
+                      teams={club.clubTeams}
+                      canManage={canManageTeams}
+                      isArchived={isArchived}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {hasSidebar ? (
+          <aside className="members-page-sidebar">
+            {showInvite ? (
+              <div className="members-sidebar-card card-surface" id="invite-members">
+                <h2 className="members-sidebar-card__title">Invite members</h2>
+                <p className="members-sidebar-card__desc">
+                  Share a link — students sign in and request to join in one step.
+                </p>
+                {club.requireJoinApproval ? (
+                  <p className="members-sidebar-card__notice">
+                    Approval required: invitees submit a request first. They are added only after officer approval.
+                  </p>
+                ) : null}
+                <p className="members-sidebar-card__kicker">Recommended</p>
+                <div className="members-sidebar-card__rec-box">
+                  <p className="members-sidebar-card__rec-text">
+                    Copy the invite link and share it in your group chat.
+                  </p>
+                  <CopyInviteLinkButton joinCode={club.joinCode} className="btn-primary w-full">
+                    Copy invite link
+                  </CopyInviteLinkButton>
+                </div>
+                <button
+                  type="button"
+                  className="members-sidebar-card__more-link"
+                  aria-expanded={inviteMoreOptionsOpen}
+                  onClick={() => setInviteMoreOptionsOpen((open) => !open)}
+                >
+                  More options: join code · public page
+                </button>
+                {inviteMoreOptionsOpen ? (
+                  <div className="members-sidebar-card__more-panel space-y-3">
+                    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center">
+                      <p className="font-mono text-2xl font-bold tracking-[0.22em] text-slate-900 select-all">
+                        {club.joinCode}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <CopyJoinCodeButton joinCode={club.joinCode} className="btn-secondary w-full" />
+                      <CopyPublicClubPageButton joinCode={club.joinCode} className="btn-secondary w-full" />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {(canImportMemberList && !isArchived) || canExportMemberRoster ? (
+              <div className="members-sidebar-card card-surface">
+                <h2 className="members-sidebar-card__title">Roster files</h2>
+                <p className="members-sidebar-card__desc">Import or export member data as CSV.</p>
+                <div className="members-sidebar-card__file-actions">
+                  {canImportMemberList && !isArchived ? (
+                    <button
+                      type="button"
+                      className="btn-secondary flex-1"
+                      aria-expanded={rosterImportOpen}
+                      onClick={() => setRosterImportOpen((open) => !open)}
+                    >
+                      ↑ Import CSV
+                    </button>
+                  ) : null}
+                  {canExportMemberRoster ? (
+                    <a
+                      href={`/clubs/${club.id}/members/export`}
+                      title="Downloads every member in this club as CSV. Roster search and filters do not apply."
+                      className="btn-secondary flex-1 text-center"
+                    >
+                      ↓ Export CSV
+                    </a>
+                  ) : null}
+                </div>
+                {rosterImportOpen && canImportMemberList && !isArchived ? (
+                  <div className="mt-3">
+                    <MemberImportPanel clubId={club.id} />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </aside>
+        ) : null}
+      </div>
 
       <MemberProfileDialog
         open={profileUserId !== null}

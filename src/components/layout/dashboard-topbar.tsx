@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
+import { GlobalSearchTrigger } from "@/components/ui/global-search";
 import { getMemberRosterInitials } from "@/lib/member-display";
 
 type DashboardTopbarProps = {
@@ -41,6 +42,7 @@ export function DashboardTopbar({
       <h1 className="app-page-title min-w-0 flex-1 truncate">
         {greeting}, {greetingName}
       </h1>
+      <GlobalSearchTrigger className="hidden shrink-0 md:inline-flex" />
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <Link
           href="/notifications"
