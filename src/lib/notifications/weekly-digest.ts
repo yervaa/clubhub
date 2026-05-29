@@ -82,7 +82,7 @@ export async function runWeeklyDigestEmails(): Promise<{ sent: number; skipped: 
     }
 
     const lines: string[] = [
-      "Your ClubHub weekly digest",
+      "Your Clubora weekly digest",
       "",
       `Summary for the week ending ${now.toLocaleDateString(undefined, { dateStyle: "medium" })}.`,
       "",
@@ -109,14 +109,14 @@ export async function runWeeklyDigestEmails(): Promise<{ sent: number; skipped: 
 
     const origin = getPublicSiteOrigin();
     if (origin) {
-      lines.push(`Open ClubHub to see full details: ${origin}/notifications`);
+      lines.push(`Open Clubora to see full details: ${origin}/notifications`);
     } else {
-      lines.push("Open ClubHub to see full details in the app.");
+      lines.push("Open Clubora to see full details in the app.");
     }
 
     const result = await sendTransactionalEmail({
       to,
-      subject: "Your ClubHub weekly digest",
+      subject: "Your Clubora weekly digest",
       text: lines.join("\n"),
     });
 

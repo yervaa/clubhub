@@ -1,4 +1,4 @@
--- ClubHub RBAC Permission Matrix Update
+-- Clubora RBAC Permission Matrix Update
 --
 -- Replaces the provisional permission set from 013_rbac_foundation.sql with the
 -- finalised 26-key permission matrix. Key structural changes:

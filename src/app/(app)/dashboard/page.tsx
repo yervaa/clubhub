@@ -5,7 +5,6 @@ import { DashboardCalendar } from "@/components/ui/dashboard-calendar";
 import { DashboardClubsGrid } from "@/components/ui/dashboard-clubs-grid";
 import { DashboardHeroCard } from "@/components/ui/dashboard-hero-card";
 import { DashboardStatTiles } from "@/components/ui/dashboard-stat-tile";
-import { DashboardPersistedDetails } from "@/components/ui/dashboard-persisted-details";
 import { DashboardTopbar, resolveDashboardGreetingName } from "@/components/layout/dashboard-topbar";
 import { getGlobalActivityFeed } from "@/lib/activity/queries";
 import { getClubAccentColor } from "@/lib/clubs/club-visual";
@@ -13,7 +12,7 @@ import { getDashboardData, type DashboardAnnouncement, type DashboardTaskPreview
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeInlineText } from "@/lib/sanitize";
 
-const LS_MORE_ANNOUNCEMENTS = "clubhub:dash:more-announcements";
+
 const TASKS_PER_GROUP = 6;
 
 function getDashboardAlertLabel(type: Awaited<ReturnType<typeof getDashboardData>>["needsAttentionAlerts"][number]["type"]) {
@@ -61,22 +60,6 @@ const TASK_GROUP_LABELS: Record<TaskTimeGroup, string> = {
   this_week: "This week",
   later: "Later",
 };
-
-function DisclosureChevron() {
-  return (
-    <svg className="dashboard-disclosure-chevron h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function detailsShellClassName(extra = "") {
-  return `dashboard-disclosure group rounded-xl border border-slate-200/95 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)] ${extra}`.trim();
-}
 
 function DashboardAnnouncementRow({ item }: { item: DashboardAnnouncement }) {
   const accent = getClubAccentColor(item.clubName);
@@ -158,10 +141,7 @@ export default async function DashboardPage() {
   weekEnd.setDate(weekEnd.getDate() + 7);
   const eventsThisWeek = upcomingEvents.filter((event) => new Date(event.eventDateRaw) <= weekEnd).length;
 
-  const importantAnnouncements = recentAnnouncements.slice(0, 2);
-  const feedAfterImportant = recentAnnouncements.slice(2);
-  const announcementPrimary = feedAfterImportant.slice(0, 3);
-  const announcementMore = feedAfterImportant.slice(3, 8);
+  const latestUpdatesAnnouncements = recentAnnouncements.slice(0, 8);
 
   return (
     <>
@@ -228,9 +208,6 @@ export default async function DashboardPage() {
                 <h2 id="dash-priority-heading" className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
                   Important now
                 </h2>
-                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                  Tasks, your calendar, and the latest club updates.
-                </p>
               </div>
               {myOpenTasks.length > 0 ? (
                 <span className="text-xs font-medium text-slate-500 tabular-nums sm:text-sm">
@@ -290,26 +267,6 @@ export default async function DashboardPage() {
                     </div>
                   )}
                 </div>
-
-                {importantAnnouncements.length > 0 ? (
-                  <div className="card-surface overflow-hidden p-0">
-                    <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 px-4 py-3 sm:px-5">
-                      <p className="text-sm font-semibold text-slate-900">Latest from clubs</p>
-                      {feedAfterImportant.length > 0 ? (
-                        <Link href="#latest-updates" className="text-xs font-semibold text-slate-600 hover:text-slate-900">
-                          More updates →
-                        </Link>
-                      ) : null}
-                    </div>
-                    <ul className="divide-y divide-slate-100" role="list">
-                      {importantAnnouncements.map((announcement) => (
-                        <li key={announcement.id}>
-                          <DashboardAnnouncementRow item={announcement} />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
               </div>
 
               <div className="w-full md:w-[280px] md:flex-shrink-0">
@@ -318,46 +275,25 @@ export default async function DashboardPage() {
             </div>
           </section>
 
-          {feedAfterImportant.length > 0 ? (
+          {latestUpdatesAnnouncements.length > 0 ? (
             <section id="latest-updates" aria-labelledby="dash-feed-heading" className="flex flex-col gap-3">
-              <div>
-                <h2 id="dash-feed-heading" className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                  Latest updates
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">More announcements from your clubs.</p>
-              </div>
-              {announcementPrimary.length > 0 ? (
-                <ul className="overflow-hidden rounded-xl border border-slate-200/95 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]" role="list">
-                  {announcementPrimary.map((announcement) => (
-                    <li key={announcement.id} className="border-b border-slate-100 last:border-b-0">
+              <h2 id="dash-feed-heading" className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
+                Latest updates
+              </h2>
+              <div className="overflow-hidden rounded-xl border border-slate-200/95 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
+                <ul className="divide-y divide-slate-100" role="list">
+                  {latestUpdatesAnnouncements.map((announcement) => (
+                    <li key={announcement.id}>
                       <DashboardAnnouncementRow item={announcement} />
                     </li>
                   ))}
                 </ul>
-              ) : null}
-              {announcementMore.length > 0 ? (
-                <DashboardPersistedDetails
-                  storageKey={LS_MORE_ANNOUNCEMENTS}
-                  className={detailsShellClassName()}
-                  summary={
-                    <summary className="dashboard-disclosure-summary px-4 py-3 sm:px-5">
-                      <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">More announcements</span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <span className="badge-soft tabular-nums">{announcementMore.length}</span>
-                        <DisclosureChevron />
-                      </span>
-                    </summary>
-                  }
-                >
-                  <ul className="divide-y divide-slate-100 border-t border-slate-100" role="list">
-                    {announcementMore.map((announcement) => (
-                      <li key={announcement.id}>
-                        <DashboardAnnouncementRow item={announcement} />
-                      </li>
-                    ))}
-                  </ul>
-                </DashboardPersistedDetails>
-              ) : null}
+                <div className="flex justify-end border-t border-slate-100 px-4 py-3 sm:px-5">
+                  <Link href="/announcements" className="dashboard-latest-updates-link">
+                    View all announcements →
+                  </Link>
+                </div>
+              </div>
             </section>
           ) : null}
 
@@ -365,11 +301,8 @@ export default async function DashboardPage() {
             <details className="card-surface overflow-hidden p-0 open:shadow-md" open={leadershipAlerts.length > 0}>
               <summary className="section-card-header m-0 cursor-pointer list-none p-5 sm:p-6 [&::-webkit-details-marker]:hidden">
                 <div className="min-w-0 pr-8">
-                  <p className="section-kicker">For officers</p>
-                  <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">Leadership & club health</h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Follow-ups for clubs you help run—collapsed when there&apos;s nothing urgent.
-                  </p>
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-900">Leadership & club health</h2>
+                  <p className="mt-1 text-sm text-slate-600">Clubs you help run.</p>
                 </div>
                 <span className="badge-soft shrink-0 tabular-nums">{leadershipAlerts.length}</span>
               </summary>

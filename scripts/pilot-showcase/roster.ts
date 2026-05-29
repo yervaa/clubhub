@@ -34,13 +34,13 @@ export function buildRoster(
   return [
     { slug: "pilot", email: pilotEmail, password: pilotPassword, fullName: "Jordan Park" },
     { slug: "pilot2", email: pilot2Email, password: pilot2Password, fullName: "Alex Rivera" },
-    { slug: "elena", email: "showcase.elena@clubhub.local", password: ROSTER_PASSWORD, fullName: "Elena Okonkwo" },
-    { slug: "marcus", email: "showcase.marcus@clubhub.local", password: ROSTER_PASSWORD, fullName: "Marcus Chen" },
-    { slug: "james", email: "showcase.james@clubhub.local", password: ROSTER_PASSWORD, fullName: "James Rivera" },
-    { slug: "priya", email: "showcase.priya@clubhub.local", password: ROSTER_PASSWORD, fullName: "Priya Nair" },
-    { slug: "sophie", email: "showcase.sophie@clubhub.local", password: ROSTER_PASSWORD, fullName: "Sophie Brennan" },
-    { slug: "tessa", email: "showcase.tessa@clubhub.local", password: ROSTER_PASSWORD, fullName: "Tessa Morales" },
-    { slug: "diego", email: "showcase.diego@clubhub.local", password: ROSTER_PASSWORD, fullName: "Diego Alvarez" },
+    { slug: "elena", email: "showcase.elena@clubora.local", password: ROSTER_PASSWORD, fullName: "Elena Okonkwo" },
+    { slug: "marcus", email: "showcase.marcus@clubora.local", password: ROSTER_PASSWORD, fullName: "Marcus Chen" },
+    { slug: "james", email: "showcase.james@clubora.local", password: ROSTER_PASSWORD, fullName: "James Rivera" },
+    { slug: "priya", email: "showcase.priya@clubora.local", password: ROSTER_PASSWORD, fullName: "Priya Nair" },
+    { slug: "sophie", email: "showcase.sophie@clubora.local", password: ROSTER_PASSWORD, fullName: "Sophie Brennan" },
+    { slug: "tessa", email: "showcase.tessa@clubora.local", password: ROSTER_PASSWORD, fullName: "Tessa Morales" },
+    { slug: "diego", email: "showcase.diego@clubora.local", password: ROSTER_PASSWORD, fullName: "Diego Alvarez" },
   ];
 }
 

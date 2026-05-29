@@ -134,7 +134,7 @@ export const PERMISSION_CATALOG: Record<PermissionKey, PermissionMeta> = {
   },
   "members.import_roster": {
     label: "Import Member List (CSV)",
-    description: "Upload a CSV to add existing ClubHub accounts to this club (leadership only).",
+    description: "Upload a CSV to add existing Clubora accounts to this club (leadership only).",
     category: "Members",
   },
   "members.view_member_contact": {

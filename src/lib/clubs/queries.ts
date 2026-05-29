@@ -2460,9 +2460,9 @@ export async function getClubDetailForVolunteerHoursForCurrentUser(clubId: strin
   };
 }
 
-/** Set `CLUBHUB_PROFILE_MEMBERS_ROSTER=1` to log server timings for `getClubDetailForMembersRosterForCurrentUser`. */
+/** Set `CLUBORA_PROFILE_MEMBERS_ROSTER=1` to log server timings for `getClubDetailForMembersRosterForCurrentUser`. */
 function membersRosterProfilingEnabled(): boolean {
-  const v = process.env.CLUBHUB_PROFILE_MEMBERS_ROSTER?.trim();
+  const v = process.env.CLUBORA_PROFILE_MEMBERS_ROSTER?.trim();
   return v === "1" || v?.toLowerCase() === "true";
 }
 
@@ -2486,7 +2486,7 @@ function membersRosterProfileLog(
       parts.push(`${k}=${String(val)}`);
     }
   }
-  console.log(`[clubhub:members-roster-profile] ${parts.join(" ")}`);
+  console.log(`[clubora:members-roster-profile] ${parts.join(" ")}`);
 }
 
 const SUPABASE_IN_CHUNK = 100;
@@ -2511,7 +2511,7 @@ async function fetchEventAttendanceRowsForParticipationWindow(
       .select("event_id, user_id, marked_at")
       .in("event_id", batch);
     if (error) {
-      console.error("[clubhub] participation attendance batch:", error.message);
+      console.error("[clubora] participation attendance batch:", error.message);
       continue;
     }
     out.push(...((data ?? []) as { event_id: string; user_id: string; marked_at: string }[]));
@@ -2533,7 +2533,7 @@ async function fetchRsvpsInParticipationWindow(
       .in("event_id", batch)
       .gte("created_at", windowStartIso);
     if (error) {
-      console.error("[clubhub] participation rsvp batch:", error.message);
+      console.error("[clubora] participation rsvp batch:", error.message);
       continue;
     }
     out.push(...((data ?? []) as { event_id: string; user_id: string; status: string; created_at: string }[]));

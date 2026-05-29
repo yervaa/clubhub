@@ -374,7 +374,7 @@ async function main(): Promise<void> {
   console.log("\nDone.");
   console.log(`  Primary 1 (Jordan): ${pilotEmail}  /  ${pilotPassword}`);
   console.log(`  Primary 2 (Alex):   ${pilot2Email}  /  ${pilot2Password}`);
-  console.log(`  Other roster: showcase.*@clubhub.local  /  ${ROSTER_PASSWORD}`);
+  console.log(`  Other roster: showcase.*@clubora.local  /  ${ROSTER_PASSWORD}`);
   console.log("  Join codes: MSACLB  DECACL  PHOCLB");
   console.log(
     "  Role matrix: each primary is President in one club, Member in another, Officer in the third (see header comment in run.ts).",

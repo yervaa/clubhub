@@ -66,7 +66,7 @@ export function buildInsightsCsv(payload: InsightsExportPayload): string {
   const pushRow = (...cells: string[]) => lines.push(csvJoinRow(cells));
   const pushBlank = () => lines.push("");
 
-  pushRow("ClubHub Insights Export");
+  pushRow("Clubora Insights Export");
   pushRow("Club", payload.clubName);
   pushRow("Club ID", payload.clubId);
   pushRow("Exported at (UTC)", payload.exportedAtIso);

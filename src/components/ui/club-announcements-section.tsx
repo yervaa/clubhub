@@ -211,7 +211,7 @@ export function ClubAnnouncementsSection({ club, query, permissions }: ClubAnnou
 
               <FormDraftPersistence
                 formId="create-announcement-form"
-                storageKey={`clubhub:draft:announcement:${club.id}`}
+                storageKey={`clubora:draft:announcement:${club.id}`}
                 fields={["title", "content", "scheduled_for", "poll_question", "is_urgent", "is_pinned"]}
                 successSignal={query.annSuccess}
               />

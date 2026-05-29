@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEMO_CLUB_JOIN_CODES, DEMO_EMAIL_DOMAIN } from "./constants";
 
 /**
- * Removes demo clubs (by join code) then demo auth users (`*.demo@clubhub.test`).
+ * Removes demo clubs (by join code) then demo auth users (`*.demo@clubora.test`).
  * Club delete uses RPC `delete_demo_clubs_by_join_codes` (migration 022) so CASCADE
  * can remove system roles / last president without RBAC delete triggers blocking.
  */

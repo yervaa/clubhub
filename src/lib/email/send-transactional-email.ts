@@ -12,7 +12,7 @@ export type TransactionalEmailPayload = {
  */
 export async function sendTransactionalEmail(payload: TransactionalEmailPayload): Promise<{ ok: boolean; skipped?: boolean }> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.RESEND_FROM_EMAIL?.trim() || "ClubHub <onboarding@resend.dev>";
+  const from = process.env.RESEND_FROM_EMAIL?.trim() || "Clubora <onboarding@resend.dev>";
 
   if (!apiKey) {
     console.info("[email] RESEND_API_KEY not set; skipping email send:", payload.subject);

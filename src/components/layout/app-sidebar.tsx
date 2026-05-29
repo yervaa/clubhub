@@ -15,9 +15,9 @@ export function AppSidebar() {
         <Link
           href="/dashboard"
           className="app-icon-sidebar-logo mb-3 flex h-9 w-9 items-center justify-center rounded-lg text-xs font-bold"
-          aria-label="ClubHub home"
+          aria-label="Clubora home"
         >
-          CH
+          CO
         </Link>
 
         <nav className="flex w-full flex-1 flex-col items-center gap-1 px-1.5" aria-label="Main">

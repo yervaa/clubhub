@@ -1,4 +1,4 @@
--- ClubHub RBAC Foundation
+-- Clubora RBAC Foundation
 -- Adds a flexible, permission-based role system alongside the existing officer/member system.
 -- Apply via Supabase SQL editor or CLI after all prior migrations.
 

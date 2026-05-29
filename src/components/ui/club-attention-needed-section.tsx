@@ -26,9 +26,7 @@ export function ClubAttentionNeededSection({ clubId, alerts }: ClubAttentionNeed
     <section className="card-surface p-4 sm:p-6" id="attention-needed">
       <div className="section-card-header">
         <div>
-          <p className="section-kicker">Officers</p>
-          <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900 sm:mt-2 sm:text-lg">Follow-ups</h2>
-          <p className="mt-0.5 text-xs text-slate-600 sm:mt-1 sm:text-sm">What to handle next in this club.</p>
+          <h2 className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">Follow-ups</h2>
         </div>
         <span className="badge-soft">{alerts.length}</span>
       </div>

@@ -217,7 +217,7 @@ export async function createClubAction(formData: FormData) {
   const rawTaglineValue = formData.get("tagline");
   const rawName = typeof rawNameValue === "string" ? rawNameValue : "";
   const rawTagline = typeof rawTaglineValue === "string" ? rawTaglineValue : "";
-  const description = rawTagline.trim().length > 0 ? rawTagline : "A student club on ClubHub.";
+  const description = rawTagline.trim().length > 0 ? rawTagline : "A student club on Clubora.";
 
   logClubCreateFunnel("submit", {
     hasName: rawName.trim().length > 0,

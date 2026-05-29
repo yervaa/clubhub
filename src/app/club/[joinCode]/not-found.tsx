@@ -27,7 +27,7 @@ export default function PublicClubNotFound() {
           </div>
           <p className="mt-6 text-center text-xs text-slate-500">
             <Link href="/" className="font-medium text-indigo-700 underline-offset-2 hover:underline">
-              ClubHub home
+              Clubora home
             </Link>
           </p>
         </div>

@@ -71,7 +71,7 @@ export default async function CreateClubPage({ searchParams }: CreateClubPagePro
 
         <FormDraftPersistence
           formId="create-club-form"
-          storageKey="clubhub:draft:create-club"
+          storageKey="clubora:draft:create-club"
           fields={["name", "tagline"]}
           className="pt-1"
         />

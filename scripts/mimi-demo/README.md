@@ -1,10 +1,10 @@
 # Mimi Demo Seed
 
-Creates a polished, repeatable ClubHub demo centered on Mimi.
+Creates a polished, repeatable Clubora demo centered on Mimi.
 
 ## What it seeds
 
-- Demo login: `mimi.demo@clubhub.app` (override via env)
+- Demo login: `mimi.demo@clubora.app` (override via env)
 - 5 clubs:
   - Spanish Honor Society
   - National Honor Society
@@ -41,7 +41,7 @@ ALLOW_DEMO_SEED=true DEMO_SEED_TARGET_OK=true npm run seed:mimi-demo
 
 Defaults (override with env vars):
 
-- `MIMI_DEMO_EMAIL=mimi.demo@clubhub.app`
-- `MIMI_DEMO_PASSWORD=DemoClubHub!2026`
-- Supporting demo users password: `MIMI_DEMO_SUPPORT_PASSWORD=ClubHubDemo!2026`
+- `MIMI_DEMO_EMAIL=mimi.demo@clubora.app`
+- `MIMI_DEMO_PASSWORD=DemoClubora!2026`
+- Supporting demo users password: `MIMI_DEMO_SUPPORT_PASSWORD=CluboraDemo!2026`
 

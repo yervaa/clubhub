@@ -32,7 +32,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
         <div className="card-surface max-w-lg p-8 sm:p-9">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Get Started</p>
           <h1 className="section-title mt-2">Sign up</h1>
-          <p className="section-subtitle">Create your ClubHub account.</p>
+          <p className="section-subtitle">Create your Clubora account.</p>
 
           {params.error ? <p className="alert-error mt-6">{params.error}</p> : null}
 

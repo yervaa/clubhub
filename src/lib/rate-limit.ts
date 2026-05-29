@@ -65,9 +65,9 @@ const RATE_LIMIT_POLICIES: Record<PolicyName, PolicyConfig> = {
   duesCheckout: { limit: 15, duration: "15 m", windowMs: 15 * 60 * 1000 },
 };
 
-const localStore = globalThis.__clubhubRateLimitStore ?? new Map<string, LocalBucket>();
-if (!globalThis.__clubhubRateLimitStore) {
-  globalThis.__clubhubRateLimitStore = localStore;
+const localStore = globalThis.__cluboraRateLimitStore ?? new Map<string, LocalBucket>();
+if (!globalThis.__cluboraRateLimitStore) {
+  globalThis.__cluboraRateLimitStore = localStore;
 }
 
 let redisClient: Redis | null = null;
@@ -103,7 +103,7 @@ function getRatelimiter(policy: PolicyName) {
   const ratelimiter = new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(config.limit, config.duration),
-    prefix: `clubhub:${policy}`,
+    prefix: `clubora:${policy}`,
     analytics: false,
   });
 
@@ -176,7 +176,7 @@ export async function enforceRateLimit(options: EnforceRateLimitOptions): Promis
     if (shouldWarn) {
       hasWarnedAboutLocalFallback = true;
       console.warn(
-        "[clubhub] Rate limiting uses in-memory fallback (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN missing). Not reliable across serverless instances — configure Upstash on the host.",
+        "[clubora] Rate limiting uses in-memory fallback (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN missing). Not reliable across serverless instances — configure Upstash on the host.",
       );
     }
 
@@ -193,7 +193,7 @@ export async function enforceRateLimit(options: EnforceRateLimitOptions): Promis
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[clubhub] Upstash ratelimit failed for policy "${options.policy}": ${msg}`);
+    console.error(`[clubora] Upstash ratelimit failed for policy "${options.policy}": ${msg}`);
     return localLimit(options.policy, identifier);
   }
 }
@@ -203,5 +203,5 @@ export function getRateLimitErrorMessage() {
 }
 
 declare global {
-  var __clubhubRateLimitStore: Map<string, LocalBucket> | undefined;
+  var __cluboraRateLimitStore: Map<string, LocalBucket> | undefined;
 }

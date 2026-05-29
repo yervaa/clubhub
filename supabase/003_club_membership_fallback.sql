@@ -1,4 +1,4 @@
--- ClubHub create-club fallback hardening
+-- Clubora create-club fallback hardening
 -- Apply this after existing authorization migrations.
 
 create or replace function public.ensure_club_creator_membership(target_club_id uuid)

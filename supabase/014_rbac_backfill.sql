@@ -1,4 +1,4 @@
--- ClubHub RBAC Backfill + Auto-Sync Triggers
+-- Clubora RBAC Backfill + Auto-Sync Triggers
 --
 -- STEP 1: Seeds system roles (President / Officer / Member) for every existing
 --         club that was created before 013_rbac_foundation.sql was applied.

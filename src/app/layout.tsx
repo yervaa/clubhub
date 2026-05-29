@@ -10,7 +10,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "ClubHub",
+  title: "Clubora",
   description: "All your school club activity in one place.",
 };
 

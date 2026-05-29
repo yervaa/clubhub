@@ -2,7 +2,7 @@
 Seed script to load sample users, clubs, roles, memberships, events, and announcements.
 
 Usage:
-  export DATABASE_URL="sqlite:///clubhub.db"  # or your Postgres URL
+  export DATABASE_URL="sqlite:///clubora.db"  # or your Postgres URL
   python database/seed.py
 """
 
@@ -20,7 +20,7 @@ def normalize_db_url(url: str) -> str:
     return url
 
 
-DATABASE_URL = normalize_db_url(os.getenv("DATABASE_URL", "sqlite:///clubhub.db"))
+DATABASE_URL = normalize_db_url(os.getenv("DATABASE_URL", "sqlite:///clubora.db"))
 db = SQL(DATABASE_URL)
 
 
@@ -203,7 +203,7 @@ def main():
     db.execute(
         "INSERT INTO announcements (title, body, created_by, club_id) VALUES (?, ?, ?, ?) "
         "ON CONFLICT DO NOTHING",
-        "Welcome to ClubHub",
+        "Welcome to Clubora",
         "This is your new dashboard for clubs, events, and announcements.",
         admin_id,
         None,

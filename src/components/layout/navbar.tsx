@@ -34,9 +34,9 @@ export async function Navbar({ clubs = [] }: NavbarProps) {
             className="flex min-w-0 items-center gap-2 text-slate-900 sm:gap-3"
           >
             <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white sm:h-9 sm:w-9 sm:rounded-xl sm:text-sm">
-              CH
+              CO
             </span>
-            <span className="truncate text-base font-bold tracking-tight sm:text-lg">ClubHub</span>
+            <span className="truncate text-base font-bold tracking-tight sm:text-lg">Clubora</span>
           </Link>
         </div>
         <ul className="flex flex-shrink-0 items-center gap-0.5 sm:gap-2">

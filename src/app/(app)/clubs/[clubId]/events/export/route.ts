@@ -59,7 +59,7 @@ export async function GET(
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    `PRODID:-//ClubHub//${escapeIcs(clubName)}//EN`,
+    `PRODID:-//Clubora//${escapeIcs(clubName)}//EN`,
     `X-WR-CALNAME:${escapeIcs(clubName)} Events`,
     "CALSCALE:GREGORIAN",
   ];
@@ -69,7 +69,7 @@ export async function GET(
     const end = new Date(start.getTime() + 60 * 60 * 1000); // 1-hour default
     lines.push(
       "BEGIN:VEVENT",
-      `UID:${ev.id}@clubhub`,
+      `UID:${ev.id}@clubora`,
       `DTSTART:${toIcsDate(start)}`,
       `DTEND:${toIcsDate(end)}`,
       `SUMMARY:${escapeIcs(ev.title)}`,

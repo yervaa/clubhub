@@ -1,6 +1,6 @@
-# ClubHub
+# Clubora
 
-ClubHub is a Next.js + Supabase web app for school clubs to manage announcements, events, and member engagement in one place.
+Clubora is a Next.js + Supabase web app for school clubs to manage announcements, events, and member engagement in one place.
 
 ## MVP Features
 
@@ -77,7 +77,7 @@ npm run dev
 4. Add the variables to both `Preview` and `Production`.
 5. Redeploy after any env change.
 
-On the first server boot in each Vercel environment (`preview` / `production`), the app logs **`[clubhub]`** messages if required env vars are missing or if Upstash is absent (see **Runtime / Functions** logs). Fix missing vars in the Vercel dashboard rather than ignoring those lines.
+On the first server boot in each Vercel environment (`preview` / `production`), the app logs **`[clubora]`** messages if required env vars are missing or if Upstash is absent (see **Runtime / Functions** logs). Fix missing vars in the Vercel dashboard rather than ignoring those lines.
 
 ## Supabase Configuration Checklist
 

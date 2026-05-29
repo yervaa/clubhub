@@ -50,7 +50,7 @@ export function isViewerActiveLegacyOfficer(membership: ClubMembersViewerMembers
 }
 
 /**
- * RBAC permission **or** active legacy officer fallback (standard ClubHub pattern for officer UX on the members surface).
+ * RBAC permission **or** active legacy officer fallback (standard Clubora pattern for officer UX on the members surface).
  */
 export function hasPermissionOrActiveLegacyOfficer(
   userPermissions: ReadonlySet<PermissionKey>,

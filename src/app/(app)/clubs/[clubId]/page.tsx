@@ -4,27 +4,21 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserPermissions } from "@/lib/rbac/permissions";
 import { ClubAttentionNeededSection } from "@/components/ui/club-attention-needed-section";
 import { ActivityFeed } from "@/components/ui/activity-feed";
+import {
+  ClubOverviewSetupChecklist,
+  type ClubSetupStep,
+} from "@/components/ui/club-overview-setup-checklist";
 import { EventMetaRow } from "@/components/ui/event-summary";
+import { getClubAccentColor } from "@/lib/clubs/club-visual";
 import { getClubDetailForOverviewForCurrentUser } from "@/lib/clubs/queries";
 import { getMyClubTasks } from "@/lib/tasks/queries";
-import { CardSection, PageEmptyState, SectionHeader } from "@/components/ui/page-patterns";
+import { CardSection, SectionHeader } from "@/components/ui/page-patterns";
 import { getClubActivityFeed } from "@/lib/activity/queries";
 import { ActionFeedbackBanner } from "@/components/ui/action-feedback-banner";
 
 type ClubOverviewPageProps = {
   params: Promise<{ clubId: string }>;
   searchParams: Promise<{ setupSuccess?: string }>;
-};
-
-type SetupStep = {
-  id: string;
-  phase: "activation" | "optimization";
-  title: string;
-  description: string;
-  done: boolean;
-  href: string;
-  cta: string;
-  optional?: boolean;
 };
 
 export default async function ClubOverviewPage({ params, searchParams }: ClubOverviewPageProps) {
@@ -62,7 +56,7 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
     .filter((event) => event.eventDateRaw.getTime() > now.getTime())
     .sort((a, b) => a.eventDateRaw.getTime() - b.eventDateRaw.getTime())[0] ?? null;
   const latestAnnouncement = club.announcements[0] ?? null;
-  const hasClubDescription = club.description.trim().length > 0 && club.description !== "A student club on ClubHub.";
+  const hasClubDescription = club.description.trim().length > 0 && club.description !== "A student club on Clubora.";
   const hasMeetingDetails = club.events.some(
     (event) => event.location.trim().length > 0 && event.location.trim().toLowerCase() !== "tbd",
   );
@@ -83,7 +77,10 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
     return role.name.trim().toLowerCase() === "advisor";
   });
 
-  const setupSteps: SetupStep[] = [
+  const clubAccent = getClubAccentColor(club.name);
+  const matterCardBorderStyle = { borderLeftColor: clubAccent } as const;
+
+  const setupSteps: ClubSetupStep[] = [
     {
       id: "invite-members",
       phase: "activation",
@@ -196,21 +193,6 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
 
   return (
     <div className="page-sections page-sections--loose">
-      {canInviteMembers || canCreateEvents ? (
-        <div className="flex flex-wrap gap-2">
-          {canInviteMembers ? (
-            <Link href={`/clubs/${club.id}/members#invite-members`} className="btn-primary">
-              Invite Members
-            </Link>
-          ) : null}
-          {canCreateEvents ? (
-            <Link href={`/clubs/${club.id}/events#create-event`} className="btn-secondary">
-              Create Event
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
-
       {query.setupSuccess ? (
         <ActionFeedbackBanner
           variant="success"
@@ -239,11 +221,7 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
       ) : null}
 
       <CardSection className="bg-gradient-to-br from-slate-50 to-blue-50/40">
-        <SectionHeader
-          kicker="Snapshot"
-          title="Club status at a glance"
-          description="Members, your role, and activity state."
-        />
+        <SectionHeader title="Club status at a glance" />
         <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:grid-cols-3 sm:gap-4 md:gap-6">
             <div className="flex items-center gap-2 rounded-lg border border-white/60 bg-white/50 px-2 py-2 sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
@@ -288,114 +266,32 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
       {showSetupChecklist ? (
         <CardSection>
           <SectionHeader
-            kicker="Getting started"
             title="Set up your club"
-            description="Complete these steps to get your club running smoothly."
-            action={<span className="badge-soft">{setupDone}/{coreSetupSteps.length} complete</span>}
+            description={setupPercent < 75 ? "Complete these steps to get your club running smoothly." : undefined}
+            action={
+              <span className="badge-soft">
+                {setupDone}/{coreSetupSteps.length} complete
+              </span>
+            }
           />
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-[width] duration-300"
-              style={{ width: `${setupPercent}%` }}
-            />
-          </div>
-          <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/40 p-3 sm:p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-violet-700">Phase 1 - Activation</p>
-            <p className="mt-1 text-sm text-slate-700">Most important first: activate your club with members, events, and communication.</p>
-            <ul className="mt-3 space-y-2">
-              {activationSteps.map((step) => {
-                const isNext = nextRecommendedStep?.id === step.id;
-                return (
-                  <li
-                    key={step.id}
-                    className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
-                      isNext ? "border-violet-300 bg-white" : "border-slate-200 bg-white/90"
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <p className={`text-sm font-semibold ${step.done ? "text-slate-500 line-through" : "text-slate-900"}`}>
-                        {step.title}
-                        {isNext && !step.done ? (
-                          <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700">
-                            Next
-                          </span>
-                        ) : null}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-600">{step.description}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {step.done ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Done</span>
-                      ) : null}
-                      <Link href={step.href} className={step.done ? "btn-secondary text-xs" : "btn-primary text-xs"}>
-                        {step.done ? "Review" : step.cta}
-                      </Link>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
-              <span>Phase 2 - Optimization (optional depth)</span>
-              <span className="text-xs font-medium text-slate-500">Skip for now</span>
-            </summary>
-            <div className="border-t border-slate-200 px-3 py-3 sm:px-4">
-              <ul className="space-y-2">
-                {optimizationSteps.map((step) => {
-                  const isNext = nextRecommendedStep?.id === step.id;
-                  return (
-                    <li
-                      key={step.id}
-                      className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
-                        isNext ? "border-blue-300 bg-white" : "border-slate-200 bg-white/80"
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <p className={`text-sm font-semibold ${step.done ? "text-slate-500 line-through" : "text-slate-900"}`}>
-                          {step.title}
-                          {step.optional ? (
-                            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                              Optional
-                            </span>
-                          ) : null}
-                          {isNext && !step.done ? (
-                            <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                              Next
-                            </span>
-                          ) : null}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-600">{step.description}</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {step.done ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Done</span>
-                        ) : null}
-                        <Link href={step.href} className="btn-secondary text-xs">
-                          {step.done ? "Edit" : step.cta}
-                        </Link>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          </details>
+          <ClubOverviewSetupChecklist
+            setupPercent={setupPercent}
+            activationSteps={activationSteps}
+            optimizationSteps={optimizationSteps}
+            nextRecommendedStep={nextRecommendedStep}
+          />
         </CardSection>
       ) : null}
 
       {/* Important now — lighter tiles on mobile */}
       <CardSection className="shadow-sm lg:shadow-[var(--shadow-soft)]">
-        <SectionHeader
-          kicker="Now"
-          title="What matters"
-          description="Next event, latest announcement, task load, and quick health signals."
-        />
+        <SectionHeader title="What matters" />
 
         <div className="mt-3 grid grid-cols-1 gap-2 sm:mt-4 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 lg:gap-4">
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-blue-500 sm:bg-white sm:p-4">
+          <div
+            className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:bg-white sm:p-4"
+            style={matterCardBorderStyle}
+          >
             <div className="flex items-start gap-2.5 sm:gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 sm:h-9 sm:w-9">
                 <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -403,8 +299,7 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Next Event</p>
-                <p className="mt-1 text-base font-semibold leading-snug text-slate-900">
+                <p className="text-base font-semibold leading-snug text-slate-900">
                   {nextEvent ? nextEvent.title : "No upcoming events"}
                 </p>
                 {nextEvent ? (
@@ -422,7 +317,10 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
           </div>
 
           {/* Latest announcement */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-amber-500 sm:bg-white sm:p-4">
+          <div
+            className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:bg-white sm:p-4"
+            style={matterCardBorderStyle}
+          >
             <div className="flex items-start gap-2.5 sm:gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 sm:h-9 sm:w-9">
                 <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -430,8 +328,7 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Latest Announcement</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">
+                <p className="text-sm font-semibold text-slate-900 leading-snug">
                   {latestAnnouncement ? latestAnnouncement.title : "No announcements yet"}
                 </p>
                 {latestAnnouncement ? (
@@ -444,7 +341,10 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
           </div>
 
           {/* My Tasks */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-emerald-500 sm:bg-white sm:p-4">
+          <div
+            className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:bg-white sm:p-4"
+            style={matterCardBorderStyle}
+          >
             <div className="flex items-start gap-2.5 sm:gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 sm:h-9 sm:w-9">
                 <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -452,10 +352,9 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">My Tasks</p>
                 {myTasks.length > 0 ? (
                   <>
-                    <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">
+                    <p className="text-sm font-semibold text-slate-900 leading-snug">
                       {myTasks.length} open task{myTasks.length !== 1 ? "s" : ""}
                     </p>
                     <p className="mt-1 text-xs text-slate-500 truncate">
@@ -466,7 +365,7 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
                   </>
                 ) : (
                   <>
-                    <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">All caught up</p>
+                    <p className="text-sm font-semibold text-slate-900 leading-snug">All caught up</p>
                     <p className="mt-1 text-xs text-slate-500">No tasks assigned to you.</p>
                   </>
                 )}
@@ -475,7 +374,10 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
           </div>
 
           {/* Key stats */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:border-purple-500 sm:bg-white sm:p-4">
+          <div
+            className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:surface-subcard sm:border-l-4 sm:bg-white sm:p-4"
+            style={matterCardBorderStyle}
+          >
             <div className="flex items-start gap-2.5 sm:gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 sm:h-9 sm:w-9">
                 <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -483,8 +385,7 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Key Stats</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 leading-snug">
+                <p className="text-sm font-semibold text-slate-900 leading-snug">
                   {club.events.length} events · {club.announcements.length} updates
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
@@ -496,33 +397,6 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
         </div>
       </CardSection>
 
-      <CardSection>
-        <SectionHeader
-          kicker="Tools"
-          title="Secondary workspace tools"
-          description="Power features stay available without crowding the main overview."
-        />
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <Link
-            href={`/clubs/${club.id}/tasks`}
-            className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-medium text-slate-800 transition hover:bg-slate-100"
-          >
-            Tasks {myTasks.length > 0 ? `(${myTasks.length} open)` : ""}
-          </Link>
-          <Link
-            href={`/clubs/${club.id}/members/volunteer-hours`}
-            className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-medium text-slate-800 transition hover:bg-slate-100"
-          >
-            Volunteer hours
-          </Link>
-        </div>
-        {myTasks.length === 0 ? (
-          <div className="mt-3">
-            <PageEmptyState title="No open tasks" copy="You can still open Tasks to create or review assignments." />
-          </div>
-        ) : null}
-      </CardSection>
-
       {/* Attention Needed — shown to users with management permissions */}
       {showManagementAlerts && (
         <ClubAttentionNeededSection clubId={club.id} alerts={club.attentionAlerts} />
@@ -532,8 +406,9 @@ export default async function ClubOverviewPage({ params, searchParams }: ClubOve
       <ActivityFeed
         items={activityItems.slice(0, 8)}
         title="Recent activity"
-        description="Latest actions in this club."
+        description=""
         viewMoreHref="/activity"
+        showClubDots
         emptyIcon="ti-activity"
         emptyTitle="No activity yet"
         emptyDescription="As members RSVP and officers post updates, activity shows up here."

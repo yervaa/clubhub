@@ -60,7 +60,7 @@ export default async function SettingsPage() {
       <CardSection>
         <SectionHeader
           title="Alerts & email"
-          description="Choose how ClubHub reaches you. Quiet hours only affect immediate emails, not in-app notifications."
+          description="Choose how Clubora reaches you. Quiet hours only affect immediate emails, not in-app notifications."
         />
         {user ? (
           <div className="mt-4">

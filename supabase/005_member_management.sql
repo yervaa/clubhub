@@ -1,4 +1,4 @@
--- ClubHub member management helpers
+-- Clubora member management helpers
 -- Apply this after earlier schema/auth migrations.
 
 create or replace function public.get_club_members_for_view(target_club_id uuid)

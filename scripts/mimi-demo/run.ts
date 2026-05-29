@@ -1,5 +1,5 @@
 /**
- * Mimi showcase seed for ClubHub.
+ * Mimi showcase seed for Clubora.
  *
  * Creates a repeatable demo environment with:
  * - 1 primary user (Mimi) + realistic supporting roster
@@ -75,27 +75,27 @@ type ClubPlan = {
   }>;
 };
 
-const MIMI_EMAIL = (process.env.MIMI_DEMO_EMAIL ?? "mimi.demo@clubhub.app").trim().toLowerCase();
-const MIMI_PASSWORD = (process.env.MIMI_DEMO_PASSWORD ?? "DemoClubHub!2026").trim();
-const SUPPORTING_PASSWORD = (process.env.MIMI_DEMO_SUPPORT_PASSWORD ?? "ClubHubDemo!2026").trim();
+const MIMI_EMAIL = (process.env.MIMI_DEMO_EMAIL ?? "mimi.demo@clubora.app").trim().toLowerCase();
+const MIMI_PASSWORD = (process.env.MIMI_DEMO_PASSWORD ?? "DemoClubora!2026").trim();
+const SUPPORTING_PASSWORD = (process.env.MIMI_DEMO_SUPPORT_PASSWORD ?? "CluboraDemo!2026").trim();
 
 const PEOPLE: Person[] = [
   { slug: "mimi", fullName: "Mimi Alvarez", email: MIMI_EMAIL },
-  { slug: "sophia", fullName: "Sophia Ramirez", email: "sophia.demo@clubhub.app" },
-  { slug: "ethan", fullName: "Ethan Kim", email: "ethan.demo@clubhub.app" },
-  { slug: "ava", fullName: "Ava Patel", email: "ava.demo@clubhub.app" },
-  { slug: "liam", fullName: "Liam Carter", email: "liam.demo@clubhub.app" },
-  { slug: "isabella", fullName: "Isabella Nguyen", email: "isabella.demo@clubhub.app" },
-  { slug: "noah", fullName: "Noah Thompson", email: "noah.demo@clubhub.app" },
-  { slug: "maya", fullName: "Maya Gonzales", email: "maya.demo@clubhub.app" },
-  { slug: "daniel", fullName: "Daniel Park", email: "daniel.demo@clubhub.app" },
-  { slug: "nora", fullName: "Nora Hassan", email: "nora.demo@clubhub.app" },
-  { slug: "elena", fullName: "Elena Rossi", email: "elena.demo@clubhub.app" },
-  { slug: "julian", fullName: "Julian Rivera", email: "julian.demo@clubhub.app" },
-  { slug: "amara", fullName: "Amara Brooks", email: "amara.demo@clubhub.app" },
-  { slug: "owen", fullName: "Owen Lee", email: "owen.demo@clubhub.app" },
-  { slug: "priya", fullName: "Priya Shah", email: "priya.demo@clubhub.app" },
-  { slug: "gabriel", fullName: "Gabriel Flores", email: "gabriel.demo@clubhub.app" },
+  { slug: "sophia", fullName: "Sophia Ramirez", email: "sophia.demo@clubora.app" },
+  { slug: "ethan", fullName: "Ethan Kim", email: "ethan.demo@clubora.app" },
+  { slug: "ava", fullName: "Ava Patel", email: "ava.demo@clubora.app" },
+  { slug: "liam", fullName: "Liam Carter", email: "liam.demo@clubora.app" },
+  { slug: "isabella", fullName: "Isabella Nguyen", email: "isabella.demo@clubora.app" },
+  { slug: "noah", fullName: "Noah Thompson", email: "noah.demo@clubora.app" },
+  { slug: "maya", fullName: "Maya Gonzales", email: "maya.demo@clubora.app" },
+  { slug: "daniel", fullName: "Daniel Park", email: "daniel.demo@clubora.app" },
+  { slug: "nora", fullName: "Nora Hassan", email: "nora.demo@clubora.app" },
+  { slug: "elena", fullName: "Elena Rossi", email: "elena.demo@clubora.app" },
+  { slug: "julian", fullName: "Julian Rivera", email: "julian.demo@clubora.app" },
+  { slug: "amara", fullName: "Amara Brooks", email: "amara.demo@clubora.app" },
+  { slug: "owen", fullName: "Owen Lee", email: "owen.demo@clubora.app" },
+  { slug: "priya", fullName: "Priya Shah", email: "priya.demo@clubora.app" },
+  { slug: "gabriel", fullName: "Gabriel Flores", email: "gabriel.demo@clubora.app" },
 ];
 
 const CLUBS: ClubPlan[] = [

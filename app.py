@@ -20,7 +20,7 @@ def _normalize_db_url(url: str) -> str:
         return url.replace("postgres://", "postgresql://", 1)
     return url
 
-DATABASE_URL = _normalize_db_url(os.getenv("DATABASE_URL", "sqlite:///clubhub.db"))
+DATABASE_URL = _normalize_db_url(os.getenv("DATABASE_URL", "sqlite:///clubora.db"))
 SECRET_KEY = os.getenv("SECRET_KEY") or "dev-secret"
 DEBUG_MODE = os.getenv("DEBUG", "False").lower() == "true"
 SESSION_COOKIE_SECURE_FLAG = os.getenv("SESSION_COOKIE_SECURE", "False").lower() == "true"
@@ -50,7 +50,7 @@ if DATABASE_URL.startswith("sqlite"):
 
 # Logging (rotating file) in non-debug environments
 if not DEBUG_MODE:
-    handler = RotatingFileHandler("clubhub.log", maxBytes=10240, backupCount=10)
+    handler = RotatingFileHandler("clubora.log", maxBytes=10240, backupCount=10)
     handler.setLevel(logging.INFO)
     app.logger.addHandler(handler)
 

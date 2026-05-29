@@ -2,7 +2,7 @@
 Seed script to load sample users, clubs, events, and memberships for demos.
 
 Usage:
-  export DATABASE_URL="sqlite:///clubhub.db"  # or your DB string
+  export DATABASE_URL="sqlite:///clubora.db"  # or your DB string
   python seed.py
 """
 
@@ -14,7 +14,7 @@ from werkzeug.security import generate_password_hash
 import secrets
 
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///clubhub.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///clubora.db")
 db = SQL(DATABASE_URL)
 
 

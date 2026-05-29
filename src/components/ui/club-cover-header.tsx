@@ -1,5 +1,5 @@
+import type { ReactNode } from "react";
 import {
-  CLUB_COVER_TEXT_COLOR,
   getClubAccentColor,
   getClubAccentIconColor,
   inferClubCoverIcon,
@@ -12,6 +12,7 @@ type ClubCoverHeaderProps = {
   memberCount: number;
   userRole: ClubLayoutShell["userRole"];
   isArchived?: boolean;
+  actions?: ReactNode;
 };
 
 function CoverIcon({ kind }: { kind: ClubCoverIconKind }) {
@@ -75,7 +76,7 @@ function formatRoleLabel(role: ClubLayoutShell["userRole"]): string {
   return role === "officer" ? "Officer" : "Member";
 }
 
-export function ClubCoverHeader({ clubName, memberCount, userRole, isArchived = false }: ClubCoverHeaderProps) {
+export function ClubCoverHeader({ clubName, memberCount, userRole, isArchived = false, actions }: ClubCoverHeaderProps) {
   const accent = getClubAccentColor(clubName);
   const iconColor = getClubAccentIconColor(accent);
   const iconKind = inferClubCoverIcon(clubName);
@@ -94,6 +95,7 @@ export function ClubCoverHeader({ clubName, memberCount, userRole, isArchived = 
           </div>
           <p className="club-cover-header__meta">{metaLabel}</p>
         </div>
+        {actions ? <div className="club-cover-header__actions shrink-0">{actions}</div> : null}
       </div>
     </header>
   );

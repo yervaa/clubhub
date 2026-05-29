@@ -1,6 +1,6 @@
 # President test handoff
 
-Use this checklist **before** you give a president (or pilot tester) a URL to try ClubHub. Tick items in Supabase, Vercel, and your notes—nothing here runs automatically.
+Use this checklist **before** you give a president (or pilot tester) a URL to try Clubora. Tick items in Supabase, Vercel, and your notes—nothing here runs automatically.
 
 See also [LAUNCH_READINESS.md](./LAUNCH_READINESS.md) for production-oriented risks and [../README.md](../README.md) for env vars and general smoke tests.
 

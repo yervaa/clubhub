@@ -61,7 +61,7 @@ function getHeroContent(
     case "newUser":
       return {
         state,
-        headline: "Welcome to ClubHub",
+        headline: "Welcome to Clubora",
         subtext: "Join a club to get started.",
         ctaLabel: "Find a club",
         ctaHref: "/discover",

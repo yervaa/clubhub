@@ -1,4 +1,4 @@
-# ClubHub launch readiness
+# Clubora launch readiness
 
 Operational notes for moving from demo/testing to **real users**. This doc complements the codebase; some items are **your** responsibility outside Git.
 
@@ -12,7 +12,7 @@ Operational notes for moving from demo/testing to **real users**. This doc compl
 - **Demo seed** refuses default runs when `NODE_ENV=production` or `VERCEL_ENV=production` unless `ALLOW_DEMO_SEED=true`, and refuses **non-loopback** Supabase URLs unless `DEMO_SEED_TARGET_OK=true`.
 - **Events ICS export** route checks session + **club membership** before returning data.
 - **Startup checks on Vercel** — `src/instrumentation.ts` logs once per Node server boot when `VERCEL_ENV` is `preview` or `production`, if public Supabase vars, service role, or Upstash pair are missing (see host logs after deploy).
-- **Rate limits** — If Upstash is configured but `limit()` throws (network/API), the app logs **`[clubhub] Upstash ratelimit failed`** and falls back to in-memory for that request (operational visibility without hard-failing user traffic).
+- **Rate limits** — If Upstash is configured but `limit()` throws (network/API), the app logs **`[clubora] Upstash ratelimit failed`** and falls back to in-memory for that request (operational visibility without hard-failing user traffic).
 
 ---
 
@@ -52,11 +52,11 @@ Operational notes for moving from demo/testing to **real users**. This doc compl
 
 3. **Demo vs production**
    - Do **not** set `ALLOW_DEMO_SEED=true` or `DEMO_SEED_TARGET_OK=true` on production unless you are intentionally reseeding a **throwaway** project.
-   - Before inviting real users, ensure no `DMO*` demo clubs or `@clubhub.test` users exist on the production project (unless you want them).
+   - Before inviting real users, ensure no `DMO*` demo clubs or `@clubora.test` users exist on the production project (unless you want them).
 
 4. **Monitoring**
    - Add **error tracking** (e.g. Sentry) and **uptime** checks; not wired in this repo by default.
-   - After each deploy, skim **Vercel → Functions / Runtime Logs** for **`[clubhub]`** lines on first request (startup instrumentation) and for Upstash failures during traffic spikes.
+   - After each deploy, skim **Vercel → Functions / Runtime Logs** for **`[clubora]`** lines on first request (startup instrumentation) and for Upstash failures during traffic spikes.
 
 5. **Legal / product**
    - Privacy policy, data retention, and account deletion expectations if you owe them to users.
@@ -72,7 +72,7 @@ Operational notes for moving from demo/testing to **real users**. This doc compl
 - [ ] Supabase **Auth** URLs and **email** provider configured for your domain.
 - [ ] Backups enabled; you know how to restore.
 - [ ] Optional: error monitoring and log drain configured on the host.
-- [ ] Open Vercel logs after deploy: confirm **no** `[clubhub] Missing …` errors for Supabase/Upstash on preview and production (or fix env in the dashboard).
+- [ ] Open Vercel logs after deploy: confirm **no** `[clubora] Missing …` errors for Supabase/Upstash on preview and production (or fix env in the dashboard).
 
 ---
 

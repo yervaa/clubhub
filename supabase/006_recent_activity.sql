@@ -1,4 +1,4 @@
--- ClubHub recent activity feed
+-- Clubora recent activity feed
 -- Apply this after earlier schema/auth migrations.
 
 create or replace function public.get_club_recent_activity(target_club_id uuid)

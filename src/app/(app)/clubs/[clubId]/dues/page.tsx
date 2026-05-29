@@ -334,7 +334,7 @@ export default async function ClubDuesPage({ params, searchParams }: ClubDuesPag
       </CardSection>
 
       <p className="text-center text-xs text-slate-500">
-        Payments are processed by Stripe. ClubHub does not store card numbers.{" "}
+        Payments are processed by Stripe. Clubora does not store card numbers.{" "}
         <Link href="/settings" className="font-semibold text-violet-700 underline">
           Notification settings
         </Link>

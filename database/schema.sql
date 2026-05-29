@@ -1,4 +1,4 @@
--- ClubHub schema for SQLite/Postgres
+-- Clubora schema for SQLite/Postgres
 -- Run this to create a fresh database schema.
 
 CREATE TABLE IF NOT EXISTS users (

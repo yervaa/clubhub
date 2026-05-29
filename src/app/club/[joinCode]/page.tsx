@@ -29,9 +29,9 @@ export async function generateMetadata({ params }: PublicClubRouteProps): Promis
   const metadataBase = publicSiteOrigin();
 
   if (!data) {
-    const title = "Club not found | ClubHub";
+    const title = "Club not found | Clubora";
     const description =
-      "That ClubHub link is not valid. Check the join code or ask your club for a new invite.";
+      "That Clubora link is not valid. Check the join code or ask your club for a new invite.";
     return {
       metadataBase,
       title,
@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: PublicClubRouteProps): Promis
         title,
         description,
         type: "website",
-        siteName: "ClubHub",
+        siteName: "Clubora",
       },
       twitter: {
         card: "summary",
@@ -51,10 +51,10 @@ export async function generateMetadata({ params }: PublicClubRouteProps): Promis
     };
   }
 
-  const title = `${data.name} | ClubHub`;
+  const title = `${data.name} | Clubora`;
   const description =
     data.description.trim().slice(0, 160) ||
-    `Learn about ${data.name} and join on ClubHub with your school account.`;
+    `Learn about ${data.name} and join on Clubora with your school account.`;
 
   return {
     metadataBase,
@@ -67,7 +67,7 @@ export async function generateMetadata({ params }: PublicClubRouteProps): Promis
       title,
       description,
       type: "website",
-      siteName: "ClubHub",
+      siteName: "Clubora",
       url: `/club/${data.joinCode}`,
     },
     twitter: {

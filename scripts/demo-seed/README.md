@@ -1,12 +1,12 @@
-# ClubHub demo seed data
+# Clubora demo seed data
 
-Realistic **local / staging** data for UI and product testing. All accounts use the **`@clubhub.test`** email domain and join codes prefixed with the **`DMO`** series so they can be removed without touching real members.
+Realistic **local / staging** data for UI and product testing. All accounts use the **`@clubora.test`** email domain and join codes prefixed with the **`DMO`** series so they can be removed without touching real members.
 
 ## Safety
 
 - The script **refuses to run** if `NODE_ENV=production` or `VERCEL_ENV=production` unless you set **`ALLOW_DEMO_SEED=true`**.
 - If **`NEXT_PUBLIC_SUPABASE_URL`** points at a **non-loopback** host (e.g. `*.supabase.co`), the script also requires **`DEMO_SEED_TARGET_OK=true`**. This blocks accidental wipes when your local `NODE_ENV=development` but `.env` targets a shared hosted project.
-- **Never** set these flags on a production database that holds real users unless you fully intend to delete demo join-code clubs and `*.demo@clubhub.test` users on that project.
+- **Never** set these flags on a production database that holds real users unless you fully intend to delete demo join-code clubs and `*.demo@clubora.test` users on that project.
 
 ## Requirements
 
@@ -18,7 +18,7 @@ Realistic **local / staging** data for UI and product testing. All accounts use 
 ## Commands
 
 ```bash
-# Remove all demo clubs (by join code) + all *.demo@clubhub.test users, then reseed
+# Remove all demo clubs (by join code) + all *.demo@clubora.test users, then reseed
 npm run seed:demo
 
 # Seed only (will error on duplicate join codes if demo clubs already exist)
@@ -27,8 +27,8 @@ npm run seed:demo:no-reset
 
 ## Login
 
-- **Password (all demo users):** `DemoClubHub!2026`
-- **Examples:** `yunus.demo@clubhub.test`, `aaliyah.demo@clubhub.test`, `omar.demo@clubhub.test`
+- **Password (all demo users):** `DemoClubora!2026`
+- **Examples:** `yunus.demo@clubora.test`, `aaliyah.demo@clubora.test`, `omar.demo@clubora.test`
 
 ## What gets created
 
@@ -45,7 +45,7 @@ npm run seed:demo:no-reset
 `npm run seed:demo` deletes:
 
 1. Clubs whose `join_code` is in the fixed demo list via **`delete_demo_clubs_by_join_codes`** (cascades events, tasks, RBAC rows, etc.).
-2. Auth users whose email ends with `@clubhub.test`.
+2. Auth users whose email ends with `@clubora.test`.
 
 It does **not** delete non-demo users or clubs.
 

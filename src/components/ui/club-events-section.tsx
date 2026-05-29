@@ -433,7 +433,7 @@ export function ClubEventsSection({ club, query, permissions, listFilter = "all"
 
             <FormDraftPersistence
               formId="create-event"
-              storageKey={`clubhub:draft:event:${club.id}`}
+              storageKey={`clubora:draft:event:${club.id}`}
               fields={[
                 "title",
                 "event_date",

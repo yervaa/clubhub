@@ -46,7 +46,7 @@ export function ProfileSettingsForm({ email, fullName }: ProfileSettingsFormProp
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
             Avatar uploads are not available yet — there is no profile-photos storage bucket in the database
             migrations (only <code className="rounded bg-slate-200/80 px-1 py-0.5 text-[11px]">announcement-attachments</code>
-            ). Members are shown by initials across ClubHub.
+            ). Members are shown by initials across Clubora.
           </p>
         </div>
       </div>

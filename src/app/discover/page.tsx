@@ -17,20 +17,20 @@ type DiscoverPageProps = {
 };
 
 export const metadata: Metadata = {
-  title: "Discover Clubs | ClubHub",
+  title: "Discover Clubs | Clubora",
   description: "Browse active clubs and open each club's public page before joining.",
   alternates: {
     canonical: "/discover",
   },
   openGraph: {
-    title: "Discover Clubs | ClubHub",
+    title: "Discover Clubs | Clubora",
     description: "Browse active clubs and open each club's public page before joining.",
     type: "website",
-    siteName: "ClubHub",
+    siteName: "Clubora",
   },
   twitter: {
     card: "summary",
-    title: "Discover Clubs | ClubHub",
+    title: "Discover Clubs | Clubora",
     description: "Browse active clubs and open each club's public page before joining.",
   },
 };

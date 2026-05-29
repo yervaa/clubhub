@@ -1,4 +1,4 @@
--- ClubHub RBAC RLS Migration
+-- Clubora RBAC RLS Migration
 --
 -- Extends the most critical legacy RLS policies to accept either:
 --   (a) the legacy is_club_officer() role, OR

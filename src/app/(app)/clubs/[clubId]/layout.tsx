@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { ClubCoverHeader } from "@/components/ui/club-cover-header";
 import { ClubSubnav } from "@/components/ui/club-subnav";
@@ -23,6 +24,24 @@ export default async function ClubLayout({ children, params }: ClubLayoutProps) 
     userPermissions.has("roles.edit");
   const canAccessAdvisor =
     userPermissions.has("events.approve") || userPermissions.has("announcements.approve");
+  const canInviteMembers = userPermissions.has("members.invite");
+  const canCreateEvents = userPermissions.has("events.create");
+  const isArchived = shell?.status === "archived";
+  const coverActions =
+    shell && !isArchived && (canInviteMembers || canCreateEvents) ? (
+      <>
+        {canInviteMembers ? (
+          <Link href={`/clubs/${clubId}/members#invite-members`} className="btn-primary text-sm">
+            Invite Members
+          </Link>
+        ) : null}
+        {canCreateEvents ? (
+          <Link href={`/clubs/${clubId}/events#create-event`} className="btn-secondary text-sm">
+            Create Event
+          </Link>
+        ) : null}
+      </>
+    ) : null;
 
   return (
     <section className="space-y-4 lg:space-y-6">
@@ -32,7 +51,8 @@ export default async function ClubLayout({ children, params }: ClubLayoutProps) 
             clubName={shell.name}
             memberCount={shell.memberCount}
             userRole={shell.userRole}
-            isArchived={shell.status === "archived"}
+            isArchived={isArchived}
+            actions={coverActions}
           />
           <div className="club-workspace-subnav px-3 sm:px-4 md:px-6">
             <ClubSubnav clubId={clubId} canViewSettings={canViewSettings} canAccessAdvisor={canAccessAdvisor} />

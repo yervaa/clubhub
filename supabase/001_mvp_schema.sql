@@ -1,4 +1,4 @@
--- ClubHub MVP schema for Supabase/Postgres
+-- Clubora MVP schema for Supabase/Postgres
 -- Apply this file in Supabase SQL Editor or with Supabase CLI.
 
 create extension if not exists "pgcrypto";

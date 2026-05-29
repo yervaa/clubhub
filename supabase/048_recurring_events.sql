@@ -1,5 +1,5 @@
 -- Recurring events: explicit series + concrete generated event rows.
--- Keep ClubHub behavior unchanged by storing each occurrence as a normal `events` row.
+-- Keep Clubora behavior unchanged by storing each occurrence as a normal `events` row.
 
 create table if not exists public.event_series (
   id uuid primary key default gen_random_uuid(),

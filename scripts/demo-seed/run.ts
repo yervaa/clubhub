@@ -1,5 +1,5 @@
 /**
- * Demo / test data seeder for ClubHub.
+ * Demo / test data seeder for Clubora.
  *
  * Usage:
  *   npx tsx scripts/demo-seed/run.ts           # reset demo clubs + reseed
@@ -53,7 +53,7 @@ function assertRemoteTargetOptIn(): void {
   if (!ok) {
     throw new Error(
       `Refused: demo seed targets a non-loopback Supabase host (${host}). ` +
-        `This can delete demo clubs and *.demo@clubhub.test users on THAT project. ` +
+        `This can delete demo clubs and *.demo@clubora.test users on THAT project. ` +
         `Set ${DEMO_SEED_REMOTE_OK_FLAG}=true to confirm, or use local Supabase (127.0.0.1).`,
     );
   }
@@ -78,7 +78,7 @@ async function main(): Promise<void> {
   });
 
   if (!noReset) {
-    console.log("Removing previous demo clubs and *.demo@clubhub.test users…");
+    console.log("Removing previous demo clubs and *.demo@clubora.test users…");
     const { clubsRemoved, usersRemoved } = await resetDemoData(admin);
     console.log(`  Deleted ${clubsRemoved} demo club(s), ${usersRemoved} demo user(s).`);
   }
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
   console.log("Seeding clubs, RBAC, events, tasks, notifications, audit…");
   await seedDemoDataset(admin, userIds);
 
-  console.log("\nDone. Log in with any *.{slug}.demo@clubhub.test — password in scripts/demo-seed/README.md");
+  console.log("\nDone. Log in with any *.{slug}.demo@clubora.test — password in scripts/demo-seed/README.md");
 }
 
 main().catch((err) => {

@@ -57,7 +57,7 @@ export function PublicClubPageView({ data, viewerIsAuthenticated }: PublicClubPa
                 {clubInitials(name)}
               </div>
               <div className="min-w-0 pb-0.5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-white/85">Club on ClubHub</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-white/85">Club on Clubora</p>
                 <h1 id="public-club-title" className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
                   {name}
                 </h1>
@@ -74,7 +74,7 @@ export function PublicClubPageView({ data, viewerIsAuthenticated }: PublicClubPa
             >
               <p className="font-semibold text-amber-950">This club is archived.</p>
               <p className="mt-1.5 leading-relaxed text-amber-950/90">
-                It is not accepting new members on ClubHub. If you think this is a mistake, contact your school or club
+                It is not accepting new members on Clubora. If you think this is a mistake, contact your school or club
                 officers.
               </p>
               <p className="mt-4">
@@ -82,7 +82,7 @@ export function PublicClubPageView({ data, viewerIsAuthenticated }: PublicClubPa
                   href="/"
                   className="inline-flex min-h-10 items-center justify-center rounded-lg border border-amber-300/80 bg-white px-4 text-sm font-semibold text-amber-950 shadow-sm transition hover:bg-amber-50"
                 >
-                  ClubHub home
+                  Clubora home
                 </Link>
               </p>
             </div>
@@ -177,7 +177,7 @@ export function PublicClubPageView({ data, viewerIsAuthenticated }: PublicClubPa
                 >
                   <p className="font-medium text-slate-800">Nothing on the calendar yet</p>
                   <p className="mt-1">
-                    When officers add future events in ClubHub, the next ones will show up here for people browsing this
+                    When officers add future events in Clubora, the next ones will show up here for people browsing this
                     page.
                   </p>
                 </div>
@@ -192,7 +192,7 @@ export function PublicClubPageView({ data, viewerIsAuthenticated }: PublicClubPa
               aria-describedby="public-club-join-summary"
             >
               <h2 id="public-club-join-heading" className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                Join on ClubHub
+                Join on Clubora
               </h2>
               <p id="public-club-join-summary" className="mt-2 text-sm leading-relaxed text-slate-700">
                 {requireJoinApproval ? (

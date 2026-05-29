@@ -33,12 +33,12 @@ ALLOW_PILOT_SHOWCASE=true PILOT_SHOWCASE_TARGET_OK=true npm run seed:pilot-showc
 
 | Variable | Purpose |
 |----------|---------|
-| `PILOT_SHOWCASE_EMAIL` | Primary 1 email (default `showcase.pilot@clubhub.local`) |
+| `PILOT_SHOWCASE_EMAIL` | Primary 1 email (default `showcase.pilot@clubora.local`) |
 | `PILOT_SHOWCASE_PASSWORD` | Primary 1 password |
-| `PILOT_SHOWCASE_EMAIL_2` | Primary 2 email (default `showcase.pilot2@clubhub.local`) |
+| `PILOT_SHOWCASE_EMAIL_2` | Primary 2 email (default `showcase.pilot2@clubora.local`) |
 | `PILOT_SHOWCASE_PASSWORD_2` | Primary 2 password |
 
-Other roster accounts use `showcase.{elena,marcus,...}@clubhub.local` with `ROSTER_PASSWORD` from `constants.ts`.
+Other roster accounts use `showcase.{elena,marcus,...}@clubora.local` with `ROSTER_PASSWORD` from `constants.ts`.
 
 Join codes: **MSACLB**, **DECACL**, **PHOCLB**.
 

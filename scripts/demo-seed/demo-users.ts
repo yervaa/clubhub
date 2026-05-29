@@ -5,7 +5,7 @@ export type DemoUserDef = {
   fullName: string;
 };
 
-/** ~24 fictional students — emails `{slug}.demo@clubhub.test` */
+/** ~24 fictional students — emails `{slug}.demo@clubora.test` */
 export const DEMO_USERS: DemoUserDef[] = [
   { slug: "aaliyah", fullName: "Aaliyah Rahman" },
   { slug: "omar", fullName: "Omar Hassan" },

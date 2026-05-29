@@ -32,7 +32,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="card-surface max-w-lg p-8 sm:p-9">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Welcome Back</p>
           <h1 className="section-title mt-2">Login</h1>
-          <p className="section-subtitle">Access your ClubHub dashboard.</p>
+          <p className="section-subtitle">Access your Clubora dashboard.</p>
 
           {params.message ? <p className="alert-success mt-6">{params.message}</p> : null}
           {params.error ? <p className="alert-error mt-4">{params.error}</p> : null}
@@ -64,7 +64,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </form>
 
           <p className="mt-6 text-sm text-slate-600">
-            New to ClubHub?{" "}
+            New to Clubora?{" "}
             <Link href={`/signup?next=${encodeURIComponent(nextPath)}`} className="font-semibold text-slate-900 hover:text-slate-700">
               Create an account
             </Link>

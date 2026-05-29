@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation";
 import { ClubColorDot } from "@/components/ui/club-color-dot";
 
-export const GLOBAL_SEARCH_OPEN_EVENT = "clubhub:global-search-open";
+export const GLOBAL_SEARCH_OPEN_EVENT = "clubora:global-search-open";
 
 type SearchClub = { id: string; name: string; description: string | null };
 type SearchAnnouncement = { id: string; title: string; club_id: string; club_name: string };

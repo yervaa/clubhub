@@ -22,7 +22,7 @@ function statusLabel(status: MemberImportPreviewRow["status"]): string {
     case "duplicate_in_file":
       return "Duplicate in file";
     case "no_profile":
-      return "No ClubHub account";
+      return "No Clubora account";
     case "already_member":
       return "Already in club";
     default:
@@ -153,7 +153,7 @@ export function MemberImportPanel({ clubId }: { clubId: string }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-800">Leadership</p>
           <h3 className="mt-1 text-base font-semibold text-slate-900">Import member list (CSV)</h3>
           <p className="mt-2 max-w-2xl text-sm text-slate-700">
-            Add people who already have ClubHub accounts. Each row is checked before anything is written. Unknown emails
+            Add people who already have Clubora accounts. Each row is checked before anything is written. Unknown emails
             and people already in this club are skipped. This does not create new user accounts or send invitations.
           </p>
         </div>
@@ -207,7 +207,7 @@ export function MemberImportPanel({ clubId }: { clubId: string }) {
                 <span className="font-semibold text-emerald-800">{preview.summary.ready}</span> will be added as members
               </li>
               <li>{preview.summary.alreadyMember} already in this club (skipped)</li>
-              <li>{preview.summary.noProfile} no matching ClubHub account (skipped)</li>
+              <li>{preview.summary.noProfile} no matching Clubora account (skipped)</li>
               <li>{preview.summary.duplicateInFile} duplicate emails in the file (skipped)</li>
               <li>{preview.summary.invalidEmail} invalid email format</li>
               <li>{preview.summary.missingEmail} rows missing an email</li>

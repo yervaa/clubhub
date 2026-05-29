@@ -1,4 +1,4 @@
--- ClubHub authorization hardening
+-- Clubora authorization hardening
 -- Apply this after 001_mvp_schema.sql on existing projects.
 
 create or replace function public.handle_new_club()
