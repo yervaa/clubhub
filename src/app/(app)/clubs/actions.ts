@@ -555,9 +555,43 @@ export async function joinClubAction(formData: FormData) {
   );
 }
 
-function safeAttachmentFilename(name: string): string {
+/** Canonical extension per allowlisted attachment MIME (used to normalize stored object names). */
+const ATTACHMENT_EXTENSION_BY_MIME: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+};
+
+/**
+ * Sniffs the real file type from leading magic bytes. Returns an allowlisted
+ * MIME string or null. Never trust the client-supplied `file.type` for this.
+ */
+function sniffAttachmentMime(bytes: Uint8Array): string | null {
+  const matches = (sig: number[], offset = 0) => sig.every((b, i) => bytes[offset + i] === b);
+
+  // PDF: "%PDF-"
+  if (matches([0x25, 0x50, 0x44, 0x46, 0x2d])) return "application/pdf";
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (matches([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  // JPEG: FF D8 FF
+  if (matches([0xff, 0xd8, 0xff])) return "image/jpeg";
+  // GIF: "GIF8"
+  if (matches([0x47, 0x49, 0x46, 0x38])) return "image/gif";
+  // WebP: "RIFF" .... "WEBP"
+  if (matches([0x52, 0x49, 0x46, 0x46]) && matches([0x57, 0x45, 0x42, 0x50], 8)) return "image/webp";
+
+  return null;
+}
+
+/** Sanitizes the filename and normalizes its extension to match the server-validated MIME. */
+function safeAttachmentFilename(name: string, mime: string): string {
+  const ext = ATTACHMENT_EXTENSION_BY_MIME[mime] ?? "bin";
   const base = name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
-  return base || "file";
+  const withoutExt = base.replace(/\.[a-zA-Z0-9]+$/, "");
+  const safeBase = withoutExt || "file";
+  return `${safeBase}.${ext}`;
 }
 
 const MAX_PINNED_ANNOUNCEMENTS = 3;
@@ -621,18 +655,29 @@ export async function createAnnouncementAction(formData: FormData) {
     );
   }
 
+  const attachmentTypeError = "Attachments must be images (JPEG, PNG, GIF, WebP) or PDF.";
+  const validatedAttachments: { file: File; mime: string }[] = [];
   for (const file of attachmentFiles) {
     if (file.size > MAX_ANNOUNCEMENT_ATTACHMENT_BYTES) {
       redirect(
         `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent("Each attachment must be 5 MB or smaller.")}`,
       );
     }
-    const mime = (file.type || "").toLowerCase();
-    if (!ANNOUNCEMENT_ATTACHMENT_MIMES.has(mime)) {
+    const declaredMime = (file.type || "").toLowerCase();
+    if (!ANNOUNCEMENT_ATTACHMENT_MIMES.has(declaredMime)) {
       redirect(
-        `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent("Attachments must be images (JPEG, PNG, GIF, WebP) or PDF.")}`,
+        `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(attachmentTypeError)}`,
       );
     }
+    // Authoritative check: sniff the real type from leading bytes; client mime is spoofable.
+    const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+    const sniffedMime = sniffAttachmentMime(header);
+    if (!sniffedMime || !ANNOUNCEMENT_ATTACHMENT_MIMES.has(sniffedMime) || sniffedMime !== declaredMime) {
+      redirect(
+        `/clubs/${parsed.data.clubId}/announcements?annError=${encodeURIComponent(attachmentTypeError)}`,
+      );
+    }
+    validatedAttachments.push({ file, mime: sniffedMime });
   }
 
   const supabase = await createClient();
@@ -757,11 +802,10 @@ export async function createAnnouncementAction(formData: FormData) {
     });
   }
 
-  if (attachmentFiles.length > 0) {
+  if (validatedAttachments.length > 0) {
     const admin = createAdminClient();
-    for (const file of attachmentFiles) {
-      const mime = (file.type || "application/octet-stream").toLowerCase();
-      const path = `${parsed.data.clubId}/${announcementId}/${randomUUID()}-${safeAttachmentFilename(file.name)}`;
+    for (const { file, mime } of validatedAttachments) {
+      const path = `${parsed.data.clubId}/${announcementId}/${randomUUID()}-${safeAttachmentFilename(file.name, mime)}`;
       const buf = Buffer.from(await file.arrayBuffer());
       const { error: upErr } = await admin.storage.from("announcement-attachments").upload(path, buf, {
         contentType: mime,

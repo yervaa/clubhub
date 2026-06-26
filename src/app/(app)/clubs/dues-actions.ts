@@ -205,7 +205,7 @@ export async function startDuesCheckoutAction(formData: FormData) {
 
   const { data: existingPay, error: payFetchErr } = await supabase
     .from("dues_payments")
-    .select("id, status")
+    .select("id, status, stripe_checkout_session_id")
     .eq("dues_id", duesId)
     .eq("club_id", clubId)
     .eq("user_id", user.id)
@@ -231,6 +231,17 @@ export async function startDuesCheckoutAction(formData: FormData) {
   const stripe = getStripe();
   const successUrl = `${origin}/clubs/${clubId}/dues?session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${origin}/clubs/${clubId}/dues?canceled=1`;
+
+  // F2: ensure only one live checkout session per payment row. Expire any prior
+  // session before opening a new one so a member can't complete a stale session
+  // (and be double-charged). May already be expired/completed — ignore errors.
+  if (existingPay?.stripe_checkout_session_id) {
+    try {
+      await stripe.checkout.sessions.expire(existingPay.stripe_checkout_session_id);
+    } catch (err) {
+      console.warn("[dues checkout] could not expire prior session", err);
+    }
+  }
 
   let paymentId: string | undefined = existingPay?.id;
 
@@ -295,7 +306,11 @@ export async function startDuesCheckoutAction(formData: FormData) {
     redirect(duesUrl(clubId, { error: encodeURIComponent("Stripe did not return a checkout URL.") }));
   }
 
-  const { error: updErr } = await supabase
+  // F1: persist the session id with the service-role client. dues_payments has
+  // no UPDATE RLS policy, so a user-scoped update would silently no-op and the
+  // webhook could never reconcile this payment by session id.
+  const admin = createAdminClient();
+  const { error: updErr } = await admin
     .from("dues_payments")
     .update({ stripe_checkout_session_id: session.id, status: "pending" })
     .eq("id", paymentId as string);

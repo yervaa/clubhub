@@ -43,11 +43,11 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; bg: string; text: strin
   completed:   { label: "Completed",   bg: "bg-green-100",  text: "text-green-700", dot: "bg-green-500"  },
 };
 
-const PRIORITY_CONFIG: Record<TaskPriority, { label: string; bg: string; text: string; border: string }> = {
-  low:    { label: "Low",    bg: "bg-slate-100",  text: "text-slate-500",  border: "border-slate-300" },
-  medium: { label: "Medium", bg: "bg-blue-100",   text: "text-blue-600",   border: "border-blue-300"  },
-  high:   { label: "High",   bg: "bg-amber-100",  text: "text-amber-700",  border: "border-amber-300" },
-  urgent: { label: "Urgent", bg: "bg-red-100",    text: "text-red-700",    border: "border-red-400"   },
+const PRIORITY_CONFIG: Record<TaskPriority, { label: string; bg: string; text: string }> = {
+  low:    { label: "Low",    bg: "bg-slate-100",  text: "text-slate-500"  },
+  medium: { label: "Medium", bg: "bg-blue-100",   text: "text-blue-600"   },
+  high:   { label: "High",   bg: "bg-amber-100",  text: "text-amber-700"  },
+  urgent: { label: "Urgent", bg: "bg-red-100",    text: "text-red-700"    },
 };
 
 const PRIORITY_LEFT_BORDER: Record<TaskPriority, string> = {
@@ -78,12 +78,11 @@ function initials(name: string): string {
     .join("");
 }
 
-function AssigneeAvatar({ assignee, size = "sm" }: { assignee: TaskAssignee; size?: "sm" | "md" }) {
+function AssigneeAvatar({ assignee }: { assignee: TaskAssignee }) {
   const name = displayName(assignee);
-  const sizeClass = size === "sm" ? "h-6 w-6 text-[10px]" : "h-7 w-7 text-xs";
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-full bg-slate-700 font-semibold text-white ${sizeClass}`}
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-[9px] font-semibold text-white"
       title={name}
     >
       {initials(name)}
@@ -91,12 +90,10 @@ function AssigneeAvatar({ assignee, size = "sm" }: { assignee: TaskAssignee; siz
   );
 }
 
-// ─── Task Status Badge ────────────────────────────────────────────────────────
-
 function StatusBadge({ status }: { status: TaskStatus }) {
   const cfg = STATUS_CONFIG[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
       {cfg.label}
     </span>
@@ -106,7 +103,7 @@ function StatusBadge({ status }: { status: TaskStatus }) {
 function PriorityBadge({ priority }: { priority: TaskPriority }) {
   const cfg = PRIORITY_CONFIG[priority];
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}>
       {cfg.label}
     </span>
   );
@@ -135,10 +132,8 @@ function TaskForm({ clubId, clubMembers, permissions, editTask, onSuccess, onCan
 
   const formRef = useRef<HTMLFormElement>(null);
 
-  // When action succeeds, call onSuccess.
   useEffect(() => {
     if (state.ok && !isPending) {
-      // Only clear after a real submit (the initial render also has ok:true).
       if (formRef.current?.dataset.submitted === "true") {
         onSuccess();
         formRef.current.dataset.submitted = "";
@@ -165,7 +160,6 @@ function TaskForm({ clubId, clubMembers, permissions, editTask, onSuccess, onCan
       <input type="hidden" name="club_id" value={clubId} />
       {editTask && <input type="hidden" name="task_id" value={editTask.id} />}
 
-      {/* Title */}
       <div>
         <label htmlFor="task-title" className="mb-1.5 block text-sm font-medium text-slate-700">
           Title <span className="text-red-500">*</span>
@@ -181,7 +175,6 @@ function TaskForm({ clubId, clubMembers, permissions, editTask, onSuccess, onCan
         />
       </div>
 
-      {/* Description */}
       <div>
         <label htmlFor="task-desc" className="mb-1.5 block text-sm font-medium text-slate-700">
           Description
@@ -196,7 +189,6 @@ function TaskForm({ clubId, clubMembers, permissions, editTask, onSuccess, onCan
         />
       </div>
 
-      {/* Priority + Status row */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="task-priority" className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -233,7 +225,6 @@ function TaskForm({ clubId, clubMembers, permissions, editTask, onSuccess, onCan
         </div>
       </div>
 
-      {/* Due date */}
       <div>
         <label htmlFor="task-due" className="mb-1.5 block text-sm font-medium text-slate-700">
           Due Date
@@ -251,7 +242,6 @@ function TaskForm({ clubId, clubMembers, permissions, editTask, onSuccess, onCan
         />
       </div>
 
-      {/* Assignees */}
       {(permissions.canAssign || permissions.canCreate) && clubMembers.length > 0 && (
         <div>
           <p className="mb-2 block text-sm font-medium text-slate-700">Assignees</p>
@@ -309,9 +299,9 @@ function TaskForm({ clubId, clubMembers, permissions, editTask, onSuccess, onCan
   );
 }
 
-// ─── Task Card ────────────────────────────────────────────────────────────────
+// ─── Task Row ─────────────────────────────────────────────────────────────────
 
-type TaskCardProps = {
+type TaskRowProps = {
   task: ClubTask;
   currentUserId: string;
   permissions: TaskPermissions;
@@ -323,7 +313,7 @@ type TaskCardProps = {
   onEditSuccess: () => void;
 };
 
-function TaskCard({
+function TaskRow({
   task,
   currentUserId,
   permissions,
@@ -333,7 +323,9 @@ function TaskCard({
   onEdit,
   onCancelEdit,
   onEditSuccess,
-}: TaskCardProps) {
+}: TaskRowProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const [statusState, statusAction, isStatusPending] = useActionState<TaskActionResult, FormData>(
     updateTaskStatusAction,
     { ok: true },
@@ -346,12 +338,11 @@ function TaskCard({
   const isAssignee = task.assignees.some((a) => a.userId === currentUserId);
   const canChangeStatus = permissions.canEdit || (permissions.canComplete && isAssignee);
   const canComplete = permissions.canEdit || (permissions.canComplete && isAssignee);
-
   const borderClass = PRIORITY_LEFT_BORDER[task.priority];
 
   if (isEditing) {
     return (
-      <div className={`card-surface border-l-4 p-5 ${borderClass}`}>
+      <div className={`task-row task-row--editing border-l-4 px-4 py-4 ${borderClass}`}>
         <p className="mb-4 text-sm font-semibold text-slate-900">Edit Task</p>
         <TaskForm
           clubId={clubId}
@@ -367,36 +358,94 @@ function TaskCard({
 
   return (
     <div
-      className={`card-surface border-l-4 p-3 transition hover:shadow-md sm:p-4 ${borderClass} ${
-        task.status === "completed" ? "opacity-70" : ""
-      } max-sm:border max-sm:border-slate-200/90 max-sm:bg-white max-sm:shadow-sm`}
+      className={`task-row border-l-4 ${borderClass} ${task.status === "completed" ? "opacity-60" : ""}`}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+      <div className="flex items-start">
+        {/* Clickable expand area */}
+        <button
+          type="button"
+          onClick={() => setIsExpanded((v) => !v)}
+          className="task-row__toggle min-w-0 flex-1 px-4 py-3 text-left"
+          aria-expanded={isExpanded}
+        >
+          {/* Line 1: title + badges */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`text-sm font-medium text-slate-900 ${
+                task.status === "completed" ? "line-through text-slate-500" : ""
+              }`}
+            >
+              {task.title}
+            </span>
             <StatusBadge status={task.status} />
             <PriorityBadge priority={task.priority} />
             {task.isOverdue && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 sm:text-xs">
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Overdue
               </span>
             )}
           </div>
-          <h3
-            className={`mt-2 text-[15px] font-semibold leading-snug tracking-tight text-slate-900 sm:text-sm ${task.status === "completed" ? "line-through" : ""}`}
-          >
-            {task.title}
-          </h3>
-          {task.description && (
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{task.description}</p>
-          )}
-        </div>
 
-        <div className="flex items-center justify-end gap-1.5 border-t border-slate-100 pt-3 sm:border-0 sm:pt-0">
-          {/* Quick-complete button */}
+          {/* Line 2: description (collapsed = 1-line truncate) */}
+          {task.description && (
+            <p
+              className={`mt-1 text-xs leading-relaxed text-slate-500 ${
+                isExpanded ? "" : "truncate"
+              }`}
+            >
+              {task.description}
+            </p>
+          )}
+
+          {/* Line 3: assignees + due + creator + chevron */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+            {task.assignees.length > 0 ? (
+              <div className="flex -space-x-0.5">
+                {task.assignees.slice(0, 5).map((a) => (
+                  <AssigneeAvatar key={a.userId} assignee={a} />
+                ))}
+                {task.assignees.length > 5 && (
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[9px] font-semibold text-slate-600">
+                    +{task.assignees.length - 5}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400">Unassigned</span>
+            )}
+
+            {task.dueAt && (
+              <span className={`text-xs ${task.isOverdue ? "text-red-600 font-medium" : "text-slate-400"}`}>
+                Due {task.dueAt}
+              </span>
+            )}
+
+            {task.createdByName && (
+              <span className="text-xs text-slate-400">by {task.createdByName}</span>
+            )}
+
+            <svg
+              className={`ml-auto h-3 w-3 flex-shrink-0 text-slate-400 transition-transform duration-150 ${
+                isExpanded ? "rotate-180" : ""
+              }`}
+              fill="none"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                clipRule="evenodd"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
+        </button>
+
+        {/* Action buttons (always visible, outside the expand toggle) */}
+        <div className="flex shrink-0 items-center gap-0.5 px-2 py-3">
           {canComplete && task.status !== "completed" && (
             <form
               action={(fd) => {
@@ -410,9 +459,9 @@ function TaskCard({
                 type="submit"
                 disabled={isStatusPending}
                 title="Mark complete"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-green-500 hover:bg-green-50 hover:text-green-600 sm:h-7 sm:w-7"
+                className="task-action-btn"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               </button>
@@ -422,9 +471,9 @@ function TaskCard({
           {permissions.canEdit && (
             <button
               type="button"
-              onClick={onEdit}
+              onClick={() => { onEdit(); setIsExpanded(false); }}
               title="Edit task"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-slate-400 hover:bg-slate-100 hover:text-slate-700 sm:h-7 sm:w-7"
+              className="task-action-btn"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -449,7 +498,7 @@ function TaskCard({
                     e.preventDefault();
                   }
                 }}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-red-400 hover:bg-red-50 hover:text-red-600 sm:h-7 sm:w-7"
+                className="task-action-btn task-action-btn--danger"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -460,56 +509,19 @@ function TaskCard({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* Assignees */}
-          {task.assignees.length > 0 ? (
-            <div className="flex -space-x-1">
-              {task.assignees.slice(0, 4).map((a) => (
-                <AssigneeAvatar key={a.userId} assignee={a} />
-              ))}
-              {task.assignees.length > 4 && (
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600">
-                  +{task.assignees.length - 4}
-                </span>
-              )}
-            </div>
-          ) : (
-            <span className="text-xs text-slate-400">Unassigned</span>
-          )}
-
-          {/* Due date */}
-          {task.dueAt && (
-            <span className={`flex items-center gap-1 text-xs font-medium ${task.isOverdue ? "text-red-600" : "text-slate-500"}`}>
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {task.dueAt}
-            </span>
-          )}
-        </div>
-
-        {/* Created by */}
-        {task.createdByName && (
-          <span className="text-xs text-slate-400">by {task.createdByName}</span>
-        )}
-      </div>
-
-      {/* Status change dropdown (only for users with tasks.edit) */}
-      {canChangeStatus && task.status !== "completed" && (
-        <div className="mt-3 border-t border-slate-100 pt-3">
-          <form
-            action={(fd) => {
-              fd.set("club_id", clubId);
-              fd.set("task_id", task.id);
-              statusAction(fd);
-            }}
-            className="flex flex-col gap-2"
-          >
-            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500 sm:text-xs sm:normal-case sm:tracking-normal">
-              Move to
-            </span>
-            <div className="flex flex-wrap gap-2">
+      {/* Expanded panel */}
+      {isExpanded && (
+        <div className="task-row__panel border-t border-[color:var(--color-border-tertiary)] px-4 py-3">
+          {canChangeStatus && task.status !== "completed" && (
+            <form
+              action={(fd) => {
+                fd.set("club_id", clubId);
+                fd.set("task_id", task.id);
+                statusAction(fd);
+              }}
+              className="flex flex-wrap items-center gap-2"
+            >
+              <span className="text-xs font-medium text-slate-500">Move to</span>
               {(["todo", "in_progress", "blocked"] as TaskStatus[])
                 .filter((s) => s !== task.status)
                 .map((s) => {
@@ -521,22 +533,24 @@ function TaskCard({
                       name="status"
                       value={s}
                       disabled={isStatusPending}
-                      className={`min-h-10 rounded-full px-3 py-2 text-xs font-semibold transition hover:opacity-80 sm:min-h-9 ${cfg.bg} ${cfg.text}`}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition hover:opacity-80 ${cfg.bg} ${cfg.text}`}
                     >
                       {cfg.label}
                     </button>
                   );
                 })}
-            </div>
-          </form>
+            </form>
+          )}
+          {!statusState.ok && (
+            <p className="mt-2 text-xs text-red-600">{(statusState as { ok: false; error: string }).error}</p>
+          )}
         </div>
       )}
 
-      {!statusState.ok && (
-        <p className="mt-2 text-xs text-red-600">{(statusState as { ok: false; error: string }).error}</p>
-      )}
       {!deleteState.ok && (
-        <p className="mt-2 text-xs text-red-600">{(deleteState as { ok: false; error: string }).error}</p>
+        <p className="border-t border-red-100 px-4 py-2 text-xs text-red-600">
+          {(deleteState as { ok: false; error: string }).error}
+        </p>
       )}
     </div>
   );
@@ -546,7 +560,6 @@ function TaskCard({
 
 export function ClubTasksSection({
   clubId,
-  clubName,
   currentUserId,
   tasks,
   myTasks,
@@ -559,13 +572,11 @@ export function ClubTasksSection({
   const [filterAssigneeMe, setFilterAssigneeMe] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Derived stats.
   const total = tasks.length;
   const openCount = tasks.filter((t) => t.status !== "completed").length;
   const overdueCount = tasks.filter((t) => t.isOverdue).length;
   const completedCount = tasks.filter((t) => t.status === "completed").length;
 
-  // Client-side filtering.
   const filteredTasks = tasks.filter((t) => {
     if (filterStatus !== "all" && t.status !== filterStatus) return false;
     if (filterAssigneeMe && !t.assignees.some((a) => a.userId === currentUserId)) return false;
@@ -582,120 +593,79 @@ export function ClubTasksSection({
   ];
 
   return (
-    <section className="page-sections">
+    <div className="page-sections">
+      {/* Page header: title + Add Task */}
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Tasks</h1>
+        {permissions.canCreate && (
+          <button
+            type="button"
+            onClick={() => setShowCreateForm(true)}
+            className="btn-primary shrink-0"
+          >
+            + Add Task
+          </button>
+        )}
+      </div>
 
-      <header className="card-surface border border-slate-200/90 bg-gradient-to-br from-slate-50 to-emerald-50/80 p-4 shadow-sm sm:p-6 lg:border-2 lg:p-8 lg:shadow-[var(--shadow-soft)]">
-        <div className="max-w-4xl">
-          <h1 className="section-title text-xl sm:text-3xl md:text-4xl">Tasks</h1>
-
-          {/* Stats row */}
-          <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-6 sm:grid-cols-4 lg:mt-8">
-            <div className="rounded-lg border border-slate-200/90 bg-white/85 px-3 py-2.5">
-              <p className="text-xl font-bold text-slate-900 sm:text-2xl">{total}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Total</p>
-            </div>
-            <div className="rounded-lg border border-slate-200/90 bg-white/85 px-3 py-2.5">
-              <p className="text-xl font-bold text-slate-900 sm:text-2xl">{openCount}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Open</p>
-            </div>
-            <div className="rounded-lg border border-red-200/80 bg-red-50/70 px-3 py-2.5">
-              <p className="text-xl font-bold text-red-700 sm:text-2xl">{overdueCount}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-red-600">Overdue</p>
-            </div>
-            <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/70 px-3 py-2.5">
-              <p className="text-xl font-bold text-emerald-700 sm:text-2xl">{myTasks.length}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-emerald-600">Mine</p>
-            </div>
-          </div>
-
-          {permissions.canCreate && (
-            <div className="mt-4 sm:mt-6 lg:mt-8">
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(true)}
-                className="btn-primary w-full px-6 py-3 text-base font-semibold sm:w-auto"
-              >
-                + Add Task
-              </button>
-            </div>
-          )}
+      {/* Compact stat tiles */}
+      <div className="club-tasks-stats">
+        <div className="club-tasks-stat">
+          <p className="club-tasks-stat__value">{total}</p>
+          <p className="club-tasks-stat__label">Total</p>
         </div>
-      </header>
+        <div className="club-tasks-stat">
+          <p className="club-tasks-stat__value">{openCount}</p>
+          <p className="club-tasks-stat__label">Open</p>
+        </div>
+        <div className="club-tasks-stat club-tasks-stat--overdue">
+          <p className="club-tasks-stat__value">{overdueCount}</p>
+          <p className="club-tasks-stat__label">Overdue</p>
+        </div>
+        <div className="club-tasks-stat club-tasks-stat--mine">
+          <p className="club-tasks-stat__value">{myTasks.length}</p>
+          <p className="club-tasks-stat__label">Mine</p>
+        </div>
+      </div>
 
-      {/* ── Create task form ─────────────────────────────────────────────── */}
+      {/* Create form (inline card, shown when button pressed) */}
       {showCreateForm && (
-        <div className="card-surface p-4 sm:p-6">
-          <div className="section-card-header">
-            <div>
-              <p className="section-kicker">New</p>
-              <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Create Task</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Define the task, set a due date, and assign it to one or more members.
-              </p>
-            </div>
-          </div>
-          <div className="mt-5">
-            <TaskForm
-              clubId={clubId}
-              clubMembers={clubMembers}
-              permissions={permissions}
-              onSuccess={() => setShowCreateForm(false)}
-              onCancel={() => setShowCreateForm(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ── My Tasks ─────────────────────────────────────────────────────── */}
-      {myTasks.length > 0 && !filterAssigneeMe && (
         <div className="card-surface p-4 sm:p-5">
-          <div className="section-card-header">
-            <div>
-              <p className="section-kicker">Personal</p>
-              <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900">My Open Tasks</h2>
-              <p className="mt-1 text-sm text-slate-600">Tasks assigned to you that are not yet complete.</p>
-            </div>
-            <span className="badge-soft">{myTasks.length}</span>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 className="text-base font-semibold text-slate-900">Create Task</h2>
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(false)}
+              className="rounded-md p-1 text-slate-400 hover:text-slate-600"
+              aria-label="Close"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div className="list-stack mt-4 space-y-3">
-            {myTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                currentUserId={currentUserId}
-                permissions={permissions}
-                clubMembers={clubMembers}
-                clubId={clubId}
-                isEditing={editingTaskId === task.id}
-                onEdit={() => setEditingTaskId(task.id)}
-                onCancelEdit={() => setEditingTaskId(null)}
-                onEditSuccess={() => setEditingTaskId(null)}
-              />
-            ))}
-          </div>
+          <TaskForm
+            clubId={clubId}
+            clubMembers={clubMembers}
+            permissions={permissions}
+            onSuccess={() => setShowCreateForm(false)}
+            onCancel={() => setShowCreateForm(false)}
+          />
         </div>
       )}
 
-      {/* ── All tasks section ─────────────────────────────────────────────── */}
-      <div className="card-surface p-4 sm:p-5">
-        <div className="section-card-header">
-          <div>
-            <p className="section-kicker">All Tasks</p>
-            <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-900 sm:text-lg">{clubName} tasks</h2>
-          </div>
-          <span className="badge-soft">{filteredTasks.length}</span>
-        </div>
-
-        {/* Filters */}
-        <div className="mt-4 space-y-3">
-          {/* Status filter tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+      {/* ONE card: filter bar + task rows */}
+      <div className="card-surface overflow-hidden p-0">
+        {/* Filter toolbar */}
+        <div className="club-tasks-toolbar">
+          {/* Status pills */}
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
             {filterTabs.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
                 onClick={() => setFilterStatus(tab.value)}
-                className={`shrink-0 min-h-10 rounded-lg px-3 py-2 text-xs font-semibold transition sm:min-h-0 sm:py-1.5 ${
+                className={`shrink-0 min-h-9 rounded-full px-3 py-1.5 text-xs font-semibold transition sm:min-h-0 sm:py-1 ${
                   filterStatus === tab.value
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -703,7 +673,13 @@ export function ClubTasksSection({
               >
                 {tab.label}
                 {tab.count !== undefined && (
-                  <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${filterStatus === tab.value ? "bg-white/20 text-white" : "bg-slate-200 text-slate-500"}`}>
+                  <span
+                    className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] ${
+                      filterStatus === tab.value
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-200 text-slate-500"
+                    }`}
+                  >
                     {tab.count}
                   </span>
                 )}
@@ -711,12 +687,12 @@ export function ClubTasksSection({
             ))}
           </div>
 
-          {/* Assignee + search row */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          {/* Assignee + overdue + search row */}
+          <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => setFilterAssigneeMe((v) => !v)}
-              className={`flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition sm:w-auto sm:min-h-0 sm:py-1.5 ${
+              className={`flex min-h-9 w-full items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition sm:w-auto sm:min-h-0 sm:py-1 ${
                 filterAssigneeMe
                   ? "bg-emerald-700 text-white"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -729,24 +705,15 @@ export function ClubTasksSection({
             </button>
 
             {overdueCount > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFilterStatus("all");
-                  setFilterAssigneeMe(false);
-                  setSearch("");
-                  // We'll highlight overdue via the card, not a separate filter
-                }}
-                className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-red-100 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-200 sm:w-auto sm:min-h-0 sm:py-1.5"
-              >
+              <span className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-full bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 sm:w-auto sm:min-h-0 sm:py-1">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 {overdueCount} overdue
-              </button>
+              </span>
             )}
 
-            <div className="relative w-full sm:ml-auto sm:w-56 md:w-64">
+            <div className="relative w-full sm:ml-auto sm:w-52">
               <svg className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -755,39 +722,42 @@ export function ClubTasksSection({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search tasks…"
-                className="min-h-10 w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 sm:h-8 sm:min-h-0 sm:py-0 sm:text-xs"
+                className="min-h-9 w-full rounded-full border border-slate-200 bg-white py-1.5 pl-9 pr-3 text-xs text-slate-700 placeholder-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 sm:min-h-0 sm:py-1"
               />
             </div>
           </div>
         </div>
 
         {/* Task list */}
-        <div className="mt-5 space-y-3">
+        <div className="club-tasks-list">
           {filteredTasks.length === 0 ? (
             tasks.length === 0 ? (
-              <EmptyState
-                icon="ti-checkbox"
-                title="No tasks yet"
-                description={
-                  permissions.canCreate
-                    ? "Add an assignment so members know what to work on."
-                    : "Assignments and to-dos for this club show up here."
-                }
-                action={
-                  permissions.canCreate
-                    ? { label: "Create task", onClick: () => setShowCreateForm(true) }
-                    : undefined
-                }
-              />
+              <div className="px-4 py-8">
+                <EmptyState
+                  icon="ti-checkbox"
+                  title="No tasks yet"
+                  description={
+                    permissions.canCreate
+                      ? "Add an assignment so members know what to work on."
+                      : "Assignments and to-dos for this club show up here."
+                  }
+                  action={
+                    permissions.canCreate
+                      ? { label: "Create task", onClick: () => setShowCreateForm(true) }
+                      : undefined
+                  }
+                  embedded
+                />
+              </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 px-6 py-12 text-center">
+              <div className="px-6 py-10 text-center">
                 <p className="text-sm font-semibold text-slate-700">No tasks match your filters</p>
                 <p className="mt-1 text-xs text-slate-500">Try adjusting the status filter or search term.</p>
               </div>
             )
           ) : (
             filteredTasks.map((task) => (
-              <TaskCard
+              <TaskRow
                 key={task.id}
                 task={task}
                 currentUserId={currentUserId}
@@ -803,6 +773,6 @@ export function ClubTasksSection({
           )}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
